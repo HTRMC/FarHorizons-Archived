@@ -1,8 +1,6 @@
 #pragma once
 
 #include <GLFW/glfw3.h>
-#include <array>
-#include <glm/glm.hpp>
 
 namespace VoxelEngine {
 
@@ -16,6 +14,7 @@ enum class KeyCode {
     Period = GLFW_KEY_PERIOD,
     Slash = GLFW_KEY_SLASH,
 
+    // Number keys (prefixed with D for "Digit" since identifiers can't start with numbers)
     Zero = GLFW_KEY_0,
     One = GLFW_KEY_1,
     Two = GLFW_KEY_2,
@@ -136,73 +135,6 @@ enum class GamepadAxis {
     RightTrigger = GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER,
 
     MaxAxes = GLFW_GAMEPAD_AXIS_LAST + 1
-};
-
-class Input {
-public:
-    // Initialize input system (call once per frame)
-    static void init(GLFWwindow* window);
-    static void update();
-
-    // Keyboard
-    static bool isKeyPressed(KeyCode key);
-    static bool isKeyDown(KeyCode key);      // Just pressed this frame
-    static bool isKeyReleased(KeyCode key);  // Just released this frame
-
-    // Mouse buttons
-    static bool isMouseButtonPressed(MouseButton button);
-    static bool isMouseButtonDown(MouseButton button);
-    static bool isMouseButtonReleased(MouseButton button);
-
-    // Mouse position
-    static glm::vec2 getMousePosition();
-    static glm::vec2 getMouseDelta();
-    static float getMouseX() { return getMousePosition().x; }
-    static float getMouseY() { return getMousePosition().y; }
-
-    // Mouse scroll
-    static glm::vec2 getMouseScroll();
-    static float getMouseScrollX() { return s_mouseScroll.x; }
-    static float getMouseScrollY() { return s_mouseScroll.y; }
-
-    // Gamepad (joystick 0)
-    static bool isGamepadConnected();
-    static bool isGamepadButtonPressed(GamepadButton button);
-    static bool isGamepadButtonDown(GamepadButton button);
-    static bool isGamepadButtonReleased(GamepadButton button);
-    static float getGamepadAxis(GamepadAxis axis);
-    static glm::vec2 getGamepadLeftStick();
-    static glm::vec2 getGamepadRightStick();
-
-    // Modifiers
-    static bool isShiftPressed();
-    static bool isControlPressed();
-    static bool isAltPressed();
-    static bool isSuperPressed();
-
-    // GLFW callbacks (internal use)
-    static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
-    static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
-    static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
-
-private:
-    static GLFWwindow* s_window;
-
-    // Keyboard state
-    static std::array<bool, static_cast<size_t>(KeyCode::MaxKeys)> s_keys;
-    static std::array<bool, static_cast<size_t>(KeyCode::MaxKeys)> s_keysPrevious;
-
-    // Mouse state
-    static std::array<bool, static_cast<size_t>(MouseButton::MaxButtons)> s_mouseButtons;
-    static std::array<bool, static_cast<size_t>(MouseButton::MaxButtons)> s_mouseButtonsPrevious;
-    static glm::vec2 s_mousePosition;
-    static glm::vec2 s_mousePositionPrevious;
-    static glm::vec2 s_mouseScroll;
-
-    // Gamepad state
-    static std::array<bool, static_cast<size_t>(GamepadButton::MaxButtons)> s_gamepadButtons;
-    static std::array<bool, static_cast<size_t>(GamepadButton::MaxButtons)> s_gamepadButtonsPrevious;
-    static std::array<float, static_cast<size_t>(GamepadAxis::MaxAxes)> s_gamepadAxes;
 };
 
 } // namespace VoxelEngine

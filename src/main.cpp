@@ -1,6 +1,7 @@
 #include <iostream>
 #include "core/Window.hpp"
-#include "core/Input.hpp"
+#include "core/InputSystem.hpp"
+#include "core/InputAction.hpp"
 #include "events/Event.hpp"
 #include "events/EventBus.hpp"
 
@@ -18,8 +19,40 @@ int main() {
 
         Window window(props);
 
-        // Initialize input system
-        Input::init(window.getNativeWindow());
+        // Initialize AAA input system with event queue
+        InputSystem::init(window.getNativeWindow());
+
+        // Set up Input Actions (Unreal-style)
+        auto& jumpAction = InputActionManager::createAction("Jump");
+        jumpAction.addBinding(InputBinding(KeyCode::Space));
+        jumpAction.addBinding(InputBinding(GamepadButton::A));
+        jumpAction.bind([]() {
+            std::cout << "[Action] Jump!" << std::endl;
+        });
+
+        auto& fireAction = InputActionManager::createAction("Fire");
+        fireAction.addBinding(InputBinding(MouseButton::Left));
+        fireAction.addBinding(InputBinding(GamepadButton::RightBumper));
+        fireAction.bind([]() {
+            std::cout << "[Action] Fire!" << std::endl;
+        });
+
+        // Set up Input Axes (continuous values)
+        auto& moveForwardAxis = InputActionManager::createAxis("MoveForward");
+        moveForwardAxis.addBinding(InputBinding(KeyCode::W, 1.0f));
+        moveForwardAxis.addBinding(InputBinding(KeyCode::S, -1.0f));
+        moveForwardAxis.addBinding(InputBinding(GamepadAxis::LeftY, -1.0f)); // Inverted Y
+        moveForwardAxis.bind([](float value) {
+            // std::cout << "[Axis] MoveForward: " << value << std::endl;
+        });
+
+        auto& moveRightAxis = InputActionManager::createAxis("MoveRight");
+        moveRightAxis.addBinding(InputBinding(KeyCode::D, 1.0f));
+        moveRightAxis.addBinding(InputBinding(KeyCode::A, -1.0f));
+        moveRightAxis.addBinding(InputBinding(GamepadAxis::LeftX, 1.0f));
+        moveRightAxis.bind([](float value) {
+            // std::cout << "[Axis] MoveRight: " << value << std::endl;
+        });
 
         // Subscribe to window events
         auto resizeHandle = EventBus::subscribe<WindowResizeEvent>([](WindowResizeEvent& e) {
@@ -50,68 +83,56 @@ int main() {
             EventBus::post(event);
         });
 
-        std::cout << "=== Vulkan Voxel Engine - Input System Demo ===" << std::endl;
-        std::cout << "Controls:" << std::endl;
-        std::cout << "  WASD - Move" << std::endl;
-        std::cout << "  Space - Jump" << std::endl;
+        std::cout << "=== Vulkan Voxel Engine - AAA Input System Demo ===" << std::endl;
+        std::cout << "Features:" << std::endl;
+        std::cout << "  - Event Queue (zero input loss)" << std::endl;
+        std::cout << "  - Thread-Safe callbacks" << std::endl;
+        std::cout << "  - Timestamped events" << std::endl;
+        std::cout << "  - Input Action Mapping (Unreal-style)" << std::endl;
+        std::cout << "  - Professional deadzone handling" << std::endl;
+        std::cout << "\nControls:" << std::endl;
+        std::cout << "  WASD / Left Stick - Move" << std::endl;
+        std::cout << "  Space / A Button - Jump" << std::endl;
         std::cout << "  Shift - Sprint" << std::endl;
         std::cout << "  Ctrl - Crouch" << std::endl;
-        std::cout << "  Mouse - Look around" << std::endl;
+        std::cout << "  Mouse / Right Stick - Look" << std::endl;
         std::cout << "  Mouse Wheel - Zoom" << std::endl;
-        std::cout << "  Left Click - Primary action" << std::endl;
-        std::cout << "  Right Click - Secondary action" << std::endl;
+        std::cout << "  Left Click / RT - Fire" << std::endl;
         std::cout << "  F - Toggle fullscreen" << std::endl;
         std::cout << "  L - Lock cursor" << std::endl;
         std::cout << "  ESC - Exit" << std::endl;
-        std::cout << "===============================================" << std::endl;
+        std::cout << "=====================================================" << std::endl;
 
         bool cursorLocked = false;
-        glm::vec2 lastMousePos = Input::getMousePosition();
 
         // Main loop
         while (!window.shouldClose()) {
-            // Poll window events
+            // Poll window events (GLFW)
             window.pollEvents();
 
-            // Update input state
-            Input::update();
+            // Process input events from queue (AAA system!)
+            InputSystem::processEvents();
 
-            // Process queued events
+            // Process input actions (Unreal-style)
+            InputActionManager::processInput();
+
+            // Process window events
             EventBus::processQueue();
 
-            // === Keyboard Input Demo ===
-
-            // Movement
-            if (Input::isKeyPressed(KeyCode::W)) {
-                // Move forward
-            }
-            if (Input::isKeyPressed(KeyCode::S)) {
-                // Move backward
-            }
-            if (Input::isKeyPressed(KeyCode::A)) {
-                // Move left
-            }
-            if (Input::isKeyPressed(KeyCode::D)) {
-                // Move right
-            }
-
-            // Jump (only when first pressed, not held)
-            if (Input::isKeyDown(KeyCode::Space)) {
-                std::cout << "[Input] Jump!" << std::endl;
-            }
+            // === Direct Input Queries (still available!) ===
 
             // Sprint modifier
-            if (Input::isShiftPressed()) {
+            if (InputSystem::isShiftPressed()) {
                 // Apply sprint multiplier
             }
 
             // Crouch modifier
-            if (Input::isControlPressed()) {
+            if (InputSystem::isControlPressed()) {
                 // Apply crouch
             }
 
             // Toggle fullscreen
-            if (Input::isKeyDown(KeyCode::F)) {
+            if (InputSystem::isKeyDown(KeyCode::F)) {
                 static bool isFullscreen = false;
                 isFullscreen = !isFullscreen;
                 window.setFullscreen(isFullscreen);
@@ -119,68 +140,37 @@ int main() {
             }
 
             // Toggle cursor lock
-            if (Input::isKeyDown(KeyCode::L)) {
+            if (InputSystem::isKeyDown(KeyCode::L)) {
                 cursorLocked = !cursorLocked;
                 window.setCursorMode(cursorLocked ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
                 std::cout << "[Input] Cursor: " << (cursorLocked ? "LOCKED" : "UNLOCKED") << std::endl;
             }
 
             // Exit on ESC
-            if (Input::isKeyDown(KeyCode::Escape)) {
+            if (InputSystem::isKeyDown(KeyCode::Escape)) {
                 std::cout << "[Input] ESC pressed - closing window" << std::endl;
                 window.close();
             }
 
-            // === Mouse Input Demo ===
-
-            // Mouse buttons
-            if (Input::isMouseButtonDown(MouseButton::Left)) {
-                glm::vec2 pos = Input::getMousePosition();
-                std::cout << "[Input] Left click at (" << pos.x << ", " << pos.y << ")" << std::endl;
-            }
-
-            if (Input::isMouseButtonDown(MouseButton::Right)) {
-                glm::vec2 pos = Input::getMousePosition();
-                std::cout << "[Input] Right click at (" << pos.x << ", " << pos.y << ")" << std::endl;
-            }
-
-            // Mouse movement (for camera control)
-            glm::vec2 mouseDelta = Input::getMouseDelta();
+            // === Mouse Demo ===
+            glm::vec2 mouseDelta = InputSystem::getMouseDelta();
             if (cursorLocked && glm::length(mouseDelta) > 0.1f) {
-                // Apply camera rotation based on mouse delta
-                // Example: camera.rotate(mouseDelta.x * sensitivity, mouseDelta.y * sensitivity);
+                // Apply camera rotation
+                // camera.rotate(mouseDelta.x * sensitivity, mouseDelta.y * sensitivity);
             }
 
-            // Mouse scroll
-            glm::vec2 scroll = Input::getMouseScroll();
+            glm::vec2 scroll = InputSystem::getMouseScroll();
             if (scroll.y != 0.0f) {
                 std::cout << "[Input] Mouse scroll: " << scroll.y << std::endl;
             }
 
-            // === Gamepad Input Demo ===
-
-            if (Input::isGamepadConnected()) {
-                // Gamepad buttons
-                if (Input::isGamepadButtonDown(GamepadButton::A)) {
-                    std::cout << "[Input] Gamepad A button pressed" << std::endl;
+            // === Gamepad Demo ===
+            if (InputSystem::isGamepadConnected()) {
+                glm::vec2 rightStick = InputSystem::getGamepadRightStick();
+                if (glm::length(rightStick) > 0.01f) {
+                    // Rotate camera with right stick (deadzone already applied!)
+                    // camera.rotate(rightStick.x * sensitivity, rightStick.y * sensitivity);
                 }
-
-                // Analog sticks
-                glm::vec2 leftStick = Input::getGamepadLeftStick();
-                glm::vec2 rightStick = Input::getGamepadRightStick();
-
-                // Apply deadzone
-                const float deadzone = 0.15f;
-                if (glm::length(leftStick) > deadzone) {
-                    // Move character based on left stick
-                }
-                if (glm::length(rightStick) > deadzone) {
-                    // Rotate camera based on right stick
-                }
-
-                // Triggers
-                float leftTrigger = Input::getGamepadAxis(GamepadAxis::LeftTrigger);
-                float rightTrigger = Input::getGamepadAxis(GamepadAxis::RightTrigger);
             }
 
             // === Render Loop Would Go Here ===
@@ -191,6 +181,8 @@ int main() {
         }
 
         // Clean up
+        InputSystem::shutdown();
+        InputActionManager::clear();
         EventBus::unsubscribe(resizeHandle);
         EventBus::unsubscribe(closeHandle);
         EventBus::unsubscribe(focusHandle);
