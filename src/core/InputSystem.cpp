@@ -70,6 +70,46 @@ void InputSystem::processEvents() {
         gamepad.axesPrevious = gamepad.axes;
     }
 
+    // Poll gamepad state and generate events (GLFW has no gamepad callbacks)
+    for (int jid = 0; jid < 4; ++jid) {
+        if (!s_gamepads[jid].connected) continue;
+
+        GLFWgamepadstate state;
+        if (glfwGetGamepadState(GLFW_JOYSTICK_1 + jid, &state)) {
+            // Check button changes (compare current vs previous)
+            for (int i = 0; i <= GLFW_GAMEPAD_BUTTON_LAST; ++i) {
+                bool current = (state.buttons[i] == GLFW_PRESS);
+                if (current != s_gamepads[jid].buttons[i]) {
+                    auto type = current ? InputEventType::GamepadButtonPressed : InputEventType::GamepadButtonReleased;
+                    GamepadButtonEventData event(type, jid, static_cast<GamepadButton>(i), glfwGetTime());
+                    s_eventQueue.push(event);
+#ifndef NDEBUG
+                    auto enumName = magic_enum::enum_name(static_cast<GamepadButton>(i));
+                    std::println("[InputSystem] Gamepad {} button {}: {}", jid, enumName,
+                        current ? "pressed" : "released");
+#endif
+                }
+            }
+
+            // Check axis changes
+            for (int i = 0; i <= GLFW_GAMEPAD_AXIS_LAST; ++i) {
+                float current = state.axes[i];
+                float previous = s_gamepads[jid].axes[i];
+
+                // Only generate event if change is significant (> 0.01)
+                if (std::abs(current - previous) > 0.01f) {
+                    GamepadAxisEventData event(jid, static_cast<GamepadAxis>(i), current, previous, glfwGetTime());
+                    s_eventQueue.push(event);
+#ifndef NDEBUG
+                    auto enumName = magic_enum::enum_name(static_cast<GamepadAxis>(i));
+                    std::println("[InputSystem] Gamepad {} axis {}: {:.3f} (was {:.3f})",
+                        jid, enumName, current, previous);
+#endif
+                }
+            }
+        }
+    }
+
     // Get all events from queue (thread-safe)
     s_processedEvents = s_eventQueue.pollEvents();
 
@@ -277,10 +317,18 @@ void InputSystem::joystickCallback(int jid, int event) {
         GamepadConnectionEventData eventData(InputEventType::GamepadConnected, jid,
             glfwGetGamepadName(jid), glfwGetTime());
         s_eventQueue.push(eventData);
+
+#ifndef NDEBUG
+        std::println("[InputSystem] Gamepad {} connected: {}", jid, glfwGetGamepadName(jid));
+#endif
     } else if (event == GLFW_DISCONNECTED) {
         s_gamepads[jid].connected = false;
         GamepadConnectionEventData eventData(InputEventType::GamepadDisconnected, jid, "", glfwGetTime());
         s_eventQueue.push(eventData);
+
+#ifndef NDEBUG
+        std::println("[InputSystem] Gamepad {} disconnected", jid);
+#endif
     }
 }
 
