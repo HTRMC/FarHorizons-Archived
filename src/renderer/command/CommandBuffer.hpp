@@ -42,12 +42,18 @@ public:
     void bindVertexBuffer(VkBuffer buffer, VkDeviceSize offset = 0) const;
     void bindIndexBuffer(VkBuffer buffer, VkDeviceSize offset = 0, VkIndexType indexType = VK_INDEX_TYPE_UINT32) const;
 
-    // Push constants
-    void pushConstants(VkPipelineLayout layout, VkShaderStageFlags stageFlags, uint32_t offset, uint32_t size, const void* data) const;
-
     // Viewport/Scissor
     void setViewport(const VkViewport& viewport) const;
     void setScissor(const VkRect2D& scissor) const;
+
+    // Push constants
+    void pushConstants(
+        VkPipelineLayout layout,
+        VkShaderStageFlags stageFlags,
+        uint32_t offset,
+        uint32_t size,
+        const void* data
+    ) const;
 
     // Image transitions
     void transitionImageLayout(

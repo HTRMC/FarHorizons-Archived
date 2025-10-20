@@ -1,6 +1,8 @@
 #include <iostream>
+#include <chrono>
 #include "core/Window.hpp"
 #include "core/InputSystem.hpp"
+#include "core/Camera.hpp"
 #include "renderer/core/VulkanContext.hpp"
 #include "renderer/swapchain/Swapchain.hpp"
 #include "renderer/RenderContext.hpp"
@@ -24,7 +26,7 @@ int main() {
         // Initialize input system
         InputSystem::init(window.getNativeWindow());
 
-        std::cout << "=== Vulkan Voxel Engine - Triangle Demo ===" << std::endl;
+        std::cout << "=== Vulkan Voxel Engine - Camera Demo ===" << std::endl;
         std::cout << "Modern Vulkan 1.4 Renderer:" << std::endl;
         std::cout << "  - Dynamic Rendering (no VkRenderPass)" << std::endl;
         std::cout << "  - Synchronization2" << std::endl;
@@ -32,8 +34,11 @@ int main() {
         std::cout << "  - VMA Memory Management" << std::endl;
         std::cout << "  - Double-buffered frames" << std::endl;
         std::cout << "\nControls:" << std::endl;
+        std::cout << "  WASD - Move camera" << std::endl;
+        std::cout << "  Arrow Keys - Rotate camera" << std::endl;
+        std::cout << "  Space/Shift - Move up/down" << std::endl;
         std::cout << "  ESC - Exit" << std::endl;
-        std::cout << "===========================================" << std::endl;
+        std::cout << "==========================================" << std::endl;
 
         // Initialize Vulkan
         VulkanContext vulkanContext;
@@ -63,18 +68,35 @@ int main() {
         GraphicsPipeline pipeline;
         pipeline.init(vulkanContext.getDevice().getLogicalDevice(), pipelineConfig);
 
+        // Create camera
+        Camera camera;
+        float aspectRatio = static_cast<float>(window.getWidth()) / static_cast<float>(window.getHeight());
+        camera.init(glm::vec3(0.0f, 0.0f, 3.0f), aspectRatio, 70.0f);
+
         std::cout << "\n[Main] Setup complete, entering render loop..." << std::endl;
 
-        // Track window resize
+        // Track window resize and update camera aspect ratio
         bool framebufferResized = false;
-        window.setResizeCallback([&framebufferResized](uint32_t width, uint32_t height) {
+        window.setResizeCallback([&framebufferResized, &camera](uint32_t width, uint32_t height) {
             framebufferResized = true;
+            camera.setAspectRatio(static_cast<float>(width) / static_cast<float>(height));
         });
+
+        // Delta time tracking
+        auto lastTime = std::chrono::high_resolution_clock::now();
 
         // Main loop
         while (!window.shouldClose()) {
+            // Calculate delta time
+            auto currentTime = std::chrono::high_resolution_clock::now();
+            float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
+            lastTime = currentTime;
+
             window.pollEvents();
             InputSystem::processEvents();
+
+            // Update camera with delta time
+            camera.update(deltaTime);
 
             // Handle window resize
             if (framebufferResized) {
@@ -127,8 +149,20 @@ int main() {
             scissor.extent = swapchain.getExtent();
             cmd.setScissor(scissor);
 
-            // Bind pipeline and draw triangle
+            // Bind pipeline
             cmd.bindPipeline(pipeline.getPipeline());
+
+            // Push camera view-projection matrix
+            glm::mat4 viewProj = camera.getViewProjectionMatrix();
+            cmd.pushConstants(
+                pipeline.getLayout(),
+                VK_SHADER_STAGE_VERTEX_BIT,
+                0,
+                sizeof(glm::mat4),
+                &viewProj
+            );
+
+            // Draw triangle
             cmd.draw(3); // 3 vertices (hardcoded in shader)
 
             // End rendering

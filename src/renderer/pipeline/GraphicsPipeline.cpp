@@ -1,5 +1,6 @@
 #include "GraphicsPipeline.hpp"
 #include "../core/VulkanDebug.hpp"
+#include <glm/glm.hpp>
 #include <iostream>
 
 namespace VoxelEngine {
@@ -112,12 +113,18 @@ void GraphicsPipeline::init(VkDevice device, const GraphicsPipelineConfig& confi
     dynamicState.pDynamicStates = dynamicStates.data();
 
     // Pipeline layout (empty for now - no descriptors/push constants)
+    // Push constant range for view-projection matrix (mat4 = 64 bytes)
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(glm::mat4); // 64 bytes
+
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 0;
     pipelineLayoutInfo.pSetLayouts = nullptr;
-    pipelineLayoutInfo.pushConstantRangeCount = 0;
-    pipelineLayoutInfo.pPushConstantRanges = nullptr;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
     VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_layout));
 
