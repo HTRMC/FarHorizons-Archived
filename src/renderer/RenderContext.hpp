@@ -5,6 +5,8 @@
 #include "sync/FrameSync.hpp"
 #include "command/CommandPool.hpp"
 #include "command/CommandBuffer.hpp"
+#include "memory/StagingBufferPool.hpp"
+#include "memory/RingBuffer.hpp"
 #include <vector>
 
 namespace VoxelEngine {
@@ -37,6 +39,8 @@ public:
     VulkanContext& getContext() { return *m_context; }
     Swapchain& getSwapchain() { return *m_swapchain; }
     uint32_t getCurrentImageIndex() const { return m_currentImageIndex; }
+    StagingBufferPool& getStagingPool() { return m_stagingPool; }
+    RingBuffer& getCurrentRingBuffer() { return m_ringBuffers[m_frameSync.getCurrentFrameIndex()]; }
 
 private:
     VulkanContext* m_context = nullptr;
@@ -50,6 +54,10 @@ private:
     // Per-swapchain-image renderFinished semaphores (indexed by swapchain image index)
     // Using per-image semaphores prevents reuse issues with triple buffering
     std::vector<Semaphore> m_renderFinishedSemaphores;
+
+    // Memory management
+    StagingBufferPool m_stagingPool;
+    std::vector<RingBuffer> m_ringBuffers; // One per frame in flight
 
     uint32_t m_currentImageIndex = 0;
     bool m_frameInProgress = false;

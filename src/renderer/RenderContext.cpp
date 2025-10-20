@@ -43,6 +43,16 @@ void RenderContext::init(VulkanContext& context, Swapchain& swapchain) {
         m_renderFinishedSemaphores[i].init(device);
     }
 
+    // Initialize memory management
+    auto allocator = m_context->getAllocator();
+    m_stagingPool.init(allocator, 64 * 1024 * 1024); // 64MB default staging buffer size
+
+    // Create per-frame ring buffers for dynamic data (uniforms, etc.)
+    m_ringBuffers.resize(FrameSync::MAX_FRAMES_IN_FLIGHT);
+    for (uint32_t i = 0; i < FrameSync::MAX_FRAMES_IN_FLIGHT; i++) {
+        m_ringBuffers[i].init(allocator, 16 * 1024 * 1024); // 16MB per frame
+    }
+
     std::cout << "[RenderContext] Initialized (Frames in flight: " << FrameSync::MAX_FRAMES_IN_FLIGHT
               << ", Swapchain images: " << imageCount << ")" << std::endl;
 }
@@ -50,6 +60,13 @@ void RenderContext::init(VulkanContext& context, Swapchain& swapchain) {
 void RenderContext::shutdown() {
     if (m_context) {
         m_context->waitIdle();
+
+        // Clean up memory management
+        for (auto& ringBuffer : m_ringBuffers) {
+            ringBuffer.cleanup();
+        }
+        m_ringBuffers.clear();
+        m_stagingPool.cleanup();
 
         for (auto& pool : m_commandPools) {
             pool.cleanup();
@@ -90,6 +107,11 @@ bool RenderContext::beginFrame() {
     }
 
     m_frameInProgress = true;
+
+    // Reset per-frame memory allocators
+    uint32_t frameIndex = m_frameSync.getCurrentFrameIndex();
+    m_ringBuffers[frameIndex].reset();
+    m_stagingPool.reset();
 
     // Begin command buffer
     auto cmd = getCurrentCommandBuffer();
