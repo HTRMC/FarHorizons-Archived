@@ -68,6 +68,12 @@ void RenderContext::shutdown() {
         m_ringBuffers.clear();
         m_stagingPool.cleanup();
 
+        // Clean up per-swapchain-image semaphores
+        for (auto& semaphore : m_renderFinishedSemaphores) {
+            semaphore.cleanup();
+        }
+        m_renderFinishedSemaphores.clear();
+
         for (auto& pool : m_commandPools) {
             pool.cleanup();
         }
