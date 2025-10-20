@@ -33,7 +33,18 @@ void RenderContext::init(VulkanContext& context, Swapchain& swapchain) {
         VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, m_commandBuffers[i].data()));
     }
 
-    std::cout << "[RenderContext] Initialized" << std::endl;
+    // Create per-swapchain-image renderFinished semaphores (indexed by swapchain image index)
+    // This ensures each swapchain image has a dedicated renderFinished semaphore,
+    // preventing reuse issues when we have more swapchain images than frames in flight
+    uint32_t imageCount = static_cast<uint32_t>(m_swapchain->getImages().size());
+    m_renderFinishedSemaphores.resize(imageCount);
+
+    for (uint32_t i = 0; i < imageCount; i++) {
+        m_renderFinishedSemaphores[i].init(device);
+    }
+
+    std::cout << "[RenderContext] Initialized (Frames in flight: " << FrameSync::MAX_FRAMES_IN_FLIGHT
+              << ", Swapchain images: " << imageCount << ")" << std::endl;
 }
 
 void RenderContext::shutdown() {
@@ -59,11 +70,12 @@ bool RenderContext::beginFrame() {
     auto device = m_context->getDevice().getLogicalDevice();
     auto& frame = m_frameSync.getCurrentFrame();
 
-    // Wait for previous frame to finish
+    // Wait for previous frame to finish (CPU-GPU sync)
     frame.renderFence.wait();
     frame.renderFence.reset();
 
     // Acquire next swapchain image
+    // Use per-frame imageAvailable semaphore (doesn't matter which image we get)
     VkResult result = m_swapchain->acquireNextImage(
         frame.imageAvailableSemaphore.getSemaphore(),
         m_currentImageIndex
@@ -115,6 +127,7 @@ void RenderContext::endFrame() {
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
+    // Wait on per-frame imageAvailable semaphore
     VkSemaphore waitSemaphores[] = {frame.imageAvailableSemaphore.getSemaphore()};
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     submitInfo.waitSemaphoreCount = 1;
@@ -125,16 +138,17 @@ void RenderContext::endFrame() {
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &cmdBuffer;
 
-    VkSemaphore signalSemaphores[] = {frame.renderFinishedSemaphore.getSemaphore()};
+    // Signal per-image renderFinished semaphore (prevents reuse issues with triple buffering)
+    VkSemaphore signalSemaphores[] = {m_renderFinishedSemaphores[m_currentImageIndex].getSemaphore()};
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
     VK_CHECK(vkQueueSubmit(m_context->getDevice().getGraphicsQueue(), 1, &submitInfo, frame.renderFence.getFence()));
 
-    // Present
+    // Present, waiting on per-image renderFinished semaphore
     VkResult result = m_swapchain->present(
         m_context->getDevice().getPresentQueue(),
-        frame.renderFinishedSemaphore.getSemaphore(),
+        m_renderFinishedSemaphores[m_currentImageIndex].getSemaphore(),
         m_currentImageIndex
     );
 

@@ -47,6 +47,10 @@ private:
     std::vector<CommandPool> m_commandPools;
     std::vector<std::vector<VkCommandBuffer>> m_commandBuffers;
 
+    // Per-swapchain-image renderFinished semaphores (indexed by swapchain image index)
+    // Using per-image semaphores prevents reuse issues with triple buffering
+    std::vector<Semaphore> m_renderFinishedSemaphores;
+
     uint32_t m_currentImageIndex = 0;
     bool m_frameInProgress = false;
 };
