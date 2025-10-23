@@ -142,6 +142,7 @@ void VulkanDevice::createLogicalDevice() {
     deviceFeatures.features.samplerAnisotropy = VK_TRUE;
     deviceFeatures.features.fillModeNonSolid = VK_TRUE; // Wireframe rendering
     deviceFeatures.features.wideLines = VK_TRUE;
+    deviceFeatures.features.multiDrawIndirect = VK_TRUE; // Multi-draw indirect for voxel chunks
     deviceFeatures.pNext = &vulkan13Features;
 
     // Create logical device

@@ -52,7 +52,12 @@ struct ChunkMesh {
     std::vector<uint32_t> indices;
 };
 
-ChunkMesh generateChunkMesh(const uint8_t* chunkData) {
+// Chunk position in world space
+struct ChunkPosition {
+    int32_t x, y, z;
+};
+
+ChunkMesh generateChunkMesh(const uint8_t* chunkData, ChunkPosition chunkPos = {0, 0, 0}) {
     ChunkMesh mesh;
 
     // Face vertices (relative to block position)
@@ -117,10 +122,11 @@ ChunkMesh generateChunkMesh(const uint8_t* chunkData) {
                     if (shouldRender) {
                         uint32_t startVertex = mesh.vertices.size();
 
-                        // Add 4 vertices for this face
+                        // Add 4 vertices for this face (with chunk offset)
+                        glm::vec3 chunkOffset(chunkPos.x * CHUNK_SIZE, chunkPos.y * CHUNK_SIZE, chunkPos.z * CHUNK_SIZE);
                         for (int v = 0; v < 4; v++) {
                             Vertex vertex;
-                            vertex.position = blockPos + faceVertices[face][v];
+                            vertex.position = chunkOffset + blockPos + faceVertices[face][v];
                             vertex.color = faceColors[face];
                             mesh.vertices.push_back(vertex);
                         }
@@ -227,47 +233,88 @@ int main() {
         vertShader.loadFromFile(vulkanContext.getDevice().getLogicalDevice(), "assets/minecraft/shaders/triangle.vsh.spv");
         fragShader.loadFromFile(vulkanContext.getDevice().getLogicalDevice(), "assets/minecraft/shaders/triangle.fsh.spv");
 
-        // Create 16x16x16 voxel chunk data (1D bit array)
-        uint8_t chunkData[CHUNK_BIT_ARRAY_SIZE] = {0};
+        // Generate multiple chunks in a grid
+        constexpr int32_t CHUNK_GRID_SIZE = 3; // 3x3x3 grid = 27 chunks
+        std::vector<Vertex> allVertices;
+        std::vector<uint32_t> allIndices;
+        std::vector<VkDrawIndexedIndirectCommand> drawCommands;
 
-        // Generate some interesting voxel pattern (hollow sphere + some random blocks)
-        float centerX = CHUNK_SIZE / 2.0f;
-        float centerY = CHUNK_SIZE / 2.0f;
-        float centerZ = CHUNK_SIZE / 2.0f;
-        float outerRadius = 7.0f;
-        float innerRadius = 5.0f;
+        std::cout << "[Main] Generating " << (CHUNK_GRID_SIZE * CHUNK_GRID_SIZE * CHUNK_GRID_SIZE) << " chunks..." << std::endl;
 
-        for (uint32_t z = 0; z < CHUNK_SIZE; z++) {
-            for (uint32_t y = 0; y < CHUNK_SIZE; y++) {
-                for (uint32_t x = 0; x < CHUNK_SIZE; x++) {
-                    float dx = x - centerX;
-                    float dy = y - centerY;
-                    float dz = z - centerZ;
-                    float distance = std::sqrt(dx*dx + dy*dy + dz*dz);
+        uint32_t totalChunks = 0;
+        for (int32_t cz = 0; cz < CHUNK_GRID_SIZE; cz++) {
+            for (int32_t cy = 0; cy < CHUNK_GRID_SIZE; cy++) {
+                for (int32_t cx = 0; cx < CHUNK_GRID_SIZE; cx++) {
+                    // Create chunk data with interesting pattern
+                    uint8_t chunkData[CHUNK_BIT_ARRAY_SIZE] = {0};
 
-                    // Create hollow sphere
-                    if (distance <= outerRadius && distance >= innerRadius) {
-                        setVoxel(chunkData, x, y, z, true);
+                    // Different pattern for each chunk layer
+                    if (cy == 0) {
+                        // Bottom layer - solid ground
+                        for (uint32_t y = 0; y < 2; y++) {
+                            for (uint32_t z = 0; z < CHUNK_SIZE; z++) {
+                                for (uint32_t x = 0; x < CHUNK_SIZE; x++) {
+                                    setVoxel(chunkData, x, y, z, true);
+                                }
+                            }
+                        }
+                    } else {
+                        // Upper layers - hollow sphere pattern
+                        float centerX = CHUNK_SIZE / 2.0f;
+                        float centerY = CHUNK_SIZE / 2.0f;
+                        float centerZ = CHUNK_SIZE / 2.0f;
+                        float outerRadius = 7.0f;
+                        float innerRadius = 5.0f;
+
+                        for (uint32_t z = 0; z < CHUNK_SIZE; z++) {
+                            for (uint32_t y = 0; y < CHUNK_SIZE; y++) {
+                                for (uint32_t x = 0; x < CHUNK_SIZE; x++) {
+                                    float dx = x - centerX;
+                                    float dy = y - centerY;
+                                    float dz = z - centerZ;
+                                    float distance = std::sqrt(dx*dx + dy*dy + dz*dz);
+
+                                    if (distance <= outerRadius && distance >= innerRadius) {
+                                        setVoxel(chunkData, x, y, z, true);
+                                    }
+                                }
+                            }
+                        }
                     }
-                    // Add ground plane
-                    else if (y == 0) {
-                        setVoxel(chunkData, x, y, z, true);
-                    }
+
+                    // Generate mesh for this chunk
+                    ChunkPosition chunkPos = {cx, cy, cz};
+                    ChunkMesh chunkMesh = generateChunkMesh(chunkData, chunkPos);
+
+                    // Skip empty chunks
+                    if (chunkMesh.indices.empty()) continue;
+
+                    // Store draw command for this chunk
+                    VkDrawIndexedIndirectCommand cmd{};
+                    cmd.indexCount = static_cast<uint32_t>(chunkMesh.indices.size());
+                    cmd.instanceCount = 1;
+                    cmd.firstIndex = static_cast<uint32_t>(allIndices.size());
+                    cmd.vertexOffset = static_cast<int32_t>(allVertices.size());
+                    cmd.firstInstance = 0;
+                    drawCommands.push_back(cmd);
+
+                    // Append vertices and indices
+                    allVertices.insert(allVertices.end(), chunkMesh.vertices.begin(), chunkMesh.vertices.end());
+                    allIndices.insert(allIndices.end(), chunkMesh.indices.begin(), chunkMesh.indices.end());
+
+                    totalChunks++;
                 }
             }
         }
 
-        std::cout << "[Main] Generating chunk mesh for 16x16x16 voxel chunk..." << std::endl;
+        std::cout << "[Main] Generated " << totalChunks << " non-empty chunks" << std::endl;
+        std::cout << "[Main] Total: " << allVertices.size() << " vertices, "
+                  << allIndices.size() << " indices, "
+                  << drawCommands.size() << " draw commands" << std::endl;
 
-        // Generate mesh from chunk data
-        ChunkMesh chunkMesh = generateChunkMesh(chunkData);
-
-        std::cout << "[Main] Generated mesh with " << chunkMesh.vertices.size() << " vertices and "
-                  << chunkMesh.indices.size() << " indices" << std::endl;
-
-        // Use the generated mesh data
-        auto& vertices = chunkMesh.vertices;
-        auto& indices = chunkMesh.indices;
+        // Use the combined mesh data
+        auto& vertices = allVertices;
+        auto& indices = allIndices;
 
         // Create vertex buffer
         Buffer vertexBuffer;
@@ -359,28 +406,20 @@ int main() {
         vkDestroyCommandPool(vulkanContext.getDevice().getLogicalDevice(), uploadPool, nullptr);
         stagingBuffer.cleanup();
 
-        // Create indirect draw buffer
-        VkDrawIndexedIndirectCommand indirectCommand{};
-        indirectCommand.indexCount = static_cast<uint32_t>(indices.size());
-        indirectCommand.instanceCount = 1;
-        indirectCommand.firstIndex = 0;
-        indirectCommand.vertexOffset = 0;
-        indirectCommand.firstInstance = 0;
-
+        // Create indirect draw buffer with all draw commands
         Buffer indirectBuffer;
         indirectBuffer.init(
             vulkanContext.getAllocator(),
-            sizeof(VkDrawIndexedIndirectCommand),
+            drawCommands.size() * sizeof(VkDrawIndexedIndirectCommand),
             VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
             VMA_MEMORY_USAGE_CPU_TO_GPU,
             VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
         );
         void* indirectData = indirectBuffer.map();
-        memcpy(indirectData, &indirectCommand, sizeof(VkDrawIndexedIndirectCommand));
+        memcpy(indirectData, drawCommands.data(), drawCommands.size() * sizeof(VkDrawIndexedIndirectCommand));
         indirectBuffer.unmap();
 
-        std::cout << "[Main] Created cube with " << vertices.size() << " vertices and "
-                  << indices.size() << " indices (multi-draw indirect)" << std::endl;
+        std::cout << "[Main] Created multi-draw indirect buffer with " << drawCommands.size() << " draw commands" << std::endl;
 
         // Create graphics pipeline with vertex input
         GraphicsPipelineConfig pipelineConfig;
@@ -417,10 +456,11 @@ int main() {
         GraphicsPipeline pipeline;
         pipeline.init(vulkanContext.getDevice().getLogicalDevice(), pipelineConfig);
 
-        // Create camera (position it to view the 16x16x16 chunk centered at 8,8,8)
+        // Create camera (position it to view the chunk grid)
         Camera camera;
         float aspectRatio = static_cast<float>(window.getWidth()) / static_cast<float>(window.getHeight());
-        camera.init(glm::vec3(8.0f, 8.0f, 30.0f), aspectRatio, 70.0f);
+        float gridCenter = (CHUNK_GRID_SIZE * CHUNK_SIZE) / 2.0f;
+        camera.init(glm::vec3(gridCenter, gridCenter, gridCenter + 60.0f), aspectRatio, 70.0f);
 
         std::cout << "\n[Main] Setup complete, entering render loop..." << std::endl;
 
@@ -529,8 +569,8 @@ int main() {
             cmd.bindVertexBuffer(vertexBuffer.getBuffer());
             cmd.bindIndexBuffer(indexBuffer.getBuffer());
 
-            // Draw cube using multi-draw indirect
-            cmd.drawIndexedIndirect(indirectBuffer.getBuffer(), 0, 1, sizeof(VkDrawIndexedIndirectCommand));
+            // Draw all chunks using multi-draw indirect
+            cmd.drawIndexedIndirect(indirectBuffer.getBuffer(), 0, static_cast<uint32_t>(drawCommands.size()), sizeof(VkDrawIndexedIndirectCommand));
 
             // End rendering
             cmd.endRendering();
