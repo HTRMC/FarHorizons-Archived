@@ -1,6 +1,7 @@
 #include <iostream>
 #include <chrono>
 #include <array>
+#include <cmath>
 #include "core/Window.hpp"
 #include "core/InputSystem.hpp"
 #include "core/Camera.hpp"
@@ -13,11 +14,133 @@
 
 using namespace VoxelEngine;
 
-// Vertex structure for cube
+// Vertex structure for voxel mesh
 struct Vertex {
     glm::vec3 position;
     glm::vec3 color;
 };
+
+// Chunk data structure
+constexpr uint32_t CHUNK_SIZE = 16;
+constexpr uint32_t CHUNK_VOLUME = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
+constexpr uint32_t CHUNK_BIT_ARRAY_SIZE = CHUNK_VOLUME / 8; // 4096 bits = 512 bytes
+
+// Helper functions for chunk data
+inline uint32_t getVoxelIndex(uint32_t x, uint32_t y, uint32_t z) {
+    return x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE;
+}
+
+inline bool getVoxel(const uint8_t* chunkData, uint32_t x, uint32_t y, uint32_t z) {
+    if (x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE) return false;
+    uint32_t index = getVoxelIndex(x, y, z);
+    return (chunkData[index / 8] & (1 << (index % 8))) != 0;
+}
+
+inline void setVoxel(uint8_t* chunkData, uint32_t x, uint32_t y, uint32_t z, bool value) {
+    if (x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE) return;
+    uint32_t index = getVoxelIndex(x, y, z);
+    if (value) {
+        chunkData[index / 8] |= (1 << (index % 8));
+    } else {
+        chunkData[index / 8] &= ~(1 << (index % 8));
+    }
+}
+
+// Mesh generation for voxel chunk
+struct ChunkMesh {
+    std::vector<Vertex> vertices;
+    std::vector<uint32_t> indices;
+};
+
+ChunkMesh generateChunkMesh(const uint8_t* chunkData) {
+    ChunkMesh mesh;
+
+    // Face vertices (relative to block position)
+    const glm::vec3 faceVertices[6][4] = {
+        // Front (+Z)
+        {glm::vec3(0, 0, 1), glm::vec3(1, 0, 1), glm::vec3(1, 1, 1), glm::vec3(0, 1, 1)},
+        // Back (-Z)
+        {glm::vec3(1, 0, 0), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0), glm::vec3(1, 1, 0)},
+        // Left (-X)
+        {glm::vec3(0, 0, 0), glm::vec3(0, 0, 1), glm::vec3(0, 1, 1), glm::vec3(0, 1, 0)},
+        // Right (+X)
+        {glm::vec3(1, 0, 1), glm::vec3(1, 0, 0), glm::vec3(1, 1, 0), glm::vec3(1, 1, 1)},
+        // Top (+Y)
+        {glm::vec3(0, 1, 0), glm::vec3(0, 1, 1), glm::vec3(1, 1, 1), glm::vec3(1, 1, 0)},
+        // Bottom (-Y)
+        {glm::vec3(0, 0, 1), glm::vec3(0, 0, 0), glm::vec3(1, 0, 0), glm::vec3(1, 0, 1)},
+    };
+
+    // Face colors
+    const glm::vec3 faceColors[6] = {
+        glm::vec3(1.0f, 0.3f, 0.3f), // Front - Red
+        glm::vec3(0.3f, 1.0f, 0.3f), // Back - Green
+        glm::vec3(0.3f, 0.3f, 1.0f), // Left - Blue
+        glm::vec3(1.0f, 1.0f, 0.3f), // Right - Yellow
+        glm::vec3(1.0f, 0.3f, 1.0f), // Top - Magenta
+        glm::vec3(0.3f, 1.0f, 1.0f), // Bottom - Cyan
+    };
+
+    // Neighbor offsets for each face
+    const int32_t neighbors[6][3] = {
+        {0, 0, 1},   // Front
+        {0, 0, -1},  // Back
+        {-1, 0, 0},  // Left
+        {1, 0, 0},   // Right
+        {0, 1, 0},   // Top
+        {0, -1, 0},  // Bottom
+    };
+
+    // Iterate through all voxels
+    for (uint32_t z = 0; z < CHUNK_SIZE; z++) {
+        for (uint32_t y = 0; y < CHUNK_SIZE; y++) {
+            for (uint32_t x = 0; x < CHUNK_SIZE; x++) {
+                if (!getVoxel(chunkData, x, y, z)) continue; // Skip air
+
+                glm::vec3 blockPos(x, y, z);
+
+                // Check each face
+                for (int face = 0; face < 6; face++) {
+                    int32_t nx = x + neighbors[face][0];
+                    int32_t ny = y + neighbors[face][1];
+                    int32_t nz = z + neighbors[face][2];
+
+                    // Only render face if neighbor is air or out of bounds
+                    bool shouldRender = false;
+                    if (nx < 0 || nx >= CHUNK_SIZE || ny < 0 || ny >= CHUNK_SIZE ||
+                        nz < 0 || nz >= CHUNK_SIZE) {
+                        shouldRender = true; // Out of bounds
+                    } else if (!getVoxel(chunkData, nx, ny, nz)) {
+                        shouldRender = true; // Neighbor is air
+                    }
+
+                    if (shouldRender) {
+                        uint32_t startVertex = mesh.vertices.size();
+
+                        // Add 4 vertices for this face
+                        for (int v = 0; v < 4; v++) {
+                            Vertex vertex;
+                            vertex.position = blockPos + faceVertices[face][v];
+                            vertex.color = faceColors[face];
+                            mesh.vertices.push_back(vertex);
+                        }
+
+                        // Add 2 triangles (6 indices)
+                        mesh.indices.push_back(startVertex + 0);
+                        mesh.indices.push_back(startVertex + 1);
+                        mesh.indices.push_back(startVertex + 2);
+
+                        mesh.indices.push_back(startVertex + 2);
+                        mesh.indices.push_back(startVertex + 3);
+                        mesh.indices.push_back(startVertex + 0);
+                    }
+                }
+            }
+        }
+    }
+
+    return mesh;
+}
 
 int main() {
     try {
@@ -60,60 +183,91 @@ int main() {
         RenderContext renderer;
         renderer.init(vulkanContext, swapchain);
 
+        // Create depth buffer
+        VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
+
+        VkImageCreateInfo depthImageInfo{};
+        depthImageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        depthImageInfo.imageType = VK_IMAGE_TYPE_2D;
+        depthImageInfo.format = depthFormat;
+        depthImageInfo.extent = {window.getWidth(), window.getHeight(), 1};
+        depthImageInfo.mipLevels = 1;
+        depthImageInfo.arrayLayers = 1;
+        depthImageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        depthImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        depthImageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        depthImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        depthImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+        VmaAllocationCreateInfo depthAllocInfo{};
+        depthAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+        VkImage depthImage;
+        VmaAllocation depthAllocation;
+        vmaCreateImage(vulkanContext.getAllocator(), &depthImageInfo, &depthAllocInfo, &depthImage, &depthAllocation, nullptr);
+
+        VkImageViewCreateInfo depthViewInfo{};
+        depthViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        depthViewInfo.image = depthImage;
+        depthViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        depthViewInfo.format = depthFormat;
+        depthViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        depthViewInfo.subresourceRange.baseMipLevel = 0;
+        depthViewInfo.subresourceRange.levelCount = 1;
+        depthViewInfo.subresourceRange.baseArrayLayer = 0;
+        depthViewInfo.subresourceRange.layerCount = 1;
+
+        VkImageView depthImageView;
+        vkCreateImageView(vulkanContext.getDevice().getLogicalDevice(), &depthViewInfo, nullptr, &depthImageView);
+
+        std::cout << "[Main] Created depth buffer (" << window.getWidth() << "x" << window.getHeight() << ")" << std::endl;
+
         // Load shaders
         Shader vertShader, fragShader;
         vertShader.loadFromFile(vulkanContext.getDevice().getLogicalDevice(), "assets/minecraft/shaders/triangle.vsh.spv");
         fragShader.loadFromFile(vulkanContext.getDevice().getLogicalDevice(), "assets/minecraft/shaders/triangle.fsh.spv");
 
-        // Define cube vertices (8 unique vertices with different colors per face)
-        std::vector<Vertex> vertices = {
-            // Front face (red tint)
-            {{-0.5f, -0.5f,  0.5f}, {1.0f, 0.3f, 0.3f}},
-            {{ 0.5f, -0.5f,  0.5f}, {1.0f, 0.3f, 0.3f}},
-            {{ 0.5f,  0.5f,  0.5f}, {1.0f, 0.3f, 0.3f}},
-            {{-0.5f,  0.5f,  0.5f}, {1.0f, 0.3f, 0.3f}},
-            // Back face (green tint)
-            {{-0.5f, -0.5f, -0.5f}, {0.3f, 1.0f, 0.3f}},
-            {{ 0.5f, -0.5f, -0.5f}, {0.3f, 1.0f, 0.3f}},
-            {{ 0.5f,  0.5f, -0.5f}, {0.3f, 1.0f, 0.3f}},
-            {{-0.5f,  0.5f, -0.5f}, {0.3f, 1.0f, 0.3f}},
-            // Left face (blue tint)
-            {{-0.5f, -0.5f, -0.5f}, {0.3f, 0.3f, 1.0f}},
-            {{-0.5f, -0.5f,  0.5f}, {0.3f, 0.3f, 1.0f}},
-            {{-0.5f,  0.5f,  0.5f}, {0.3f, 0.3f, 1.0f}},
-            {{-0.5f,  0.5f, -0.5f}, {0.3f, 0.3f, 1.0f}},
-            // Right face (yellow tint)
-            {{ 0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 0.3f}},
-            {{ 0.5f, -0.5f,  0.5f}, {1.0f, 1.0f, 0.3f}},
-            {{ 0.5f,  0.5f,  0.5f}, {1.0f, 1.0f, 0.3f}},
-            {{ 0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 0.3f}},
-            // Top face (magenta tint)
-            {{-0.5f,  0.5f, -0.5f}, {1.0f, 0.3f, 1.0f}},
-            {{-0.5f,  0.5f,  0.5f}, {1.0f, 0.3f, 1.0f}},
-            {{ 0.5f,  0.5f,  0.5f}, {1.0f, 0.3f, 1.0f}},
-            {{ 0.5f,  0.5f, -0.5f}, {1.0f, 0.3f, 1.0f}},
-            // Bottom face (cyan tint)
-            {{-0.5f, -0.5f, -0.5f}, {0.3f, 1.0f, 1.0f}},
-            {{-0.5f, -0.5f,  0.5f}, {0.3f, 1.0f, 1.0f}},
-            {{ 0.5f, -0.5f,  0.5f}, {0.3f, 1.0f, 1.0f}},
-            {{ 0.5f, -0.5f, -0.5f}, {0.3f, 1.0f, 1.0f}},
-        };
+        // Create 16x16x16 voxel chunk data (1D bit array)
+        uint8_t chunkData[CHUNK_BIT_ARRAY_SIZE] = {0};
 
-        // Define cube indices (6 faces * 2 triangles * 3 indices = 36 indices)
-        std::vector<uint32_t> indices = {
-            // Front
-            0, 1, 2,  2, 3, 0,
-            // Back
-            5, 4, 7,  7, 6, 5,
-            // Left
-            8, 9, 10,  10, 11, 8,
-            // Right
-            12, 14, 13,  14, 12, 15,
-            // Top
-            16, 17, 18,  18, 19, 16,
-            // Bottom
-            21, 20, 23,  23, 22, 21,
-        };
+        // Generate some interesting voxel pattern (hollow sphere + some random blocks)
+        float centerX = CHUNK_SIZE / 2.0f;
+        float centerY = CHUNK_SIZE / 2.0f;
+        float centerZ = CHUNK_SIZE / 2.0f;
+        float outerRadius = 7.0f;
+        float innerRadius = 5.0f;
+
+        for (uint32_t z = 0; z < CHUNK_SIZE; z++) {
+            for (uint32_t y = 0; y < CHUNK_SIZE; y++) {
+                for (uint32_t x = 0; x < CHUNK_SIZE; x++) {
+                    float dx = x - centerX;
+                    float dy = y - centerY;
+                    float dz = z - centerZ;
+                    float distance = std::sqrt(dx*dx + dy*dy + dz*dz);
+
+                    // Create hollow sphere
+                    if (distance <= outerRadius && distance >= innerRadius) {
+                        setVoxel(chunkData, x, y, z, true);
+                    }
+                    // Add ground plane
+                    else if (y == 0) {
+                        setVoxel(chunkData, x, y, z, true);
+                    }
+                }
+            }
+        }
+
+        std::cout << "[Main] Generating chunk mesh for 16x16x16 voxel chunk..." << std::endl;
+
+        // Generate mesh from chunk data
+        ChunkMesh chunkMesh = generateChunkMesh(chunkData);
+
+        std::cout << "[Main] Generated mesh with " << chunkMesh.vertices.size() << " vertices and "
+                  << chunkMesh.indices.size() << " indices" << std::endl;
+
+        // Use the generated mesh data
+        auto& vertices = chunkMesh.vertices;
+        auto& indices = chunkMesh.indices;
 
         // Create vertex buffer
         Buffer vertexBuffer;
@@ -233,7 +387,9 @@ int main() {
         pipelineConfig.vertexShader = &vertShader;
         pipelineConfig.fragmentShader = &fragShader;
         pipelineConfig.colorFormat = swapchain.getImageFormat();
-        pipelineConfig.depthTest = false;
+        pipelineConfig.depthFormat = depthFormat;
+        pipelineConfig.depthTest = true;
+        pipelineConfig.depthWrite = true; // Enable depth buffer writes
         pipelineConfig.cullMode = VK_CULL_MODE_BACK_BIT; // Enable backface culling for cube
 
         // Define vertex input bindings (one binding for interleaved position and color)
@@ -261,10 +417,10 @@ int main() {
         GraphicsPipeline pipeline;
         pipeline.init(vulkanContext.getDevice().getLogicalDevice(), pipelineConfig);
 
-        // Create camera
+        // Create camera (position it to view the 16x16x16 chunk centered at 8,8,8)
         Camera camera;
         float aspectRatio = static_cast<float>(window.getWidth()) / static_cast<float>(window.getHeight());
-        camera.init(glm::vec3(0.0f, 0.0f, 3.0f), aspectRatio, 70.0f);
+        camera.init(glm::vec3(8.0f, 8.0f, 30.0f), aspectRatio, 70.0f);
 
         std::cout << "\n[Main] Setup complete, entering render loop..." << std::endl;
 
@@ -304,9 +460,22 @@ int main() {
                 }
 
                 vulkanContext.waitIdle();
+
+                // Recreate swapchain
                 swapchain.recreate(width, height);
+
+                // Recreate depth buffer with new size
+                vkDestroyImageView(vulkanContext.getDevice().getLogicalDevice(), depthImageView, nullptr);
+                vmaDestroyImage(vulkanContext.getAllocator(), depthImage, depthAllocation);
+
+                depthImageInfo.extent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1};
+                vmaCreateImage(vulkanContext.getAllocator(), &depthImageInfo, &depthAllocInfo, &depthImage, &depthAllocation, nullptr);
+
+                depthViewInfo.image = depthImage;
+                vkCreateImageView(vulkanContext.getDevice().getLogicalDevice(), &depthViewInfo, nullptr, &depthImageView);
+
                 framebufferResized = false;
-                std::cout << "[Main] Swapchain recreated" << std::endl;
+                std::cout << "[Main] Swapchain and depth buffer recreated (" << width << "x" << height << ")" << std::endl;
             }
 
             // Begin frame
@@ -320,11 +489,12 @@ int main() {
             // Get command buffer for this frame
             auto cmd = renderer.getCurrentCommandBuffer();
 
-            // Begin rendering to swapchain image
+            // Begin rendering to swapchain image with depth
             cmd.beginRendering(
                 swapchain.getImageViews()[renderer.getCurrentImageIndex()],
                 swapchain.getExtent(),
-                glm::vec4(0.1f, 0.1f, 0.1f, 1.0f) // Dark gray clear color
+                glm::vec4(0.1f, 0.1f, 0.1f, 1.0f), // Dark gray clear color
+                depthImageView // Depth attachment
             );
 
             // Set dynamic viewport and scissor
@@ -379,6 +549,8 @@ int main() {
         vulkanContext.waitIdle();
 
         // Cleanup
+        vkDestroyImageView(vulkanContext.getDevice().getLogicalDevice(), depthImageView, nullptr);
+        vmaDestroyImage(vulkanContext.getAllocator(), depthImage, depthAllocation);
         indirectBuffer.cleanup();
         indexBuffer.cleanup();
         vertexBuffer.cleanup();
