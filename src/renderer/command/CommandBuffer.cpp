@@ -81,6 +81,10 @@ void CommandBuffer::drawIndexed(uint32_t indexCount, uint32_t instanceCount, uin
     vkCmdDrawIndexed(m_buffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
 }
 
+void CommandBuffer::drawIndexedIndirect(VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride) const {
+    vkCmdDrawIndexedIndirect(m_buffer, buffer, offset, drawCount, stride);
+}
+
 void CommandBuffer::bindVertexBuffer(VkBuffer buffer, VkDeviceSize offset) const {
     VkBuffer buffers[] = {buffer};
     VkDeviceSize offsets[] = {offset};

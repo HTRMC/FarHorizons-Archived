@@ -1,5 +1,6 @@
 #include <iostream>
 #include <chrono>
+#include <array>
 #include "core/Window.hpp"
 #include "core/InputSystem.hpp"
 #include "core/Camera.hpp"
@@ -8,8 +9,15 @@
 #include "renderer/RenderContext.hpp"
 #include "renderer/pipeline/Shader.hpp"
 #include "renderer/pipeline/GraphicsPipeline.hpp"
+#include "renderer/memory/Buffer.hpp"
 
 using namespace VoxelEngine;
+
+// Vertex structure for cube
+struct Vertex {
+    glm::vec3 position;
+    glm::vec3 color;
+};
 
 int main() {
     try {
@@ -57,13 +65,198 @@ int main() {
         vertShader.loadFromFile(vulkanContext.getDevice().getLogicalDevice(), "assets/minecraft/shaders/triangle.vsh.spv");
         fragShader.loadFromFile(vulkanContext.getDevice().getLogicalDevice(), "assets/minecraft/shaders/triangle.fsh.spv");
 
-        // Create graphics pipeline
+        // Define cube vertices (8 unique vertices with different colors per face)
+        std::vector<Vertex> vertices = {
+            // Front face (red tint)
+            {{-0.5f, -0.5f,  0.5f}, {1.0f, 0.3f, 0.3f}},
+            {{ 0.5f, -0.5f,  0.5f}, {1.0f, 0.3f, 0.3f}},
+            {{ 0.5f,  0.5f,  0.5f}, {1.0f, 0.3f, 0.3f}},
+            {{-0.5f,  0.5f,  0.5f}, {1.0f, 0.3f, 0.3f}},
+            // Back face (green tint)
+            {{-0.5f, -0.5f, -0.5f}, {0.3f, 1.0f, 0.3f}},
+            {{ 0.5f, -0.5f, -0.5f}, {0.3f, 1.0f, 0.3f}},
+            {{ 0.5f,  0.5f, -0.5f}, {0.3f, 1.0f, 0.3f}},
+            {{-0.5f,  0.5f, -0.5f}, {0.3f, 1.0f, 0.3f}},
+            // Left face (blue tint)
+            {{-0.5f, -0.5f, -0.5f}, {0.3f, 0.3f, 1.0f}},
+            {{-0.5f, -0.5f,  0.5f}, {0.3f, 0.3f, 1.0f}},
+            {{-0.5f,  0.5f,  0.5f}, {0.3f, 0.3f, 1.0f}},
+            {{-0.5f,  0.5f, -0.5f}, {0.3f, 0.3f, 1.0f}},
+            // Right face (yellow tint)
+            {{ 0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 0.3f}},
+            {{ 0.5f, -0.5f,  0.5f}, {1.0f, 1.0f, 0.3f}},
+            {{ 0.5f,  0.5f,  0.5f}, {1.0f, 1.0f, 0.3f}},
+            {{ 0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 0.3f}},
+            // Top face (magenta tint)
+            {{-0.5f,  0.5f, -0.5f}, {1.0f, 0.3f, 1.0f}},
+            {{-0.5f,  0.5f,  0.5f}, {1.0f, 0.3f, 1.0f}},
+            {{ 0.5f,  0.5f,  0.5f}, {1.0f, 0.3f, 1.0f}},
+            {{ 0.5f,  0.5f, -0.5f}, {1.0f, 0.3f, 1.0f}},
+            // Bottom face (cyan tint)
+            {{-0.5f, -0.5f, -0.5f}, {0.3f, 1.0f, 1.0f}},
+            {{-0.5f, -0.5f,  0.5f}, {0.3f, 1.0f, 1.0f}},
+            {{ 0.5f, -0.5f,  0.5f}, {0.3f, 1.0f, 1.0f}},
+            {{ 0.5f, -0.5f, -0.5f}, {0.3f, 1.0f, 1.0f}},
+        };
+
+        // Define cube indices (6 faces * 2 triangles * 3 indices = 36 indices)
+        std::vector<uint32_t> indices = {
+            // Front
+            0, 1, 2,  2, 3, 0,
+            // Back
+            5, 4, 7,  7, 6, 5,
+            // Left
+            8, 9, 10,  10, 11, 8,
+            // Right
+            12, 13, 14,  14, 15, 12,
+            // Top
+            16, 17, 18,  18, 19, 16,
+            // Bottom
+            21, 20, 23,  23, 22, 21,
+        };
+
+        // Create vertex buffer
+        Buffer vertexBuffer;
+        vertexBuffer.init(
+            vulkanContext.getAllocator(),
+            vertices.size() * sizeof(Vertex),
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VMA_MEMORY_USAGE_GPU_ONLY,
+            0
+        );
+
+        // Create index buffer
+        Buffer indexBuffer;
+        indexBuffer.init(
+            vulkanContext.getAllocator(),
+            indices.size() * sizeof(uint32_t),
+            VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VMA_MEMORY_USAGE_GPU_ONLY,
+            0
+        );
+
+        // Create staging buffer for upload
+        Buffer stagingBuffer;
+        stagingBuffer.init(
+            vulkanContext.getAllocator(),
+            std::max(vertices.size() * sizeof(Vertex), indices.size() * sizeof(uint32_t)),
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VMA_MEMORY_USAGE_CPU_ONLY,
+            0
+        );
+
+        // Upload vertex data using staging buffer
+        void* data = stagingBuffer.map();
+        memcpy(data, vertices.data(), vertices.size() * sizeof(Vertex));
+        stagingBuffer.unmap();
+
+        // Create temporary command pool and buffer for upload
+        VkCommandPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        poolInfo.queueFamilyIndex = vulkanContext.getDevice().getQueueFamilyIndices().graphicsFamily.value();
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+
+        VkCommandPool uploadPool;
+        vkCreateCommandPool(vulkanContext.getDevice().getLogicalDevice(), &poolInfo, nullptr, &uploadPool);
+
+        VkCommandBufferAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.commandPool = uploadPool;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandBufferCount = 1;
+
+        VkCommandBuffer uploadCmd;
+        vkAllocateCommandBuffers(vulkanContext.getDevice().getLogicalDevice(), &allocInfo, &uploadCmd);
+
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        vkBeginCommandBuffer(uploadCmd, &beginInfo);
+
+        VkBufferCopy copyRegion{};
+        copyRegion.size = vertices.size() * sizeof(Vertex);
+        vkCmdCopyBuffer(uploadCmd, stagingBuffer.getBuffer(), vertexBuffer.getBuffer(), 1, &copyRegion);
+
+        vkEndCommandBuffer(uploadCmd);
+
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &uploadCmd;
+        vkQueueSubmit(vulkanContext.getDevice().getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(vulkanContext.getDevice().getGraphicsQueue());
+
+        // Upload index data
+        data = stagingBuffer.map();
+        memcpy(data, indices.data(), indices.size() * sizeof(uint32_t));
+        stagingBuffer.unmap();
+
+        vkResetCommandBuffer(uploadCmd, 0);
+        vkBeginCommandBuffer(uploadCmd, &beginInfo);
+
+        copyRegion.size = indices.size() * sizeof(uint32_t);
+        vkCmdCopyBuffer(uploadCmd, stagingBuffer.getBuffer(), indexBuffer.getBuffer(), 1, &copyRegion);
+
+        vkEndCommandBuffer(uploadCmd);
+        vkQueueSubmit(vulkanContext.getDevice().getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(vulkanContext.getDevice().getGraphicsQueue());
+
+        // Cleanup upload resources
+        vkDestroyCommandPool(vulkanContext.getDevice().getLogicalDevice(), uploadPool, nullptr);
+        stagingBuffer.cleanup();
+
+        // Create indirect draw buffer
+        VkDrawIndexedIndirectCommand indirectCommand{};
+        indirectCommand.indexCount = static_cast<uint32_t>(indices.size());
+        indirectCommand.instanceCount = 1;
+        indirectCommand.firstIndex = 0;
+        indirectCommand.vertexOffset = 0;
+        indirectCommand.firstInstance = 0;
+
+        Buffer indirectBuffer;
+        indirectBuffer.init(
+            vulkanContext.getAllocator(),
+            sizeof(VkDrawIndexedIndirectCommand),
+            VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
+            VMA_MEMORY_USAGE_CPU_TO_GPU,
+            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
+        );
+        void* indirectData = indirectBuffer.map();
+        memcpy(indirectData, &indirectCommand, sizeof(VkDrawIndexedIndirectCommand));
+        indirectBuffer.unmap();
+
+        std::cout << "[Main] Created cube with " << vertices.size() << " vertices and "
+                  << indices.size() << " indices (multi-draw indirect)" << std::endl;
+
+        // Create graphics pipeline with vertex input
         GraphicsPipelineConfig pipelineConfig;
         pipelineConfig.vertexShader = &vertShader;
         pipelineConfig.fragmentShader = &fragShader;
         pipelineConfig.colorFormat = swapchain.getImageFormat();
         pipelineConfig.depthTest = false;
-        pipelineConfig.cullMode = VK_CULL_MODE_NONE; // Show both sides of triangle
+        pipelineConfig.cullMode = VK_CULL_MODE_BACK_BIT; // Enable backface culling for cube
+
+        // Define vertex input bindings (one binding for interleaved position and color)
+        VkVertexInputBindingDescription binding{};
+        binding.binding = 0;
+        binding.stride = sizeof(Vertex);
+        binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        pipelineConfig.vertexBindings.push_back(binding);
+
+        // Define vertex input attributes
+        VkVertexInputAttributeDescription positionAttr{};
+        positionAttr.location = 0;
+        positionAttr.binding = 0;
+        positionAttr.format = VK_FORMAT_R32G32B32_SFLOAT;
+        positionAttr.offset = offsetof(Vertex, position);
+        pipelineConfig.vertexAttributes.push_back(positionAttr);
+
+        VkVertexInputAttributeDescription colorAttr{};
+        colorAttr.location = 1;
+        colorAttr.binding = 0;
+        colorAttr.format = VK_FORMAT_R32G32B32_SFLOAT;
+        colorAttr.offset = offsetof(Vertex, color);
+        pipelineConfig.vertexAttributes.push_back(colorAttr);
 
         GraphicsPipeline pipeline;
         pipeline.init(vulkanContext.getDevice().getLogicalDevice(), pipelineConfig);
@@ -162,8 +355,12 @@ int main() {
                 &viewProj
             );
 
-            // Draw triangle
-            cmd.draw(3); // 3 vertices (hardcoded in shader)
+            // Bind vertex and index buffers
+            cmd.bindVertexBuffer(vertexBuffer.getBuffer());
+            cmd.bindIndexBuffer(indexBuffer.getBuffer());
+
+            // Draw cube using multi-draw indirect
+            cmd.drawIndexedIndirect(indirectBuffer.getBuffer(), 0, 1, sizeof(VkDrawIndexedIndirectCommand));
 
             // End rendering
             cmd.endRendering();
@@ -182,6 +379,9 @@ int main() {
         vulkanContext.waitIdle();
 
         // Cleanup
+        indirectBuffer.cleanup();
+        indexBuffer.cleanup();
+        vertexBuffer.cleanup();
         pipeline.cleanup();
         fragShader.cleanup();
         vertShader.cleanup();
