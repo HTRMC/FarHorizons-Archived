@@ -11,6 +11,7 @@
 #include "renderer/pipeline/Shader.hpp"
 #include "renderer/pipeline/GraphicsPipeline.hpp"
 #include "renderer/memory/Buffer.hpp"
+#include "renderer/texture/BindlessTextureManager.hpp"
 
 using namespace VoxelEngine;
 
@@ -18,6 +19,8 @@ using namespace VoxelEngine;
 struct Vertex {
     glm::vec3 position;
     glm::vec3 color;
+    glm::vec2 texCoord;
+    uint32_t textureIndex;
 };
 
 // Chunk data structure
@@ -57,7 +60,7 @@ struct ChunkPosition {
     int32_t x, y, z;
 };
 
-ChunkMesh generateChunkMesh(const uint8_t* chunkData, ChunkPosition chunkPos = {0, 0, 0}) {
+ChunkMesh generateChunkMesh(const uint8_t* chunkData, uint32_t textureIndex = 0, ChunkPosition chunkPos = {0, 0, 0}) {
     ChunkMesh mesh;
 
     // Face vertices (relative to block position)
@@ -76,7 +79,12 @@ ChunkMesh generateChunkMesh(const uint8_t* chunkData, ChunkPosition chunkPos = {
         {glm::vec3(0, 0, 1), glm::vec3(0, 0, 0), glm::vec3(1, 0, 0), glm::vec3(1, 0, 1)},
     };
 
-    // Face colors
+    // UV coordinates for each face (0,0 to 1,1)
+    const glm::vec2 faceUVs[4] = {
+        {0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}
+    };
+
+    // Face colors (keep for tinting/debugging)
     const glm::vec3 faceColors[6] = {
         glm::vec3(1.0f, 0.3f, 0.3f), // Front - Red
         glm::vec3(0.3f, 1.0f, 0.3f), // Back - Green
@@ -128,6 +136,8 @@ ChunkMesh generateChunkMesh(const uint8_t* chunkData, ChunkPosition chunkPos = {
                             Vertex vertex;
                             vertex.position = chunkOffset + blockPos + faceVertices[face][v];
                             vertex.color = faceColors[face];
+                            vertex.texCoord = faceUVs[v];
+                            vertex.textureIndex = textureIndex;
                             mesh.vertices.push_back(vertex);
                         }
 
@@ -284,7 +294,7 @@ int main() {
 
                     // Generate mesh for this chunk
                     ChunkPosition chunkPos = {cx, cy, cz};
-                    ChunkMesh chunkMesh = generateChunkMesh(chunkData, chunkPos);
+                    ChunkMesh chunkMesh = generateChunkMesh(chunkData, 0, chunkPos);  // textureIndex = 0 (stone texture)
 
                     // Skip empty chunks
                     if (chunkMesh.indices.empty()) continue;
@@ -402,8 +412,7 @@ int main() {
         vkQueueSubmit(vulkanContext.getDevice().getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
         vkQueueWaitIdle(vulkanContext.getDevice().getGraphicsQueue());
 
-        // Cleanup upload resources
-        vkDestroyCommandPool(vulkanContext.getDevice().getLogicalDevice(), uploadPool, nullptr);
+        // Cleanup staging buffer (keep command pool for texture uploads)
         stagingBuffer.cleanup();
 
         // Create indirect draw buffer with all draw commands
@@ -420,6 +429,21 @@ int main() {
         indirectBuffer.unmap();
 
         std::cout << "[Main] Created multi-draw indirect buffer with " << drawCommands.size() << " draw commands" << std::endl;
+
+        // Initialize bindless texture manager
+        BindlessTextureManager textureManager;
+        textureManager.init(vulkanContext.getDevice().getLogicalDevice(), vulkanContext.getAllocator(), 1024);
+
+        // Load stone texture
+        vkResetCommandBuffer(uploadCmd, 0);
+        vkBeginCommandBuffer(uploadCmd, &beginInfo);
+        uint32_t stoneTextureIndex = textureManager.loadTexture("assets/minecraft/textures/block/stone.png", uploadCmd, true);
+        vkEndCommandBuffer(uploadCmd);
+        vkQueueSubmit(vulkanContext.getDevice().getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(vulkanContext.getDevice().getGraphicsQueue());
+
+        // Cleanup upload resources
+        vkDestroyCommandPool(vulkanContext.getDevice().getLogicalDevice(), uploadPool, nullptr);
 
         // Create graphics pipeline with vertex input
         GraphicsPipelineConfig pipelineConfig;
@@ -452,6 +476,23 @@ int main() {
         colorAttr.format = VK_FORMAT_R32G32B32_SFLOAT;
         colorAttr.offset = offsetof(Vertex, color);
         pipelineConfig.vertexAttributes.push_back(colorAttr);
+
+        VkVertexInputAttributeDescription texCoordAttr{};
+        texCoordAttr.location = 2;
+        texCoordAttr.binding = 0;
+        texCoordAttr.format = VK_FORMAT_R32G32_SFLOAT;
+        texCoordAttr.offset = offsetof(Vertex, texCoord);
+        pipelineConfig.vertexAttributes.push_back(texCoordAttr);
+
+        VkVertexInputAttributeDescription textureIndexAttr{};
+        textureIndexAttr.location = 3;
+        textureIndexAttr.binding = 0;
+        textureIndexAttr.format = VK_FORMAT_R32_UINT;
+        textureIndexAttr.offset = offsetof(Vertex, textureIndex);
+        pipelineConfig.vertexAttributes.push_back(textureIndexAttr);
+
+        // Add bindless texture descriptor set layout to pipeline config
+        pipelineConfig.descriptorSetLayouts.push_back(textureManager.getDescriptorSetLayout());
 
         GraphicsPipeline pipeline;
         pipeline.init(vulkanContext.getDevice().getLogicalDevice(), pipelineConfig);
@@ -555,6 +596,10 @@ int main() {
             // Bind pipeline
             cmd.bindPipeline(pipeline.getPipeline());
 
+            // Bind bindless texture descriptor set
+            VkDescriptorSet textureDescSet = textureManager.getDescriptorSet();
+            cmd.bindDescriptorSets(pipeline.getLayout(), 0, 1, &textureDescSet);
+
             // Push camera view-projection matrix
             glm::mat4 viewProj = camera.getViewProjectionMatrix();
             cmd.pushConstants(
@@ -589,6 +634,7 @@ int main() {
         vulkanContext.waitIdle();
 
         // Cleanup
+        textureManager.shutdown();
         vkDestroyImageView(vulkanContext.getDevice().getLogicalDevice(), depthImageView, nullptr);
         vmaDestroyImage(vulkanContext.getAllocator(), depthImage, depthAllocation);
         indirectBuffer.cleanup();

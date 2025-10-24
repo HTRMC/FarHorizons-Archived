@@ -16,6 +16,9 @@ struct GraphicsPipelineConfig {
     std::vector<VkVertexInputBindingDescription> vertexBindings;
     std::vector<VkVertexInputAttributeDescription> vertexAttributes;
 
+    // Descriptor set layouts (for bindless textures, etc.)
+    std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
+
     // Color format
     VkFormat colorFormat = VK_FORMAT_B8G8R8A8_SRGB;
     VkFormat depthFormat = VK_FORMAT_UNDEFINED;

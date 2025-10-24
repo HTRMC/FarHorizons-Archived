@@ -123,19 +123,21 @@ void VulkanDevice::createLogicalDevice() {
         queueCreateInfos.push_back(queueCreateInfo);
     }
 
-    // Descriptor indexing features (for bindless)
-    VkPhysicalDeviceDescriptorIndexingFeatures descriptorIndexingFeatures{};
-    descriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-    descriptorIndexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
-    descriptorIndexingFeatures.runtimeDescriptorArray = VK_TRUE;
-    descriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+    // Vulkan 1.2 features (includes descriptor indexing)
+    VkPhysicalDeviceVulkan12Features vulkan12Features{};
+    vulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    vulkan12Features.descriptorBindingPartiallyBound = VK_TRUE;
+    vulkan12Features.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
+    vulkan12Features.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+    vulkan12Features.runtimeDescriptorArray = VK_TRUE;
+    vulkan12Features.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
 
     // Vulkan 1.3 features struct (includes dynamicRendering and synchronization2)
     VkPhysicalDeviceVulkan13Features vulkan13Features{};
     vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     vulkan13Features.dynamicRendering = VK_TRUE;
     vulkan13Features.synchronization2 = VK_TRUE;
-    vulkan13Features.pNext = &descriptorIndexingFeatures;
+    vulkan13Features.pNext = &vulkan12Features;
 
     VkPhysicalDeviceFeatures2 deviceFeatures{};
     deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
