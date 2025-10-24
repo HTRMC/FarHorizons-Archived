@@ -84,24 +84,39 @@ void ChunkManager::update(const glm::vec3& cameraPosition) {
 }
 
 void ChunkManager::loadChunksAroundPosition(const ChunkPosition& centerPos) {
-    for (int32_t x = -m_renderDistance; x <= m_renderDistance; x++) {
-        for (int32_t y = -m_renderDistance; y <= m_renderDistance; y++) {
-            for (int32_t z = -m_renderDistance; z <= m_renderDistance; z++) {
-                ChunkPosition pos = {
-                    centerPos.x + x,
-                    centerPos.y + y,
-                    centerPos.z + z
-                };
+    // Collect chunks that need to be loaded
+    std::vector<ChunkPosition> chunksToLoad;
 
-                float distance = std::sqrt(x*x + y*y + z*z);
-                if (distance <= m_renderDistance) {
-                    std::lock_guard<std::mutex> lock(m_chunksMutex);
-                    if (m_chunks.find(pos) == m_chunks.end()) {
-                        loadChunk(pos);
+    {
+        std::lock_guard<std::mutex> lock(m_chunksMutex);
+        for (int32_t x = -m_renderDistance; x <= m_renderDistance; x++) {
+            for (int32_t y = -m_renderDistance; y <= m_renderDistance; y++) {
+                for (int32_t z = -m_renderDistance; z <= m_renderDistance; z++) {
+                    ChunkPosition pos = {
+                        centerPos.x + x,
+                        centerPos.y + y,
+                        centerPos.z + z
+                    };
+
+                    float distance = std::sqrt(x*x + y*y + z*z);
+                    if (distance <= m_renderDistance) {
+                        if (m_chunks.find(pos) == m_chunks.end()) {
+                            chunksToLoad.push_back(pos);
+                        }
                     }
                 }
             }
         }
+    }
+
+    // Queue chunks for generation on worker threads (don't generate on main thread!)
+    if (!chunksToLoad.empty()) {
+        std::lock_guard<std::mutex> lock(m_queueMutex);
+        for (const auto& pos : chunksToLoad) {
+            m_meshQueue.push(pos);
+        }
+        m_queueCV.notify_all();
+        spdlog::trace("Queued {} chunks for loading", chunksToLoad.size());
     }
 }
 
@@ -167,6 +182,11 @@ const Chunk* ChunkManager::getChunk(const ChunkPosition& pos) const {
     return nullptr;
 }
 
+bool ChunkManager::hasChunk(const ChunkPosition& pos) const {
+    std::lock_guard<std::mutex> lock(m_chunksMutex);
+    return m_chunks.find(pos) != m_chunks.end();
+}
+
 ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIndex) const {
     ChunkMesh mesh;
 
@@ -198,24 +218,9 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                     bool shouldRenderFace = false;
 
                     if (nx < 0 || nx >= CHUNK_SIZE || ny < 0 || ny >= CHUNK_SIZE || nz < 0 || nz >= CHUNK_SIZE) {
-                        ChunkPosition neighborChunkPos = chunkPos;
-                        int localX = nx;
-                        int localY = ny;
-                        int localZ = nz;
-
-                        if (nx < 0) { neighborChunkPos.x--; localX = CHUNK_SIZE - 1; }
-                        else if (nx >= CHUNK_SIZE) { neighborChunkPos.x++; localX = 0; }
-
-                        if (ny < 0) { neighborChunkPos.y--; localY = CHUNK_SIZE - 1; }
-                        else if (ny >= CHUNK_SIZE) { neighborChunkPos.y++; localY = 0; }
-
-                        if (nz < 0) { neighborChunkPos.z--; localZ = CHUNK_SIZE - 1; }
-                        else if (nz >= CHUNK_SIZE) { neighborChunkPos.z++; localZ = 0; }
-
-                        const Chunk* neighborChunk = getChunk(neighborChunkPos);
-                        if (!neighborChunk || !neighborChunk->getVoxel(localX, localY, localZ)) {
-                            shouldRenderFace = true;
-                        }
+                        // Face is on chunk boundary - assume it should be rendered
+                        // (neighbor might not be loaded yet)
+                        shouldRenderFace = true;
                     } else {
                         if (!chunk->getVoxel(nx, ny, nz)) {
                             shouldRenderFace = true;
@@ -270,6 +275,27 @@ void ChunkManager::meshWorker() {
             m_meshQueue.pop();
         }
 
+        // Check if chunk already exists
+        bool chunkExists = false;
+        {
+            std::lock_guard<std::mutex> lock(m_chunksMutex);
+            chunkExists = (m_chunks.find(pos) != m_chunks.end());
+        }
+
+        // If chunk doesn't exist, generate it first
+        if (!chunkExists) {
+            auto chunk = std::make_unique<Chunk>(pos);
+            chunk->generate();
+
+            std::lock_guard<std::mutex> lock(m_chunksMutex);
+            // Double-check it wasn't added by another thread
+            if (m_chunks.find(pos) == m_chunks.end()) {
+                m_chunks[pos] = std::move(chunk);
+                spdlog::trace("Worker generated chunk at ({}, {}, {})", pos.x, pos.y, pos.z);
+            }
+        }
+
+        // Now generate the mesh
         ChunkMesh mesh;
         {
             std::lock_guard<std::mutex> lock(m_chunksMutex);

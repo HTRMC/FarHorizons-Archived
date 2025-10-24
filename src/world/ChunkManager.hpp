@@ -40,6 +40,7 @@ public:
 
     Chunk* getChunk(const ChunkPosition& pos);
     const Chunk* getChunk(const ChunkPosition& pos) const;
+    bool hasChunk(const ChunkPosition& pos) const;
 
     const std::unordered_map<ChunkPosition, std::unique_ptr<Chunk>, ChunkPositionHash>& getChunks() const {
         return m_chunks;
@@ -58,7 +59,7 @@ private:
     std::vector<std::thread> m_workerThreads;
     std::queue<ChunkPosition> m_meshQueue;
     std::queue<ChunkMesh> m_readyMeshes;
-    std::mutex m_chunksMutex;
+    mutable std::mutex m_chunksMutex;
     std::mutex m_queueMutex;
     mutable std::mutex m_readyMutex;
     std::condition_variable m_queueCV;
