@@ -12,6 +12,7 @@
 #include "renderer/pipeline/Shader.hpp"
 #include "renderer/pipeline/GraphicsPipeline.hpp"
 #include "renderer/memory/Buffer.hpp"
+#include "renderer/memory/ChunkBufferManager.hpp"
 #include "renderer/texture/BindlessTextureManager.hpp"
 #include "world/ChunkManager.hpp"
 
@@ -184,37 +185,8 @@ int main() {
         ChunkManager chunkManager;
         chunkManager.setRenderDistance(8);
 
-        Buffer vertexBuffer;
-        Buffer indexBuffer;
-        Buffer indirectBuffer;
-
-        size_t maxVertices = 1000000;
-        size_t maxIndices = 2000000;
-        size_t maxDrawCommands = 1000;
-
-        vertexBuffer.init(
-            vulkanContext.getAllocator(),
-            maxVertices * sizeof(Vertex),
-            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-            VMA_MEMORY_USAGE_CPU_TO_GPU,
-            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
-        );
-
-        indexBuffer.init(
-            vulkanContext.getAllocator(),
-            maxIndices * sizeof(uint32_t),
-            VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-            VMA_MEMORY_USAGE_CPU_TO_GPU,
-            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
-        );
-
-        indirectBuffer.init(
-            vulkanContext.getAllocator(),
-            maxDrawCommands * sizeof(VkDrawIndexedIndirectCommand),
-            VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
-            VMA_MEMORY_USAGE_CPU_TO_GPU,
-            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
-        );
+        ChunkBufferManager bufferManager;
+        bufferManager.init(vulkanContext.getAllocator(), 1000000, 2000000, 1000);
 
         spdlog::info("Setup complete, entering render loop...");
 
@@ -224,23 +196,8 @@ int main() {
             camera.setAspectRatio(static_cast<float>(width) / static_cast<float>(height));
         });
 
-        // Chunk buffer management structures
-        struct ChunkBufferInfo {
-            uint32_t vertexOffset;
-            uint32_t vertexCount;
-            uint32_t indexOffset;
-            uint32_t indexCount;
-            uint32_t drawCommandIndex;
-        };
-
         auto lastTime = std::chrono::high_resolution_clock::now();
-        uint32_t drawCommandCount = 0;
-        std::unordered_map<ChunkPosition, ChunkMesh, ChunkPositionHash> meshCache;
-        std::unordered_map<ChunkPosition, ChunkBufferInfo, ChunkPositionHash> chunkBufferInfo;
-        std::vector<ChunkMesh> pendingMeshes;  // Meshes waiting to be processed
-        uint32_t currentVertexOffset = 0;
-        uint32_t currentIndexOffset = 0;
-        constexpr size_t MAX_MESHES_PER_FRAME = 20;  // Process at most 20 new meshes per frame
+        std::vector<ChunkMesh> pendingMeshes;
 
         while (!window.shouldClose()) {
             auto currentTime = std::chrono::high_resolution_clock::now();
@@ -253,7 +210,7 @@ int main() {
 
             chunkManager.update(camera.getPosition());
 
-            // Collect new ready meshes into pending queue
+            // Collect new ready meshes
             if (chunkManager.hasReadyMeshes()) {
                 auto readyMeshes = chunkManager.getReadyMeshes();
                 pendingMeshes.insert(pendingMeshes.end(),
@@ -261,193 +218,18 @@ int main() {
                                     std::make_move_iterator(readyMeshes.end()));
             }
 
-            // Remove meshes for chunks that have been unloaded
-            std::vector<ChunkPosition> toRemove;
-            for (const auto& [pos, info] : chunkBufferInfo) {
-                if (!chunkManager.hasChunk(pos)) {
-                    toRemove.push_back(pos);
-                }
-            }
+            // Remove unloaded chunks
+            bufferManager.removeUnloadedChunks(chunkManager);
 
-            if (!toRemove.empty()) {
-                for (const auto& pos : toRemove) {
-                    meshCache.erase(pos);
-                    chunkBufferInfo.erase(pos);
-                }
-                spdlog::debug("Removed {} unloaded chunk meshes from cache", toRemove.size());
-            }
+            // Check for compaction
+            bufferManager.compactIfNeeded(bufferManager.getMeshCache());
 
-            // Check if we need to compact the buffer due to fragmentation
-            size_t totalActiveVertices = 0;
-            size_t totalActiveIndices = 0;
-            for (const auto& [pos, info] : chunkBufferInfo) {
-                totalActiveVertices += info.vertexCount;
-                totalActiveIndices += info.indexCount;
-            }
-
-            // Rebuild if we're running low on space but have lots of deleted chunks (fragmentation > 30%)
-            bool needsCompaction = false;
-            if (currentVertexOffset > maxVertices * 0.7f || currentIndexOffset > maxIndices * 0.7f) {
-                float vertexFragmentation = 1.0f - (static_cast<float>(totalActiveVertices) / currentVertexOffset);
-                float indexFragmentation = 1.0f - (static_cast<float>(totalActiveIndices) / currentIndexOffset);
-
-                if (vertexFragmentation > 0.3f || indexFragmentation > 0.3f) {
-                    needsCompaction = true;
-                    spdlog::debug("Buffer compaction needed: {:.1f}% vertex frag, {:.1f}% index frag",
-                                 vertexFragmentation * 100, indexFragmentation * 100);
-                }
-            }
-
-            // Compact buffer when fragmented
-            if (needsCompaction) {
-                currentVertexOffset = 0;
-                currentIndexOffset = 0;
-
-                void* vertexData = vertexBuffer.map();
-                void* indexData = indexBuffer.map();
-                void* indirectData = indirectBuffer.map();
-
-                std::unordered_map<ChunkPosition, ChunkBufferInfo, ChunkPositionHash> newBufferInfo;
-                uint32_t newDrawCount = 0;
-
-                for (const auto& [pos, mesh] : meshCache) {
-                    if (mesh.indices.empty()) continue;
-
-                    // Write vertices
-                    memcpy(static_cast<uint8_t*>(vertexData) + currentVertexOffset * sizeof(Vertex),
-                           mesh.vertices.data(),
-                           mesh.vertices.size() * sizeof(Vertex));
-
-                    // Write indices
-                    memcpy(static_cast<uint8_t*>(indexData) + currentIndexOffset * sizeof(uint32_t),
-                           mesh.indices.data(),
-                           mesh.indices.size() * sizeof(uint32_t));
-
-                    // Create and write draw command
-                    VkDrawIndexedIndirectCommand cmd{};
-                    cmd.indexCount = static_cast<uint32_t>(mesh.indices.size());
-                    cmd.instanceCount = 1;
-                    cmd.firstIndex = currentIndexOffset;
-                    cmd.vertexOffset = static_cast<int32_t>(currentVertexOffset);
-                    cmd.firstInstance = 0;
-
-                    memcpy(static_cast<uint8_t*>(indirectData) + newDrawCount * sizeof(VkDrawIndexedIndirectCommand),
-                           &cmd,
-                           sizeof(VkDrawIndexedIndirectCommand));
-
-                    // Store new buffer info
-                    ChunkBufferInfo info;
-                    info.vertexOffset = currentVertexOffset;
-                    info.vertexCount = static_cast<uint32_t>(mesh.vertices.size());
-                    info.indexOffset = currentIndexOffset;
-                    info.indexCount = static_cast<uint32_t>(mesh.indices.size());
-                    info.drawCommandIndex = newDrawCount;
-
-                    newBufferInfo[pos] = info;
-
-                    currentVertexOffset += info.vertexCount;
-                    currentIndexOffset += info.indexCount;
-                    newDrawCount++;
-                }
-
-                chunkBufferInfo = std::move(newBufferInfo);
-                drawCommandCount = newDrawCount;
-
-                vertexBuffer.unmap();
-                indexBuffer.unmap();
-                indirectBuffer.unmap();
-
-                spdlog::debug("Buffer compacted: {} chunks, {} vertices, {} indices",
-                             meshCache.size(), currentVertexOffset, currentIndexOffset);
-            }
-
-            // Process pending meshes incrementally
+            // Add pending meshes incrementally
             if (!pendingMeshes.empty()) {
-                size_t processCount = std::min(pendingMeshes.size(), MAX_MESHES_PER_FRAME);
-
-                // Check if we have space
-                bool hasSpace = true;
-                for (size_t i = 0; i < processCount; i++) {
-                    if (pendingMeshes[i].indices.empty()) continue;
-                    if (currentVertexOffset + pendingMeshes[i].vertices.size() > maxVertices ||
-                        currentIndexOffset + pendingMeshes[i].indices.size() > maxIndices ||
-                        drawCommandCount >= maxDrawCommands) {
-                        hasSpace = false;
-                        spdlog::warn("Buffer full, waiting for compaction");
-                        break;
-                    }
-                }
-
-                if (hasSpace) {
-                    // Map buffers once for all updates
-                    void* vertexData = vertexBuffer.map();
-                    void* indexData = indexBuffer.map();
-                    void* indirectData = indirectBuffer.map();
-
-                    size_t actualProcessed = 0;
-                    for (size_t i = 0; i < processCount; i++) {
-                        ChunkMesh& mesh = pendingMeshes[i];
-                        if (mesh.indices.empty()) continue;
-
-                        // Double-check space
-                        if (currentVertexOffset + mesh.vertices.size() > maxVertices ||
-                            currentIndexOffset + mesh.indices.size() > maxIndices ||
-                            drawCommandCount >= maxDrawCommands) {
-                            break;
-                        }
-
-                        // Write vertices at current offset
-                        memcpy(static_cast<uint8_t*>(vertexData) + currentVertexOffset * sizeof(Vertex),
-                               mesh.vertices.data(),
-                               mesh.vertices.size() * sizeof(Vertex));
-
-                        // Write indices at current offset
-                        memcpy(static_cast<uint8_t*>(indexData) + currentIndexOffset * sizeof(uint32_t),
-                               mesh.indices.data(),
-                               mesh.indices.size() * sizeof(uint32_t));
-
-                        // Create draw command
-                        VkDrawIndexedIndirectCommand cmd{};
-                        cmd.indexCount = static_cast<uint32_t>(mesh.indices.size());
-                        cmd.instanceCount = 1;
-                        cmd.firstIndex = currentIndexOffset;
-                        cmd.vertexOffset = static_cast<int32_t>(currentVertexOffset);
-                        cmd.firstInstance = 0;
-
-                        // Write draw command
-                        memcpy(static_cast<uint8_t*>(indirectData) + drawCommandCount * sizeof(VkDrawIndexedIndirectCommand),
-                               &cmd,
-                               sizeof(VkDrawIndexedIndirectCommand));
-
-                        // Store buffer info for this chunk
-                        ChunkBufferInfo info;
-                        info.vertexOffset = currentVertexOffset;
-                        info.vertexCount = static_cast<uint32_t>(mesh.vertices.size());
-                        info.indexOffset = currentIndexOffset;
-                        info.indexCount = static_cast<uint32_t>(mesh.indices.size());
-                        info.drawCommandIndex = drawCommandCount;
-
-                        chunkBufferInfo[mesh.position] = info;
-                        meshCache[mesh.position] = std::move(mesh);
-
-                        currentVertexOffset += info.vertexCount;
-                        currentIndexOffset += info.indexCount;
-                        drawCommandCount++;
-                        actualProcessed++;
-                    }
-
-                    vertexBuffer.unmap();
-                    indexBuffer.unmap();
-                    indirectBuffer.unmap();
-
-                    // Remove processed meshes
-                    pendingMeshes.erase(pendingMeshes.begin(), pendingMeshes.begin() + actualProcessed);
-
-                    if (actualProcessed > 0) {
-                        spdlog::trace("Incrementally added {} chunks ({} pending, {} total)",
-                                     actualProcessed, pendingMeshes.size(), meshCache.size());
-                    }
-                }
+                bufferManager.addMeshes(pendingMeshes, 20);
+                // Remove processed meshes (addMeshes processes from the front)
+                size_t processCount = std::min(pendingMeshes.size(), size_t(20));
+                pendingMeshes.erase(pendingMeshes.begin(), pendingMeshes.begin() + processCount);
             }
 
             if (framebufferResized) {
@@ -518,10 +300,11 @@ int main() {
                 &viewProj
             );
 
-            if (drawCommandCount > 0) {
-                cmd.bindVertexBuffer(vertexBuffer.getBuffer());
-                cmd.bindIndexBuffer(indexBuffer.getBuffer());
-                cmd.drawIndexedIndirect(indirectBuffer.getBuffer(), 0, drawCommandCount, sizeof(VkDrawIndexedIndirectCommand));
+            uint32_t drawCount = bufferManager.getDrawCommandCount();
+            if (drawCount > 0) {
+                cmd.bindVertexBuffer(bufferManager.getVertexBuffer());
+                cmd.bindIndexBuffer(bufferManager.getIndexBuffer());
+                cmd.drawIndexedIndirect(bufferManager.getIndirectBuffer(), 0, drawCount, sizeof(VkDrawIndexedIndirectCommand));
             }
 
             cmd.endRendering();
@@ -534,12 +317,10 @@ int main() {
 
         vulkanContext.waitIdle();
 
+        bufferManager.cleanup();
         textureManager.shutdown();
         vkDestroyImageView(vulkanContext.getDevice().getLogicalDevice(), depthImageView, nullptr);
         vmaDestroyImage(vulkanContext.getAllocator(), depthImage, depthAllocation);
-        indirectBuffer.cleanup();
-        indexBuffer.cleanup();
-        vertexBuffer.cleanup();
         pipeline.cleanup();
         fragShader.cleanup();
         vertShader.cleanup();
