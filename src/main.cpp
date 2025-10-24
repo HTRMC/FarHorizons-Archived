@@ -224,9 +224,23 @@ int main() {
             camera.setAspectRatio(static_cast<float>(width) / static_cast<float>(height));
         });
 
+        // Chunk buffer management structures
+        struct ChunkBufferInfo {
+            uint32_t vertexOffset;
+            uint32_t vertexCount;
+            uint32_t indexOffset;
+            uint32_t indexCount;
+            uint32_t drawCommandIndex;
+        };
+
         auto lastTime = std::chrono::high_resolution_clock::now();
         uint32_t drawCommandCount = 0;
         std::unordered_map<ChunkPosition, ChunkMesh, ChunkPositionHash> meshCache;
+        std::unordered_map<ChunkPosition, ChunkBufferInfo, ChunkPositionHash> chunkBufferInfo;
+        std::vector<ChunkMesh> pendingMeshes;  // Meshes waiting to be processed
+        uint32_t currentVertexOffset = 0;
+        uint32_t currentIndexOffset = 0;
+        constexpr size_t MAX_MESHES_PER_FRAME = 20;  // Process at most 20 new meshes per frame
 
         while (!window.shouldClose()) {
             auto currentTime = std::chrono::high_resolution_clock::now();
@@ -239,48 +253,164 @@ int main() {
 
             chunkManager.update(camera.getPosition());
 
+            // Collect new ready meshes into pending queue
             if (chunkManager.hasReadyMeshes()) {
                 auto readyMeshes = chunkManager.getReadyMeshes();
-                for (auto& mesh : readyMeshes) {
+                pendingMeshes.insert(pendingMeshes.end(),
+                                    std::make_move_iterator(readyMeshes.begin()),
+                                    std::make_move_iterator(readyMeshes.end()));
+            }
+
+            // Remove meshes for chunks that have been unloaded
+            std::vector<ChunkPosition> toRemove;
+            for (const auto& [pos, info] : chunkBufferInfo) {
+                if (!chunkManager.getChunk(pos)) {
+                    toRemove.push_back(pos);
+                }
+            }
+
+            bool needsFullRebuild = false;
+            if (!toRemove.empty()) {
+                for (const auto& pos : toRemove) {
+                    meshCache.erase(pos);
+                    chunkBufferInfo.erase(pos);
+                }
+                // When chunks are removed, we need to rebuild to compact the buffer
+                needsFullRebuild = true;
+                spdlog::debug("Removed {} unloaded chunk meshes, triggering rebuild", toRemove.size());
+            }
+
+            // Process pending meshes incrementally
+            if (!pendingMeshes.empty()) {
+                size_t processCount = std::min(pendingMeshes.size(), MAX_MESHES_PER_FRAME);
+
+                // Map buffers once for all updates
+                void* vertexData = vertexBuffer.map();
+                void* indexData = indexBuffer.map();
+                void* indirectData = indirectBuffer.map();
+
+                for (size_t i = 0; i < processCount; i++) {
+                    ChunkMesh& mesh = pendingMeshes[i];
+                    if (mesh.indices.empty()) continue;
+
+                    // Check if we have enough space
+                    if (currentVertexOffset + mesh.vertices.size() > maxVertices ||
+                        currentIndexOffset + mesh.indices.size() > maxIndices ||
+                        drawCommandCount >= maxDrawCommands) {
+                        spdlog::warn("Buffer full, triggering rebuild");
+                        needsFullRebuild = true;
+                        break;
+                    }
+
+                    // Write vertices at current offset
+                    memcpy(static_cast<uint8_t*>(vertexData) + currentVertexOffset * sizeof(Vertex),
+                           mesh.vertices.data(),
+                           mesh.vertices.size() * sizeof(Vertex));
+
+                    // Write indices at current offset
+                    memcpy(static_cast<uint8_t*>(indexData) + currentIndexOffset * sizeof(uint32_t),
+                           mesh.indices.data(),
+                           mesh.indices.size() * sizeof(uint32_t));
+
+                    // Create draw command
+                    VkDrawIndexedIndirectCommand cmd{};
+                    cmd.indexCount = static_cast<uint32_t>(mesh.indices.size());
+                    cmd.instanceCount = 1;
+                    cmd.firstIndex = currentIndexOffset;
+                    cmd.vertexOffset = static_cast<int32_t>(currentVertexOffset);
+                    cmd.firstInstance = 0;
+
+                    // Write draw command
+                    memcpy(static_cast<uint8_t*>(indirectData) + drawCommandCount * sizeof(VkDrawIndexedIndirectCommand),
+                           &cmd,
+                           sizeof(VkDrawIndexedIndirectCommand));
+
+                    // Store buffer info for this chunk
+                    ChunkBufferInfo info;
+                    info.vertexOffset = currentVertexOffset;
+                    info.vertexCount = static_cast<uint32_t>(mesh.vertices.size());
+                    info.indexOffset = currentIndexOffset;
+                    info.indexCount = static_cast<uint32_t>(mesh.indices.size());
+                    info.drawCommandIndex = drawCommandCount;
+
+                    chunkBufferInfo[mesh.position] = info;
                     meshCache[mesh.position] = std::move(mesh);
+
+                    currentVertexOffset += info.vertexCount;
+                    currentIndexOffset += info.indexCount;
+                    drawCommandCount++;
                 }
 
-                std::vector<Vertex> allVertices;
-                std::vector<uint32_t> allIndices;
-                std::vector<VkDrawIndexedIndirectCommand> drawCommands;
+                vertexBuffer.unmap();
+                indexBuffer.unmap();
+                indirectBuffer.unmap();
+
+                // Remove processed meshes
+                pendingMeshes.erase(pendingMeshes.begin(), pendingMeshes.begin() + std::min(processCount, pendingMeshes.size()));
+
+                if (processCount > 0) {
+                    spdlog::trace("Incrementally added {} chunks ({} pending, {} total chunks)",
+                                 processCount, pendingMeshes.size(), meshCache.size());
+                }
+            }
+
+            // Full rebuild when chunks are removed or buffer is fragmented
+            if (needsFullRebuild) {
+                currentVertexOffset = 0;
+                currentIndexOffset = 0;
+                drawCommandCount = 0;
+                chunkBufferInfo.clear();
+
+                void* vertexData = vertexBuffer.map();
+                void* indexData = indexBuffer.map();
+                void* indirectData = indirectBuffer.map();
 
                 for (const auto& [pos, mesh] : meshCache) {
                     if (mesh.indices.empty()) continue;
 
+                    // Write vertices
+                    memcpy(static_cast<uint8_t*>(vertexData) + currentVertexOffset * sizeof(Vertex),
+                           mesh.vertices.data(),
+                           mesh.vertices.size() * sizeof(Vertex));
+
+                    // Write indices
+                    memcpy(static_cast<uint8_t*>(indexData) + currentIndexOffset * sizeof(uint32_t),
+                           mesh.indices.data(),
+                           mesh.indices.size() * sizeof(uint32_t));
+
+                    // Create and write draw command
                     VkDrawIndexedIndirectCommand cmd{};
                     cmd.indexCount = static_cast<uint32_t>(mesh.indices.size());
                     cmd.instanceCount = 1;
-                    cmd.firstIndex = static_cast<uint32_t>(allIndices.size());
-                    cmd.vertexOffset = static_cast<int32_t>(allVertices.size());
+                    cmd.firstIndex = currentIndexOffset;
+                    cmd.vertexOffset = static_cast<int32_t>(currentVertexOffset);
                     cmd.firstInstance = 0;
-                    drawCommands.push_back(cmd);
 
-                    allVertices.insert(allVertices.end(), mesh.vertices.begin(), mesh.vertices.end());
-                    allIndices.insert(allIndices.end(), mesh.indices.begin(), mesh.indices.end());
+                    memcpy(static_cast<uint8_t*>(indirectData) + drawCommandCount * sizeof(VkDrawIndexedIndirectCommand),
+                           &cmd,
+                           sizeof(VkDrawIndexedIndirectCommand));
+
+                    // Store buffer info
+                    ChunkBufferInfo info;
+                    info.vertexOffset = currentVertexOffset;
+                    info.vertexCount = static_cast<uint32_t>(mesh.vertices.size());
+                    info.indexOffset = currentIndexOffset;
+                    info.indexCount = static_cast<uint32_t>(mesh.indices.size());
+                    info.drawCommandIndex = drawCommandCount;
+
+                    chunkBufferInfo[pos] = info;
+
+                    currentVertexOffset += info.vertexCount;
+                    currentIndexOffset += info.indexCount;
+                    drawCommandCount++;
                 }
 
-                if (!allVertices.empty()) {
-                    void* vertexData = vertexBuffer.map();
-                    memcpy(vertexData, allVertices.data(), allVertices.size() * sizeof(Vertex));
-                    vertexBuffer.unmap();
+                vertexBuffer.unmap();
+                indexBuffer.unmap();
+                indirectBuffer.unmap();
 
-                    void* indexData = indexBuffer.map();
-                    memcpy(indexData, allIndices.data(), allIndices.size() * sizeof(uint32_t));
-                    indexBuffer.unmap();
-
-                    void* indirectData = indirectBuffer.map();
-                    memcpy(indirectData, drawCommands.data(), drawCommands.size() * sizeof(VkDrawIndexedIndirectCommand));
-                    indirectBuffer.unmap();
-
-                    drawCommandCount = static_cast<uint32_t>(drawCommands.size());
-
-                    spdlog::debug("Updated buffers: {} meshes ready, {} draw commands", readyMeshes.size(), drawCommandCount);
-                }
+                spdlog::debug("Full buffer rebuild: {} chunks, {} vertices, {} indices",
+                             meshCache.size(), currentVertexOffset, currentIndexOffset);
             }
 
             if (framebufferResized) {
