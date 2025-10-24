@@ -150,7 +150,7 @@ void TextureLoader::generateMipmaps(
             image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             1, &blit,
-            VK_FILTER_LINEAR);
+            VK_FILTER_NEAREST);
 
         // Transition current mip level to TRANSFER_SRC for next iteration
         barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;

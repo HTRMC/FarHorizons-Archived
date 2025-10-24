@@ -84,14 +84,14 @@ ChunkMesh generateChunkMesh(const uint8_t* chunkData, uint32_t textureIndex = 0,
         {0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}
     };
 
-    // Face colors (keep for tinting/debugging)
+    // Face shading (Minecraft-style directional lighting)
     const glm::vec3 faceColors[6] = {
-        glm::vec3(1.0f, 0.3f, 0.3f), // Front - Red
-        glm::vec3(0.3f, 1.0f, 0.3f), // Back - Green
-        glm::vec3(0.3f, 0.3f, 1.0f), // Left - Blue
-        glm::vec3(1.0f, 1.0f, 0.3f), // Right - Yellow
-        glm::vec3(1.0f, 0.3f, 1.0f), // Top - Magenta
-        glm::vec3(0.3f, 1.0f, 1.0f), // Bottom - Cyan
+        glm::vec3(0.8f, 0.8f, 0.8f), // Front (+Z) - slightly darker
+        glm::vec3(0.8f, 0.8f, 0.8f), // Back (-Z) - slightly darker
+        glm::vec3(0.6f, 0.6f, 0.6f), // Left (-X) - darker (no direct light)
+        glm::vec3(0.6f, 0.6f, 0.6f), // Right (+X) - darker
+        glm::vec3(1.0f, 1.0f, 1.0f), // Top (+Y) - full brightness (sky light)
+        glm::vec3(0.5f, 0.5f, 0.5f), // Bottom (-Y) - darkest
     };
 
     // Neighbor offsets for each face
