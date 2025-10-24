@@ -275,11 +275,13 @@ Texture TextureLoader::createTexture(
 
     vkCmdCopyBufferToImage(uploadCmd, stagingBuffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
+    // Store staging buffer for cleanup after submit
+    texture.stagingBuffer = stagingBuffer;
+    texture.stagingAllocation = stagingAllocation;
+
     if (generateMipmaps) {
-        // Generate mipmaps
         TextureLoader::generateMipmaps(uploadCmd, texture.image, texture.format, data.width, data.height, texture.mipLevels);
     } else {
-        // Transition to shader read
         barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
@@ -289,9 +291,6 @@ Texture TextureLoader::createTexture(
 
         vkCmdPipelineBarrier2(uploadCmd, &depInfo);
     }
-
-    // Cleanup staging buffer (after command buffer is submitted)
-    vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
 
     // Create image view
     VkImageViewCreateInfo viewInfo{};

@@ -30,7 +30,15 @@ struct Texture {
     uint32_t height = 0;
     uint32_t mipLevels = 1;
 
+    VkBuffer stagingBuffer = VK_NULL_HANDLE;
+    VmaAllocation stagingAllocation = VK_NULL_HANDLE;
+
     void cleanup(VkDevice device, VmaAllocator allocator) {
+        if (stagingBuffer != VK_NULL_HANDLE) {
+            vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
+            stagingBuffer = VK_NULL_HANDLE;
+            stagingAllocation = VK_NULL_HANDLE;
+        }
         if (imageView != VK_NULL_HANDLE) {
             vkDestroyImageView(device, imageView, nullptr);
             imageView = VK_NULL_HANDLE;
