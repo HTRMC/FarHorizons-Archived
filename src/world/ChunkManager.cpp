@@ -330,29 +330,7 @@ void ChunkManager::meshWorker() {
 
         // If this was a new chunk, queue neighbors for remeshing to update boundary faces
         if (wasNewlyCreated) {
-            std::lock_guard<std::mutex> lock(m_queueMutex);
-            for (int dx = -1; dx <= 1; dx++) {
-                for (int dy = -1; dy <= 1; dy++) {
-                    for (int dz = -1; dz <= 1; dz++) {
-                        // Skip self and diagonals (only faces, not edges/corners)
-                        if (abs(dx) + abs(dy) + abs(dz) != 1) continue;
-
-                        ChunkPosition neighborPos = {pos.x + dx, pos.y + dy, pos.z + dz};
-
-                        // Check if neighbor exists (without locking - we'll check again in worker)
-                        bool neighborExists = false;
-                        {
-                            std::lock_guard<std::mutex> chunkLock(m_chunksMutex);
-                            neighborExists = (m_chunks.find(neighborPos) != m_chunks.end());
-                        }
-
-                        if (neighborExists) {
-                            m_meshQueue.push(neighborPos);
-                        }
-                    }
-                }
-            }
-            m_queueCV.notify_all();
+            queueNeighborRemesh(pos);
         }
     }
 }
@@ -372,6 +350,35 @@ std::vector<ChunkMesh> ChunkManager::getReadyMeshes() {
     }
 
     return meshes;
+}
+
+void ChunkManager::queueNeighborRemesh(const ChunkPosition& pos) {
+    std::lock_guard<std::mutex> lock(m_queueMutex);
+
+    // Queue the 6 face-adjacent neighbors for remeshing
+    for (int dx = -1; dx <= 1; dx++) {
+        for (int dy = -1; dy <= 1; dy++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                // Skip self and diagonals (only faces, not edges/corners)
+                if (abs(dx) + abs(dy) + abs(dz) != 1) continue;
+
+                ChunkPosition neighborPos = {pos.x + dx, pos.y + dy, pos.z + dz};
+
+                // Check if neighbor chunk exists
+                bool neighborExists = false;
+                {
+                    std::lock_guard<std::mutex> chunkLock(m_chunksMutex);
+                    neighborExists = (m_chunks.find(neighborPos) != m_chunks.end());
+                }
+
+                if (neighborExists) {
+                    m_meshQueue.push(neighborPos);
+                }
+            }
+        }
+    }
+
+    m_queueCV.notify_all();
 }
 
 } // namespace VoxelEngine

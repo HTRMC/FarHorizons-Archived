@@ -69,6 +69,7 @@ private:
     void unloadDistantChunks(const ChunkPosition& centerPos);
     Chunk* loadChunk(const ChunkPosition& pos);
     void meshWorker();
+    void queueNeighborRemesh(const ChunkPosition& pos);
 };
 
 } // namespace VoxelEngine

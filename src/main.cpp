@@ -14,6 +14,7 @@
 #include "renderer/memory/Buffer.hpp"
 #include "renderer/memory/ChunkBufferManager.hpp"
 #include "renderer/texture/BindlessTextureManager.hpp"
+#include "renderer/DepthBuffer.hpp"
 #include "world/ChunkManager.hpp"
 
 using namespace VoxelEngine;
@@ -54,41 +55,9 @@ int main() {
         RenderContext renderer;
         renderer.init(vulkanContext, swapchain);
 
-        VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
-
-        VkImageCreateInfo depthImageInfo{};
-        depthImageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        depthImageInfo.imageType = VK_IMAGE_TYPE_2D;
-        depthImageInfo.format = depthFormat;
-        depthImageInfo.extent = {window.getWidth(), window.getHeight(), 1};
-        depthImageInfo.mipLevels = 1;
-        depthImageInfo.arrayLayers = 1;
-        depthImageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-        depthImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-        depthImageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-        depthImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        depthImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-        VmaAllocationCreateInfo depthAllocInfo{};
-        depthAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-        VkImage depthImage;
-        VmaAllocation depthAllocation;
-        vmaCreateImage(vulkanContext.getAllocator(), &depthImageInfo, &depthAllocInfo, &depthImage, &depthAllocation, nullptr);
-
-        VkImageViewCreateInfo depthViewInfo{};
-        depthViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        depthViewInfo.image = depthImage;
-        depthViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        depthViewInfo.format = depthFormat;
-        depthViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-        depthViewInfo.subresourceRange.baseMipLevel = 0;
-        depthViewInfo.subresourceRange.levelCount = 1;
-        depthViewInfo.subresourceRange.baseArrayLayer = 0;
-        depthViewInfo.subresourceRange.layerCount = 1;
-
-        VkImageView depthImageView;
-        vkCreateImageView(vulkanContext.getDevice().getLogicalDevice(), &depthViewInfo, nullptr, &depthImageView);
+        DepthBuffer depthBuffer;
+        depthBuffer.init(vulkanContext.getAllocator(), vulkanContext.getDevice().getLogicalDevice(),
+                        window.getWidth(), window.getHeight());
 
         Shader vertShader, fragShader;
         vertShader.loadFromFile(vulkanContext.getDevice().getLogicalDevice(), "assets/minecraft/shaders/triangle.vsh.spv");
@@ -134,7 +103,7 @@ int main() {
         pipelineConfig.vertexShader = &vertShader;
         pipelineConfig.fragmentShader = &fragShader;
         pipelineConfig.colorFormat = swapchain.getImageFormat();
-        pipelineConfig.depthFormat = depthFormat;
+        pipelineConfig.depthFormat = depthBuffer.getFormat();
         pipelineConfig.depthTest = true;
         pipelineConfig.depthWrite = true;
         pipelineConfig.cullMode = VK_CULL_MODE_BACK_BIT;
@@ -244,15 +213,8 @@ int main() {
 
                 vulkanContext.waitIdle();
                 swapchain.recreate(width, height);
-
-                vkDestroyImageView(vulkanContext.getDevice().getLogicalDevice(), depthImageView, nullptr);
-                vmaDestroyImage(vulkanContext.getAllocator(), depthImage, depthAllocation);
-
-                depthImageInfo.extent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1};
-                vmaCreateImage(vulkanContext.getAllocator(), &depthImageInfo, &depthAllocInfo, &depthImage, &depthAllocation, nullptr);
-
-                depthViewInfo.image = depthImage;
-                vkCreateImageView(vulkanContext.getDevice().getLogicalDevice(), &depthViewInfo, nullptr, &depthImageView);
+                depthBuffer.resize(vulkanContext.getAllocator(), vulkanContext.getDevice().getLogicalDevice(),
+                                  width, height);
 
                 framebufferResized = false;
             }
@@ -269,7 +231,7 @@ int main() {
                 swapchain.getImageViews()[renderer.getCurrentImageIndex()],
                 swapchain.getExtent(),
                 glm::vec4(0.1f, 0.1f, 0.1f, 1.0f),
-                depthImageView
+                depthBuffer.getImageView()
             );
 
             VkViewport viewport{};
@@ -319,8 +281,7 @@ int main() {
 
         bufferManager.cleanup();
         textureManager.shutdown();
-        vkDestroyImageView(vulkanContext.getDevice().getLogicalDevice(), depthImageView, nullptr);
-        vmaDestroyImage(vulkanContext.getAllocator(), depthImage, depthAllocation);
+        depthBuffer.cleanup(vulkanContext.getDevice().getLogicalDevice(), vulkanContext.getAllocator());
         pipeline.cleanup();
         fragShader.cleanup();
         vertShader.cleanup();
