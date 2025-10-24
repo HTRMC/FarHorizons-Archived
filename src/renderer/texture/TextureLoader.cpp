@@ -3,7 +3,7 @@
 #include <fstream>
 #include <stdexcept>
 #include <cmath>
-#include <iostream>
+#include <spdlog/spdlog.h>
 
 namespace VoxelEngine {
 
@@ -73,8 +73,8 @@ TextureData TextureLoader::loadPNG(const std::string& filepath) {
 
     spng_ctx_free(ctx);
 
-    std::cout << "[TextureLoader] Loaded PNG: " << filepath
-              << " (" << result.width << "x" << result.height << ")" << std::endl;
+    spdlog::info("[TextureLoader] Loaded PNG: {} ({}x{})",
+                 filepath, result.width, result.height);
 
     return result;
 }

@@ -1,6 +1,6 @@
 #include "RingBuffer.hpp"
 #include "../core/VulkanDebug.hpp"
-#include <iostream>
+#include <spdlog/spdlog.h>
 
 namespace VoxelEngine {
 
@@ -19,7 +19,8 @@ void RingBuffer::init(VmaAllocator allocator, VkDeviceSize size, VkDeviceSize al
     // Keep it persistently mapped
     m_buffer.map();
 
-    std::cout << "[RingBuffer] Initialized with size: " << (size / 1024) << " KB, alignment: " << alignment << std::endl;
+    spdlog::info("[RingBuffer] Initialized with size: {} KB, alignment: {}",
+                 size / 1024, alignment);
 }
 
 void RingBuffer::cleanup() {
@@ -32,8 +33,8 @@ VkDeviceSize RingBuffer::allocate(VkDeviceSize size) {
 
     // Check if we have enough space
     if (alignedOffset + size > m_buffer.getSize()) {
-        std::cerr << "[RingBuffer] Out of space! Requested: " << size
-                  << " bytes, available: " << (m_buffer.getSize() - alignedOffset) << " bytes" << std::endl;
+        spdlog::error("[RingBuffer] Out of space! Requested: {} bytes, available: {} bytes",
+                      size, m_buffer.getSize() - alignedOffset);
         return VK_WHOLE_SIZE;
     }
 

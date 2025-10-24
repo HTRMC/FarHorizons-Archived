@@ -4,7 +4,7 @@
 #include <magic_enum/magic_enum.hpp>
 #include <string>
 #include <cassert>
-#include <iostream>
+#include <spdlog/spdlog.h>
 
 namespace VoxelEngine {
 
@@ -13,8 +13,8 @@ namespace VoxelEngine {
     do { \
         VkResult _vk_result = (result); \
         if (_vk_result != VK_SUCCESS) { \
-            std::cerr << "[VULKAN ERROR] " << magic_enum::enum_name(_vk_result) \
-                      << " in " << __FILE__ << ":" << __LINE__ << std::endl; \
+            spdlog::error("[VULKAN ERROR] {} in {}:{}", \
+                          magic_enum::enum_name(_vk_result), __FILE__, __LINE__); \
             assert(false && "Vulkan API call failed"); \
         } \
     } while (0)

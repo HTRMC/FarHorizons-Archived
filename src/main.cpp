@@ -1,5 +1,8 @@
 #include <iostream>
 #include <chrono>
+#include <spdlog/spdlog.h>
+#include <spdlog/async.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 #include "core/Window.hpp"
 #include "core/InputSystem.hpp"
 #include "core/Camera.hpp"
@@ -16,6 +19,13 @@ using namespace VoxelEngine;
 
 int main() {
     try {
+        spdlog::init_thread_pool(8192, 1);
+        auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        auto logger = std::make_shared<spdlog::async_logger>("main", console_sink, spdlog::thread_pool(), spdlog::async_overflow_policy::block);
+        spdlog::set_default_logger(logger);
+        spdlog::set_level(spdlog::level::debug);
+        spdlog::set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
+
         WindowProperties props;
         props.title = "Vulkan Voxel Engine - Infinite Chunks";
         props.width = 1600;
@@ -26,13 +36,13 @@ int main() {
         Window window(props);
         InputSystem::init(window.getNativeWindow());
 
-        std::cout << "=== Vulkan Voxel Engine - Infinite Chunks ===" << std::endl;
-        std::cout << "Controls:" << std::endl;
-        std::cout << "  WASD - Move camera" << std::endl;
-        std::cout << "  Arrow Keys - Rotate camera" << std::endl;
-        std::cout << "  Space/Shift - Move up/down" << std::endl;
-        std::cout << "  ESC - Exit" << std::endl;
-        std::cout << "==========================================" << std::endl;
+        spdlog::info("=== Vulkan Voxel Engine - Infinite Chunks ===");
+        spdlog::info("Controls:");
+        spdlog::info("  WASD - Move camera");
+        spdlog::info("  Arrow Keys - Rotate camera");
+        spdlog::info("  Space/Shift - Move up/down");
+        spdlog::info("  ESC - Exit");
+        spdlog::info("==========================================");
 
         VulkanContext vulkanContext;
         vulkanContext.init(window.getNativeWindow(), "Vulkan Voxel Engine");
@@ -206,7 +216,7 @@ int main() {
             VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
         );
 
-        std::cout << "\n[Main] Setup complete, entering render loop..." << std::endl;
+        spdlog::info("Setup complete, entering render loop...");
 
         bool framebufferResized = false;
         window.setResizeCallback([&framebufferResized, &camera](uint32_t width, uint32_t height) {
@@ -216,6 +226,7 @@ int main() {
 
         auto lastTime = std::chrono::high_resolution_clock::now();
         uint32_t drawCommandCount = 0;
+        std::unordered_map<ChunkPosition, ChunkMesh, ChunkPositionHash> meshCache;
 
         while (!window.shouldClose()) {
             auto currentTime = std::chrono::high_resolution_clock::now();
@@ -228,15 +239,17 @@ int main() {
 
             chunkManager.update(camera.getPosition());
 
-            if (chunkManager.hasChunksChanged()) {
+            if (chunkManager.hasReadyMeshes()) {
+                auto readyMeshes = chunkManager.getReadyMeshes();
+                for (auto& mesh : readyMeshes) {
+                    meshCache[mesh.position] = std::move(mesh);
+                }
+
                 std::vector<Vertex> allVertices;
                 std::vector<uint32_t> allIndices;
                 std::vector<VkDrawIndexedIndirectCommand> drawCommands;
 
-                for (const auto& [pos, chunk] : chunkManager.getChunks()) {
-                    if (chunk->isEmpty()) continue;
-
-                    ChunkMesh mesh = chunkManager.generateChunkMesh(chunk.get(), stoneTextureIndex);
+                for (const auto& [pos, mesh] : meshCache) {
                     if (mesh.indices.empty()) continue;
 
                     VkDrawIndexedIndirectCommand cmd{};
@@ -266,11 +279,8 @@ int main() {
 
                     drawCommandCount = static_cast<uint32_t>(drawCommands.size());
 
-                    std::cout << "[ChunkManager] Updated buffers: " << chunkManager.getChunks().size()
-                              << " chunks, " << drawCommandCount << " draw commands" << std::endl;
+                    spdlog::debug("Updated buffers: {} meshes ready, {} draw commands", readyMeshes.size(), drawCommandCount);
                 }
-
-                chunkManager.clearChangedFlag();
             }
 
             if (framebufferResized) {
@@ -371,10 +381,12 @@ int main() {
         vulkanContext.shutdown();
         InputSystem::shutdown();
 
-        std::cout << "[Main] Application shutting down..." << std::endl;
+        spdlog::info("Application shutting down...");
+        spdlog::shutdown();
 
     } catch (const std::exception& e) {
-        std::cerr << "Fatal error: " << e.what() << std::endl;
+        spdlog::error("Fatal error: {}", e.what());
+        spdlog::shutdown();
         return 1;
     }
 

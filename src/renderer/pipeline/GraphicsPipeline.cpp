@@ -1,7 +1,7 @@
 #include "GraphicsPipeline.hpp"
 #include "../core/VulkanDebug.hpp"
 #include <glm/glm.hpp>
-#include <iostream>
+#include <spdlog/spdlog.h>
 
 namespace VoxelEngine {
 
@@ -155,7 +155,7 @@ void GraphicsPipeline::init(VkDevice device, const GraphicsPipelineConfig& confi
 
     VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline));
 
-    std::cout << "[GraphicsPipeline] Created" << std::endl;
+    spdlog::info("[GraphicsPipeline] Created");
 }
 
 void GraphicsPipeline::cleanup() {

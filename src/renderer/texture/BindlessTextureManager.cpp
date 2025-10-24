@@ -1,6 +1,6 @@
 #include "BindlessTextureManager.hpp"
 #include <stdexcept>
-#include <iostream>
+#include <spdlog/spdlog.h>
 
 namespace VoxelEngine {
 
@@ -14,7 +14,7 @@ void BindlessTextureManager::init(VkDevice device, VmaAllocator allocator, uint3
     createDescriptorSet();
     createSampler();
 
-    std::cout << "[BindlessTextureManager] Initialized with max " << maxTextures << " textures" << std::endl;
+    spdlog::info("[BindlessTextureManager] Initialized with max {} textures", maxTextures);
 }
 
 void BindlessTextureManager::shutdown() {
@@ -150,8 +150,8 @@ uint32_t BindlessTextureManager::loadTexture(const std::string& filepath, VkComm
     // Check if texture is already loaded
     auto it = m_textureIndices.find(filepath);
     if (it != m_textureIndices.end()) {
-        std::cout << "[BindlessTextureManager] Texture already loaded: " << filepath
-                  << " (index " << it->second << ")" << std::endl;
+        spdlog::info("[BindlessTextureManager] Texture already loaded: {} (index {})",
+                     filepath, it->second);
         return it->second;
     }
 
@@ -174,8 +174,7 @@ uint32_t BindlessTextureManager::loadTexture(const std::string& filepath, VkComm
     // Update descriptor
     updateDescriptor(index, texture.imageView);
 
-    std::cout << "[BindlessTextureManager] Loaded texture: " << filepath
-              << " (index " << index << ")" << std::endl;
+    spdlog::info("[BindlessTextureManager] Loaded texture: {} (index {})", filepath, index);
 
     return index;
 }

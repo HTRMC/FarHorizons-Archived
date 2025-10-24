@@ -1,5 +1,5 @@
 #include "FrameSync.hpp"
-#include <iostream>
+#include <spdlog/spdlog.h>
 
 namespace VoxelEngine {
 
@@ -12,7 +12,7 @@ void FrameSync::init(VkDevice device) {
         frame.renderFinishedSemaphore.init(device);
     }
 
-    std::cout << "[FrameSync] Initialized with " << MAX_FRAMES_IN_FLIGHT << " frames in flight" << std::endl;
+    spdlog::info("[FrameSync] Initialized with {} frames in flight", MAX_FRAMES_IN_FLIGHT);
 }
 
 void FrameSync::shutdown() {
@@ -24,7 +24,7 @@ void FrameSync::shutdown() {
     m_frames.clear();
     m_currentFrame = 0;
 
-    std::cout << "[FrameSync] Shutdown" << std::endl;
+    spdlog::info("[FrameSync] Shutdown");
 }
 
 } // namespace VoxelEngine

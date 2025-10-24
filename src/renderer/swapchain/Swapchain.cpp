@@ -1,7 +1,7 @@
 #include "Swapchain.hpp"
 #include "../core/VulkanDebug.hpp"
 #include <algorithm>
-#include <iostream>
+#include <spdlog/spdlog.h>
 
 namespace VoxelEngine {
 
@@ -48,8 +48,8 @@ void Swapchain::init(VulkanContext& context, uint32_t width, uint32_t height) {
     createSwapchain();
     createImageViews();
 
-    std::cout << "[Swapchain] Created with " << m_images.size() << " images ("
-              << m_extent.width << "x" << m_extent.height << ")" << std::endl;
+    spdlog::info("[Swapchain] Created with {} images ({}x{})",
+                 m_images.size(), m_extent.width, m_extent.height);
 }
 
 void Swapchain::shutdown() {
@@ -71,7 +71,7 @@ void Swapchain::recreate(uint32_t width, uint32_t height) {
     createSwapchain();
     createImageViews();
 
-    std::cout << "[Swapchain] Recreated (" << m_extent.width << "x" << m_extent.height << ")" << std::endl;
+    spdlog::info("[Swapchain] Recreated ({}x{})", m_extent.width, m_extent.height);
 }
 
 VkResult Swapchain::acquireNextImage(VkSemaphore signalSemaphore, uint32_t& imageIndex) {
@@ -211,7 +211,7 @@ void Swapchain::cleanup() {
 
         if (m_swapchain != VK_NULL_HANDLE) {
             vkDestroySwapchainKHR(m_context->getDevice().getLogicalDevice(), m_swapchain, nullptr);
-            std::cout << "[Swapchain] Destroyed" << std::endl;
+            spdlog::info("[Swapchain] Destroyed");
             m_swapchain = VK_NULL_HANDLE;
         }
 

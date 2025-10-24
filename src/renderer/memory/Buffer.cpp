@@ -1,6 +1,6 @@
 #include "Buffer.hpp"
 #include "../core/VulkanDebug.hpp"
-#include <iostream>
+#include <spdlog/spdlog.h>
 #include <cstring>
 
 namespace VoxelEngine {
@@ -112,12 +112,12 @@ void Buffer::unmap() {
 
 void Buffer::copyData(const void* data, size_t size, size_t offset) {
     if (m_mappedData == nullptr) {
-        std::cerr << "[Buffer] Cannot copy data to unmapped buffer!" << std::endl;
+        spdlog::error("[Buffer] Cannot copy data to unmapped buffer!");
         assert(false);
     }
 
     if (offset + size > m_size) {
-        std::cerr << "[Buffer] Copy size exceeds buffer bounds!" << std::endl;
+        spdlog::error("[Buffer] Copy size exceeds buffer bounds!");
         assert(false);
     }
 

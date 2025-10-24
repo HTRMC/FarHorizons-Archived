@@ -1,7 +1,7 @@
 #include "VulkanDevice.hpp"
 #include "VulkanDebug.hpp"
 #include <set>
-#include <iostream>
+#include <spdlog/spdlog.h>
 #include <algorithm>
 
 namespace VoxelEngine {
@@ -54,14 +54,14 @@ void VulkanDevice::pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
     vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
 
     if (deviceCount == 0) {
-        std::cerr << "[VulkanDevice] Failed to find GPUs with Vulkan support!" << std::endl;
+        spdlog::error("[VulkanDevice] Failed to find GPUs with Vulkan support!");
         assert(false);
     }
 
     std::vector<VkPhysicalDevice> devices(deviceCount);
     vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
-    std::cout << "[VulkanDevice] Found " << deviceCount << " GPU(s)" << std::endl;
+    spdlog::info("[VulkanDevice] Found {} GPU(s)", deviceCount);
 
     // Score all devices and pick the best one
     int bestScore = -1;
@@ -73,7 +73,7 @@ void VulkanDevice::pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 
             VkPhysicalDeviceProperties props;
             vkGetPhysicalDeviceProperties(device, &props);
-            std::cout << "[VulkanDevice] " << props.deviceName << " - Score: " << score << std::endl;
+            spdlog::info("[VulkanDevice] {} - Score: {}", props.deviceName, score);
 
             if (score > bestScore) {
                 bestScore = score;
@@ -83,7 +83,7 @@ void VulkanDevice::pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
     }
 
     if (bestDevice == VK_NULL_HANDLE) {
-        std::cerr << "[VulkanDevice] Failed to find a suitable GPU!" << std::endl;
+        spdlog::error("[VulkanDevice] Failed to find a suitable GPU!");
         assert(false);
     }
 
@@ -92,10 +92,11 @@ void VulkanDevice::pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(m_physicalDevice, &props);
-    std::cout << "[VulkanDevice] Selected GPU: " << props.deviceName << std::endl;
-    std::cout << "[VulkanDevice] API Version: " << VK_API_VERSION_MAJOR(props.apiVersion) << "."
-              << VK_API_VERSION_MINOR(props.apiVersion) << "."
-              << VK_API_VERSION_PATCH(props.apiVersion) << std::endl;
+    spdlog::info("[VulkanDevice] Selected GPU: {}", props.deviceName);
+    spdlog::info("[VulkanDevice] API Version: {}.{}.{}",
+                 VK_API_VERSION_MAJOR(props.apiVersion),
+                 VK_API_VERSION_MINOR(props.apiVersion),
+                 VK_API_VERSION_PATCH(props.apiVersion));
 }
 
 void VulkanDevice::createLogicalDevice() {
@@ -175,15 +176,15 @@ void VulkanDevice::createLogicalDevice() {
         vkGetDeviceQueue(m_device, m_queueFamilyIndices.transferFamily.value(), 0, &m_transferQueue);
     }
 
-    std::cout << "[VulkanDevice] Logical device created" << std::endl;
-    std::cout << "[VulkanDevice] Graphics queue family: " << m_queueFamilyIndices.graphicsFamily.value() << std::endl;
-    std::cout << "[VulkanDevice] Present queue family: " << m_queueFamilyIndices.presentFamily.value() << std::endl;
+    spdlog::info("[VulkanDevice] Logical device created");
+    spdlog::info("[VulkanDevice] Graphics queue family: {}", m_queueFamilyIndices.graphicsFamily.value());
+    spdlog::info("[VulkanDevice] Present queue family: {}", m_queueFamilyIndices.presentFamily.value());
 }
 
 void VulkanDevice::shutdown() {
     if (m_device != VK_NULL_HANDLE) {
         vkDestroyDevice(m_device, nullptr);
-        std::cout << "[VulkanDevice] Logical device destroyed" << std::endl;
+        spdlog::info("[VulkanDevice] Logical device destroyed");
         m_device = VK_NULL_HANDLE;
     }
     m_physicalDevice = VK_NULL_HANDLE;
@@ -239,7 +240,7 @@ VkFormat VulkanDevice::findSupportedFormat(
         }
     }
 
-    std::cerr << "[VulkanDevice] Failed to find supported format!" << std::endl;
+    spdlog::error("[VulkanDevice] Failed to find supported format!");
     assert(false);
     return VK_FORMAT_UNDEFINED;
 }

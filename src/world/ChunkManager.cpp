@@ -1,6 +1,6 @@
 #include "ChunkManager.hpp"
 #include <cmath>
-#include <iostream>
+#include <spdlog/spdlog.h>
 
 namespace VoxelEngine {
 
@@ -48,6 +48,21 @@ static const glm::vec2 faceUVs[4] = {
 };
 
 ChunkManager::ChunkManager() {
+    unsigned int numThreads = std::max(1u, std::thread::hardware_concurrency() / 2);
+    for (unsigned int i = 0; i < numThreads; i++) {
+        m_workerThreads.emplace_back(&ChunkManager::meshWorker, this);
+    }
+    spdlog::info("ChunkManager initialized with {} mesh worker threads", numThreads);
+}
+
+ChunkManager::~ChunkManager() {
+    m_running = false;
+    m_queueCV.notify_all();
+    for (auto& thread : m_workerThreads) {
+        if (thread.joinable()) {
+            thread.join();
+        }
+    }
 }
 
 ChunkPosition ChunkManager::worldToChunkPos(const glm::vec3& worldPos) const {
@@ -63,6 +78,7 @@ void ChunkManager::update(const glm::vec3& cameraPosition) {
 
     if (cameraChunkPos != m_lastCameraChunkPos) {
         loadChunksAroundPosition(cameraChunkPos);
+        unloadDistantChunks(cameraChunkPos);
         m_lastCameraChunkPos = cameraChunkPos;
     }
 }
@@ -79,6 +95,7 @@ void ChunkManager::loadChunksAroundPosition(const ChunkPosition& centerPos) {
 
                 float distance = std::sqrt(x*x + y*y + z*z);
                 if (distance <= m_renderDistance) {
+                    std::lock_guard<std::mutex> lock(m_chunksMutex);
                     if (m_chunks.find(pos) == m_chunks.end()) {
                         loadChunk(pos);
                     }
@@ -88,16 +105,47 @@ void ChunkManager::loadChunksAroundPosition(const ChunkPosition& centerPos) {
     }
 }
 
+void ChunkManager::unloadDistantChunks(const ChunkPosition& centerPos) {
+    std::vector<ChunkPosition> chunksToUnload;
+
+    {
+        std::lock_guard<std::mutex> lock(m_chunksMutex);
+        for (const auto& [pos, chunk] : m_chunks) {
+            int32_t dx = pos.x - centerPos.x;
+            int32_t dy = pos.y - centerPos.y;
+            int32_t dz = pos.z - centerPos.z;
+            float distance = std::sqrt(dx*dx + dy*dy + dz*dz);
+
+            if (distance > m_renderDistance + 1) {
+                chunksToUnload.push_back(pos);
+            }
+        }
+
+        if (!chunksToUnload.empty()) {
+            for (const auto& pos : chunksToUnload) {
+                m_chunks.erase(pos);
+            }
+        }
+    }
+
+    if (!chunksToUnload.empty()) {
+        spdlog::debug("Unloaded {} chunks", chunksToUnload.size());
+    }
+}
+
 Chunk* ChunkManager::loadChunk(const ChunkPosition& pos) {
     auto chunk = std::make_unique<Chunk>(pos);
     chunk->generate();
 
     Chunk* chunkPtr = chunk.get();
     m_chunks[pos] = std::move(chunk);
-    m_chunksChanged = true;
 
     if (!chunkPtr->isEmpty()) {
-        std::cout << "[ChunkManager] Loaded chunk at (" << pos.x << ", " << pos.y << ", " << pos.z << ")" << std::endl;
+        spdlog::trace("Loaded chunk at ({}, {}, {})", pos.x, pos.y, pos.z);
+
+        std::lock_guard<std::mutex> lock(m_queueMutex);
+        m_meshQueue.push(pos);
+        m_queueCV.notify_one();
     }
 
     return chunkPtr;
@@ -198,7 +246,61 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
         }
     }
 
+    mesh.position = chunkPos;
     return mesh;
+}
+
+void ChunkManager::meshWorker() {
+    while (m_running) {
+        ChunkPosition pos;
+
+        {
+            std::unique_lock<std::mutex> lock(m_queueMutex);
+            m_queueCV.wait(lock, [this] { return !m_meshQueue.empty() || !m_running; });
+
+            if (!m_running) {
+                break;
+            }
+
+            if (m_meshQueue.empty()) {
+                continue;
+            }
+
+            pos = m_meshQueue.front();
+            m_meshQueue.pop();
+        }
+
+        ChunkMesh mesh;
+        {
+            std::lock_guard<std::mutex> lock(m_chunksMutex);
+            const Chunk* chunk = getChunk(pos);
+            if (chunk && !chunk->isEmpty()) {
+                mesh = generateChunkMesh(chunk, 0);
+            }
+        }
+
+        if (!mesh.indices.empty()) {
+            std::lock_guard<std::mutex> lock(m_readyMutex);
+            m_readyMeshes.push(std::move(mesh));
+        }
+    }
+}
+
+bool ChunkManager::hasReadyMeshes() const {
+    std::lock_guard<std::mutex> lock(m_readyMutex);
+    return !m_readyMeshes.empty();
+}
+
+std::vector<ChunkMesh> ChunkManager::getReadyMeshes() {
+    std::vector<ChunkMesh> meshes;
+
+    std::lock_guard<std::mutex> lock(m_readyMutex);
+    while (!m_readyMeshes.empty()) {
+        meshes.push_back(std::move(m_readyMeshes.front()));
+        m_readyMeshes.pop();
+    }
+
+    return meshes;
 }
 
 } // namespace VoxelEngine

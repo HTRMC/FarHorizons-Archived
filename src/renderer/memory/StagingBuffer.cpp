@@ -1,6 +1,6 @@
 #include "StagingBuffer.hpp"
 #include "../core/VulkanDebug.hpp"
-#include <iostream>
+#include <spdlog/spdlog.h>
 
 namespace VoxelEngine {
 
@@ -30,8 +30,8 @@ bool StagingBuffer::upload(
     VkDeviceSize dstOffset
 ) {
     if (size > m_stagingBuffer.getSize()) {
-        std::cerr << "[StagingBuffer] Upload size (" << size
-                  << ") exceeds staging buffer capacity (" << m_stagingBuffer.getSize() << ")" << std::endl;
+        spdlog::error("[StagingBuffer] Upload size ({}) exceeds staging buffer capacity ({})",
+                      size, m_stagingBuffer.getSize());
         return false;
     }
 

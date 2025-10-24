@@ -1,6 +1,6 @@
 #include "RenderContext.hpp"
 #include "core/VulkanDebug.hpp"
-#include <iostream>
+#include <spdlog/spdlog.h>
 
 namespace VoxelEngine {
 
@@ -53,8 +53,8 @@ void RenderContext::init(VulkanContext& context, Swapchain& swapchain) {
         m_ringBuffers[i].init(allocator, 16 * 1024 * 1024); // 16MB per frame
     }
 
-    std::cout << "[RenderContext] Initialized (Frames in flight: " << FrameSync::MAX_FRAMES_IN_FLIGHT
-              << ", Swapchain images: " << imageCount << ")" << std::endl;
+    spdlog::info("[RenderContext] Initialized (Frames in flight: {}, Swapchain images: {})",
+                 FrameSync::MAX_FRAMES_IN_FLIGHT, imageCount);
 }
 
 void RenderContext::shutdown() {
@@ -82,7 +82,7 @@ void RenderContext::shutdown() {
 
         m_frameSync.shutdown();
 
-        std::cout << "[RenderContext] Shutdown" << std::endl;
+        spdlog::info("[RenderContext] Shutdown");
     }
 
     m_context = nullptr;
@@ -108,7 +108,7 @@ bool RenderContext::beginFrame() {
         // Swapchain needs recreation
         return false;
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        std::cerr << "[RenderContext] Failed to acquire swapchain image!" << std::endl;
+        spdlog::error("[RenderContext] Failed to acquire swapchain image!");
         assert(false);
     }
 
@@ -183,7 +183,7 @@ void RenderContext::endFrame() {
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         // Swapchain needs recreation (handle in main loop)
     } else if (result != VK_SUCCESS) {
-        std::cerr << "[RenderContext] Failed to present swapchain image!" << std::endl;
+        spdlog::error("[RenderContext] Failed to present swapchain image!");
         assert(false);
     }
 

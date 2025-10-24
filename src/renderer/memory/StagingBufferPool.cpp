@@ -1,6 +1,6 @@
 #include "StagingBufferPool.hpp"
 #include "../core/VulkanDebug.hpp"
-#include <iostream>
+#include <spdlog/spdlog.h>
 #include <algorithm>
 
 namespace VoxelEngine {
@@ -8,8 +8,8 @@ namespace VoxelEngine {
 void StagingBufferPool::init(VmaAllocator allocator, VkDeviceSize defaultBufferSize) {
     m_allocator = allocator;
     m_defaultBufferSize = defaultBufferSize;
-    std::cout << "[StagingBufferPool] Initialized with default buffer size: "
-              << (defaultBufferSize / (1024 * 1024)) << " MB" << std::endl;
+    spdlog::info("[StagingBufferPool] Initialized with default buffer size: {} MB",
+                 defaultBufferSize / (1024 * 1024));
 }
 
 void StagingBufferPool::cleanup() {
@@ -17,7 +17,7 @@ void StagingBufferPool::cleanup() {
         entry.buffer.cleanup();
     }
     m_pool.clear();
-    std::cout << "[StagingBufferPool] Cleaned up" << std::endl;
+    spdlog::info("[StagingBufferPool] Cleaned up");
 }
 
 StagingBuffer* StagingBufferPool::acquire(VkDeviceSize minSize) {
@@ -38,8 +38,8 @@ StagingBuffer* StagingBufferPool::acquire(VkDeviceSize minSize) {
 
     m_pool.push_back(std::move(newEntry));
 
-    std::cout << "[StagingBufferPool] Created new staging buffer of size: "
-              << (bufferSize / (1024 * 1024)) << " MB (pool size: " << m_pool.size() << ")" << std::endl;
+    spdlog::info("[StagingBufferPool] Created new staging buffer of size: {} MB (pool size: {})",
+                 bufferSize / (1024 * 1024), m_pool.size());
 
     return &m_pool.back().buffer;
 }
@@ -52,7 +52,7 @@ void StagingBufferPool::release(StagingBuffer* buffer) {
         }
     }
 
-    std::cerr << "[StagingBufferPool] Warning: Tried to release buffer not in pool!" << std::endl;
+    spdlog::warn("[StagingBufferPool] Warning: Tried to release buffer not in pool!");
 }
 
 void StagingBufferPool::reset() {

@@ -1,7 +1,7 @@
 #include "Shader.hpp"
 #include "../core/VulkanDebug.hpp"
 #include <fstream>
-#include <iostream>
+#include <spdlog/spdlog.h>
 
 namespace VoxelEngine {
 
@@ -28,7 +28,7 @@ void Shader::loadFromFile(VkDevice device, const std::string& filepath) {
     m_device = device;
     auto code = readFile(filepath);
     loadFromCode(device, code);
-    std::cout << "[Shader] Loaded: " << filepath << " (" << code.size() * 4 << " bytes)" << std::endl;
+    spdlog::info("[Shader] Loaded: {} ({} bytes)", filepath, code.size() * 4);
 }
 
 void Shader::loadFromCode(VkDevice device, const std::vector<uint32_t>& code) {
@@ -53,7 +53,7 @@ std::vector<uint32_t> Shader::readFile(const std::string& filepath) {
     std::ifstream file(filepath, std::ios::ate | std::ios::binary);
 
     if (!file.is_open()) {
-        std::cerr << "[Shader] Failed to open file: " << filepath << std::endl;
+        spdlog::error("[Shader] Failed to open file: {}", filepath);
         assert(false);
     }
 

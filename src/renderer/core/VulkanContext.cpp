@@ -1,5 +1,5 @@
 #include "VulkanContext.hpp"
-#include <iostream>
+#include <spdlog/spdlog.h>
 #include <GLFW/glfw3.h>
 
 #define VMA_IMPLEMENTATION
@@ -37,7 +37,7 @@ VulkanContext& VulkanContext::operator=(VulkanContext&& other) noexcept {
 }
 
 void VulkanContext::init(GLFWwindow* window, const std::string& appName) {
-    std::cout << "[VulkanContext] Initializing..." << std::endl;
+    spdlog::info("[VulkanContext] Initializing...");
 
     createInstance(appName);
     m_debugMessenger.init(m_instance);
@@ -46,7 +46,7 @@ void VulkanContext::init(GLFWwindow* window, const std::string& appName) {
     m_device.createLogicalDevice();
     createAllocator();
 
-    std::cout << "[VulkanContext] Initialization complete" << std::endl;
+    spdlog::info("[VulkanContext] Initialization complete");
 }
 
 void VulkanContext::shutdown() {
@@ -55,7 +55,7 @@ void VulkanContext::shutdown() {
 
         if (m_allocator != VK_NULL_HANDLE) {
             vmaDestroyAllocator(m_allocator);
-            std::cout << "[VulkanContext] VMA allocator destroyed" << std::endl;
+            spdlog::info("[VulkanContext] VMA allocator destroyed");
             m_allocator = VK_NULL_HANDLE;
         }
 
@@ -63,14 +63,14 @@ void VulkanContext::shutdown() {
 
         if (m_surface != VK_NULL_HANDLE) {
             vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
-            std::cout << "[VulkanContext] Surface destroyed" << std::endl;
+            spdlog::info("[VulkanContext] Surface destroyed");
             m_surface = VK_NULL_HANDLE;
         }
 
         m_debugMessenger.shutdown(m_instance);
 
         vkDestroyInstance(m_instance, nullptr);
-        std::cout << "[VulkanContext] Instance destroyed" << std::endl;
+        spdlog::info("[VulkanContext] Instance destroyed");
         m_instance = VK_NULL_HANDLE;
     }
 }
@@ -84,7 +84,7 @@ void VulkanContext::waitIdle() const {
 void VulkanContext::createInstance(const std::string& appName) {
     // Check validation layer support
     if (!checkValidationLayerSupport()) {
-        std::cerr << "[VulkanContext] Validation layers requested but not available!" << std::endl;
+        spdlog::error("[VulkanContext] Validation layers requested but not available!");
         assert(false);
     }
 
@@ -111,12 +111,12 @@ void VulkanContext::createInstance(const std::string& appName) {
     createInfo.ppEnabledLayerNames = validationLayers.data();
 
     VK_CHECK(vkCreateInstance(&createInfo, nullptr, &m_instance));
-    std::cout << "[VulkanContext] Instance created" << std::endl;
+    spdlog::info("[VulkanContext] Instance created");
 }
 
 void VulkanContext::createSurface(GLFWwindow* window) {
     VK_CHECK(glfwCreateWindowSurface(m_instance, window, nullptr, &m_surface));
-    std::cout << "[VulkanContext] Surface created" << std::endl;
+    spdlog::info("[VulkanContext] Surface created");
 }
 
 void VulkanContext::createAllocator() {
@@ -127,7 +127,7 @@ void VulkanContext::createAllocator() {
     allocatorInfo.device = m_device.getLogicalDevice();
 
     VK_CHECK(vmaCreateAllocator(&allocatorInfo, &m_allocator));
-    std::cout << "[VulkanContext] VMA allocator created" << std::endl;
+    spdlog::info("[VulkanContext] VMA allocator created");
 }
 
 std::vector<const char*> VulkanContext::getRequiredExtensions() {
@@ -139,9 +139,9 @@ std::vector<const char*> VulkanContext::getRequiredExtensions() {
     // Add debug utils extension
     extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
-    std::cout << "[VulkanContext] Required extensions:" << std::endl;
+    spdlog::info("[VulkanContext] Required extensions:");
     for (const char* ext : extensions) {
-        std::cout << "  - " << ext << std::endl;
+        spdlog::info("  - {}", ext);
     }
 
     return extensions;

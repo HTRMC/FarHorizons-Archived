@@ -5,6 +5,11 @@
 #include <unordered_map>
 #include <memory>
 #include <vector>
+#include <thread>
+#include <mutex>
+#include <queue>
+#include <atomic>
+#include <condition_variable>
 
 namespace VoxelEngine {
 
@@ -18,11 +23,13 @@ struct Vertex {
 struct ChunkMesh {
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
+    ChunkPosition position;
 };
 
 class ChunkManager {
 public:
     ChunkManager();
+    ~ChunkManager();
 
     void setRenderDistance(int32_t distance) { m_renderDistance = distance; }
     int32_t getRenderDistance() const { return m_renderDistance; }
@@ -40,17 +47,27 @@ public:
 
     ChunkMesh generateChunkMesh(const Chunk* chunk, uint32_t textureIndex) const;
 
-    bool hasChunksChanged() const { return m_chunksChanged; }
-    void clearChangedFlag() { m_chunksChanged = false; }
+    bool hasReadyMeshes() const;
+    std::vector<ChunkMesh> getReadyMeshes();
 
 private:
     std::unordered_map<ChunkPosition, std::unique_ptr<Chunk>, ChunkPositionHash> m_chunks;
     int32_t m_renderDistance = 8;
     ChunkPosition m_lastCameraChunkPos = {INT32_MAX, INT32_MAX, INT32_MAX};
-    bool m_chunksChanged = false;
+
+    std::vector<std::thread> m_workerThreads;
+    std::queue<ChunkPosition> m_meshQueue;
+    std::queue<ChunkMesh> m_readyMeshes;
+    std::mutex m_chunksMutex;
+    std::mutex m_queueMutex;
+    mutable std::mutex m_readyMutex;
+    std::condition_variable m_queueCV;
+    std::atomic<bool> m_running{true};
 
     void loadChunksAroundPosition(const ChunkPosition& centerPos);
+    void unloadDistantChunks(const ChunkPosition& centerPos);
     Chunk* loadChunk(const ChunkPosition& pos);
+    void meshWorker();
 };
 
 } // namespace VoxelEngine

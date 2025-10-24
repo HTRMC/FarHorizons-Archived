@@ -1,13 +1,13 @@
 #include "Window.hpp"
 #include <stdexcept>
-#include <iostream>
+#include <spdlog/spdlog.h>
 
 namespace VoxelEngine {
 
 static bool s_GLFWInitialized = false;
 
 static void glfwErrorCallback(int error, const char* description) {
-    std::cerr << "GLFW Error (" << error << "): " << description << std::endl;
+    spdlog::error("GLFW Error ({}): {}", error, description);
 }
 
 Window::Window(const WindowProperties& props)
@@ -88,7 +88,7 @@ void Window::init() {
     // Setup callbacks
     setupCallbacks();
 
-    std::cout << "Window created: " << m_properties.width << "x" << m_properties.height << std::endl;
+    spdlog::info("Window created: {}x{}", m_properties.width, m_properties.height);
 }
 
 void Window::shutdown() {

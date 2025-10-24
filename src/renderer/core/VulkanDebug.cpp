@@ -1,6 +1,6 @@
 #include "VulkanDebug.hpp"
 #include <vector>
-#include <iostream>
+#include <spdlog/spdlog.h>
 
 namespace VoxelEngine {
 
@@ -37,7 +37,24 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
             break;
     }
 
-    std::cerr << color << "[VULKAN " << severityStr << "] " << pCallbackData->pMessage << reset << std::endl;
+    // Map Vulkan severity to spdlog levels
+    switch (messageSeverity) {
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
+            spdlog::debug("[VULKAN] {}", pCallbackData->pMessage);
+            break;
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+            spdlog::info("[VULKAN] {}", pCallbackData->pMessage);
+            break;
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+            spdlog::warn("[VULKAN] {}", pCallbackData->pMessage);
+            break;
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+            spdlog::error("[VULKAN] {}", pCallbackData->pMessage);
+            break;
+        default:
+            spdlog::info("[VULKAN] {}", pCallbackData->pMessage);
+            break;
+    }
 
     // Return VK_TRUE to abort the call that triggered the validation layer message
     // Only abort on errors in debug builds
@@ -66,9 +83,9 @@ void VulkanDebugMessenger::init(VkInstance instance) {
 
     if (func != nullptr) {
         VK_CHECK(func(instance, &createInfo, nullptr, &m_debugMessenger));
-        std::cout << "[VulkanDebug] Debug messenger created" << std::endl;
+        spdlog::info("[VulkanDebug] Debug messenger created");
     } else {
-        std::cerr << "[VulkanDebug] Failed to load vkCreateDebugUtilsMessengerEXT" << std::endl;
+        spdlog::error("[VulkanDebug] Failed to load vkCreateDebugUtilsMessengerEXT");
     }
 }
 
@@ -80,7 +97,7 @@ void VulkanDebugMessenger::shutdown(VkInstance instance) {
 
         if (func != nullptr) {
             func(instance, m_debugMessenger, nullptr);
-            std::cout << "[VulkanDebug] Debug messenger destroyed" << std::endl;
+            spdlog::info("[VulkanDebug] Debug messenger destroyed");
         }
 
         m_debugMessenger = VK_NULL_HANDLE;
@@ -107,12 +124,12 @@ bool checkValidationLayerSupport() {
         }
 
         if (!layerFound) {
-            std::cerr << "[VulkanDebug] Validation layer not found: " << layerName << std::endl;
+            spdlog::error("[VulkanDebug] Validation layer not found: {}", layerName);
             return false;
         }
     }
 
-    std::cout << "[VulkanDebug] All validation layers supported" << std::endl;
+    spdlog::info("[VulkanDebug] All validation layers supported");
     return true;
 }
 
