@@ -218,9 +218,25 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                     bool shouldRenderFace = false;
 
                     if (nx < 0 || nx >= CHUNK_SIZE || ny < 0 || ny >= CHUNK_SIZE || nz < 0 || nz >= CHUNK_SIZE) {
-                        // Face is on chunk boundary - assume it should be rendered
-                        // (neighbor might not be loaded yet)
-                        shouldRenderFace = true;
+                        // Face is on chunk boundary - check neighbor chunk
+                        ChunkPosition neighborChunkPos = chunkPos;
+                        int localX = nx;
+                        int localY = ny;
+                        int localZ = nz;
+
+                        if (nx < 0) { neighborChunkPos.x--; localX = CHUNK_SIZE - 1; }
+                        else if (nx >= CHUNK_SIZE) { neighborChunkPos.x++; localX = 0; }
+
+                        if (ny < 0) { neighborChunkPos.y--; localY = CHUNK_SIZE - 1; }
+                        else if (ny >= CHUNK_SIZE) { neighborChunkPos.y++; localY = 0; }
+
+                        if (nz < 0) { neighborChunkPos.z--; localZ = CHUNK_SIZE - 1; }
+                        else if (nz >= CHUNK_SIZE) { neighborChunkPos.z++; localZ = 0; }
+
+                        const Chunk* neighborChunk = getChunk(neighborChunkPos);
+                        if (!neighborChunk || !neighborChunk->getVoxel(localX, localY, localZ)) {
+                            shouldRenderFace = true;
+                        }
                     } else {
                         if (!chunk->getVoxel(nx, ny, nz)) {
                             shouldRenderFace = true;
@@ -283,6 +299,7 @@ void ChunkManager::meshWorker() {
         }
 
         // If chunk doesn't exist, generate it first
+        bool wasNewlyCreated = false;
         if (!chunkExists) {
             auto chunk = std::make_unique<Chunk>(pos);
             chunk->generate();
@@ -291,6 +308,7 @@ void ChunkManager::meshWorker() {
             // Double-check it wasn't added by another thread
             if (m_chunks.find(pos) == m_chunks.end()) {
                 m_chunks[pos] = std::move(chunk);
+                wasNewlyCreated = true;
                 spdlog::trace("Worker generated chunk at ({}, {}, {})", pos.x, pos.y, pos.z);
             }
         }
@@ -308,6 +326,33 @@ void ChunkManager::meshWorker() {
         if (!mesh.indices.empty()) {
             std::lock_guard<std::mutex> lock(m_readyMutex);
             m_readyMeshes.push(std::move(mesh));
+        }
+
+        // If this was a new chunk, queue neighbors for remeshing to update boundary faces
+        if (wasNewlyCreated) {
+            std::lock_guard<std::mutex> lock(m_queueMutex);
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        // Skip self and diagonals (only faces, not edges/corners)
+                        if (abs(dx) + abs(dy) + abs(dz) != 1) continue;
+
+                        ChunkPosition neighborPos = {pos.x + dx, pos.y + dy, pos.z + dz};
+
+                        // Check if neighbor exists (without locking - we'll check again in worker)
+                        bool neighborExists = false;
+                        {
+                            std::lock_guard<std::mutex> chunkLock(m_chunksMutex);
+                            neighborExists = (m_chunks.find(neighborPos) != m_chunks.end());
+                        }
+
+                        if (neighborExists) {
+                            m_meshQueue.push(neighborPos);
+                        }
+                    }
+                }
+            }
+            m_queueCV.notify_all();
         }
     }
 }
