@@ -107,7 +107,7 @@ int main() {
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         vkBeginCommandBuffer(uploadCmd, &beginInfo);
-        uint32_t stoneTextureIndex = textureManager.loadTexture("assets/minecraft/textures/block/stone.png", uploadCmd, true);
+        uint32_t stoneTextureIndex = textureManager.loadTexture("assets/minecraft/textures/block/stone.png", uploadCmd, false);
         vkEndCommandBuffer(uploadCmd);
 
         VkSubmitInfo submitInfo{};
