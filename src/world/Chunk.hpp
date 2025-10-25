@@ -1,5 +1,6 @@
 #pragma once
 
+#include "BlockType.hpp"
 #include <glm/glm.hpp>
 #include <vector>
 #include <cstdint>
@@ -9,7 +10,6 @@ namespace VoxelEngine {
 
 constexpr uint32_t CHUNK_SIZE = 16;
 constexpr uint32_t CHUNK_VOLUME = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
-constexpr uint32_t CHUNK_BIT_ARRAY_SIZE = CHUNK_VOLUME / 8;
 
 struct ChunkPosition {
     int32_t x, y, z;
@@ -38,8 +38,8 @@ public:
 
     const ChunkPosition& getPosition() const { return m_position; }
 
-    bool getVoxel(uint32_t x, uint32_t y, uint32_t z) const;
-    void setVoxel(uint32_t x, uint32_t y, uint32_t z, bool solid);
+    BlockType getBlock(uint32_t x, uint32_t y, uint32_t z) const;
+    void setBlock(uint32_t x, uint32_t y, uint32_t z, BlockType type);
 
     const uint8_t* getData() const { return m_data.data(); }
 
@@ -51,10 +51,10 @@ public:
 
 private:
     ChunkPosition m_position;
-    std::array<uint8_t, CHUNK_BIT_ARRAY_SIZE> m_data;
+    std::array<uint8_t, CHUNK_VOLUME> m_data;  // Each uint8_t stores a BlockType
     bool m_isEmpty = true;
 
-    uint32_t getVoxelIndex(uint32_t x, uint32_t y, uint32_t z) const;
+    uint32_t getBlockIndex(uint32_t x, uint32_t y, uint32_t z) const;
 };
 
 } // namespace VoxelEngine

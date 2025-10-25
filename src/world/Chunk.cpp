@@ -7,30 +7,25 @@ namespace VoxelEngine {
 Chunk::Chunk(const ChunkPosition& position)
     : m_position(position)
 {
-    std::memset(m_data.data(), 0, CHUNK_BIT_ARRAY_SIZE);
+    // Initialize all blocks to AIR
+    std::memset(m_data.data(), static_cast<uint8_t>(BlockType::AIR), CHUNK_VOLUME);
 }
 
-uint32_t Chunk::getVoxelIndex(uint32_t x, uint32_t y, uint32_t z) const {
+uint32_t Chunk::getBlockIndex(uint32_t x, uint32_t y, uint32_t z) const {
     return x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE;
 }
 
-bool Chunk::getVoxel(uint32_t x, uint32_t y, uint32_t z) const {
-    uint32_t index = getVoxelIndex(x, y, z);
-    uint32_t byteIndex = index / 8;
-    uint32_t bitIndex = index % 8;
-    return (m_data[byteIndex] >> bitIndex) & 1;
+BlockType Chunk::getBlock(uint32_t x, uint32_t y, uint32_t z) const {
+    uint32_t index = getBlockIndex(x, y, z);
+    return static_cast<BlockType>(m_data[index]);
 }
 
-void Chunk::setVoxel(uint32_t x, uint32_t y, uint32_t z, bool solid) {
-    uint32_t index = getVoxelIndex(x, y, z);
-    uint32_t byteIndex = index / 8;
-    uint32_t bitIndex = index % 8;
+void Chunk::setBlock(uint32_t x, uint32_t y, uint32_t z, BlockType type) {
+    uint32_t index = getBlockIndex(x, y, z);
+    m_data[index] = static_cast<uint8_t>(type);
 
-    if (solid) {
-        m_data[byteIndex] |= (1 << bitIndex);
+    if (type != BlockType::AIR) {
         m_isEmpty = false;
-    } else {
-        m_data[byteIndex] &= ~(1 << bitIndex);
     }
 }
 
@@ -41,34 +36,34 @@ void Chunk::generate() {
         m_position.z * static_cast<int32_t>(CHUNK_SIZE)
     );
 
-    bool hasVoxels = false;
+    bool hasBlocks = false;
 
     for (uint32_t x = 0; x < CHUNK_SIZE; x++) {
         for (uint32_t y = 0; y < CHUNK_SIZE; y++) {
             for (uint32_t z = 0; z < CHUNK_SIZE; z++) {
                 glm::vec3 worldPos = chunkWorldPos + glm::vec3(x, y, z);
-                bool isSolid = false;
+                BlockType blockType = BlockType::AIR;
 
                 if (worldPos.y >= 0.0f && worldPos.y <= 1.0f) {
-                    isSolid = true;
+                    blockType = BlockType::STONE;
                 } else {
                     glm::vec3 center(0.0f, 10.0f, 0.0f);
                     float distance = glm::length(worldPos - center);
 
                     if (distance >= 20.0f && distance <= 30.0f) {
-                        isSolid = true;
+                        blockType = BlockType::STONE;
                     }
                 }
 
-                if (isSolid) {
-                    setVoxel(x, y, z, true);
-                    hasVoxels = true;
+                if (blockType != BlockType::AIR) {
+                    setBlock(x, y, z, blockType);
+                    hasBlocks = true;
                 }
             }
         }
     }
 
-    if (hasVoxels) {
+    if (hasBlocks) {
         m_isEmpty = false;
     }
 }

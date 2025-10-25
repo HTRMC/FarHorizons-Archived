@@ -204,7 +204,8 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
     for (uint32_t x = 0; x < CHUNK_SIZE; x++) {
         for (uint32_t y = 0; y < CHUNK_SIZE; y++) {
             for (uint32_t z = 0; z < CHUNK_SIZE; z++) {
-                if (!chunk->getVoxel(x, y, z)) {
+                BlockType blockType = chunk->getBlock(x, y, z);
+                if (blockType == BlockType::AIR) {
                     continue;
                 }
 
@@ -234,11 +235,11 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                         else if (nz >= CHUNK_SIZE) { neighborChunkPos.z++; localZ = 0; }
 
                         const Chunk* neighborChunk = getChunk(neighborChunkPos);
-                        if (!neighborChunk || !neighborChunk->getVoxel(localX, localY, localZ)) {
+                        if (!neighborChunk || neighborChunk->getBlock(localX, localY, localZ) == BlockType::AIR) {
                             shouldRenderFace = true;
                         }
                     } else {
-                        if (!chunk->getVoxel(nx, ny, nz)) {
+                        if (chunk->getBlock(nx, ny, nz) == BlockType::AIR) {
                             shouldRenderFace = true;
                         }
                     }
