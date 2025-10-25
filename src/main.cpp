@@ -153,6 +153,7 @@ int main() {
 
         ChunkManager chunkManager;
         chunkManager.setRenderDistance(8);
+        chunkManager.initializeBlockModels("assets/minecraft/models");
 
         ChunkBufferManager bufferManager;
         bufferManager.init(vulkanContext.getAllocator(), 1000000, 2000000, 1000);

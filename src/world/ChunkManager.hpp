@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Chunk.hpp"
+#include "BlockModel.hpp"
 #include <glm/glm.hpp>
 #include <unordered_map>
 #include <memory>
@@ -31,6 +32,8 @@ public:
     ChunkManager();
     ~ChunkManager();
 
+    void initializeBlockModels(const std::string& modelsPath);
+
     void setRenderDistance(int32_t distance) { m_renderDistance = distance; }
     int32_t getRenderDistance() const { return m_renderDistance; }
 
@@ -55,6 +58,8 @@ private:
     std::unordered_map<ChunkPosition, std::unique_ptr<Chunk>, ChunkPositionHash> m_chunks;
     int32_t m_renderDistance = 8;
     ChunkPosition m_lastCameraChunkPos = {INT32_MAX, INT32_MAX, INT32_MAX};
+
+    BlockModelManager m_modelManager;
 
     std::vector<std::thread> m_workerThreads;
     std::queue<ChunkPosition> m_meshQueue;

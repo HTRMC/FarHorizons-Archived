@@ -4,31 +4,57 @@
 
 namespace VoxelEngine {
 
+// Map FaceDirection enum to face index (0-5)
+static int faceDirectionToIndex(FaceDirection dir) {
+    switch (dir) {
+        case FaceDirection::SOUTH: return 0;  // +Z
+        case FaceDirection::NORTH: return 1;  // -Z
+        case FaceDirection::WEST:  return 2;  // -X
+        case FaceDirection::EAST:  return 3;  // +X
+        case FaceDirection::UP:    return 4;  // +Y
+        case FaceDirection::DOWN:  return 5;  // -Y
+    }
+    return 0;
+}
+
+// Map face index to FaceDirection
+static FaceDirection indexToFaceDirection(int index) {
+    switch (index) {
+        case 0: return FaceDirection::SOUTH;
+        case 1: return FaceDirection::NORTH;
+        case 2: return FaceDirection::WEST;
+        case 3: return FaceDirection::EAST;
+        case 4: return FaceDirection::UP;
+        case 5: return FaceDirection::DOWN;
+    }
+    return FaceDirection::NORTH;
+}
+
 static const glm::vec3 faceColors[6] = {
-    glm::vec3(0.8f, 0.8f, 0.8f),
-    glm::vec3(0.8f, 0.8f, 0.8f),
-    glm::vec3(0.6f, 0.6f, 0.6f),
-    glm::vec3(0.6f, 0.6f, 0.6f),
-    glm::vec3(1.0f, 1.0f, 1.0f),
-    glm::vec3(0.5f, 0.5f, 0.5f),
+    glm::vec3(0.8f, 0.8f, 0.8f),  // South
+    glm::vec3(0.8f, 0.8f, 0.8f),  // North
+    glm::vec3(0.6f, 0.6f, 0.6f),  // West
+    glm::vec3(0.6f, 0.6f, 0.6f),  // East
+    glm::vec3(1.0f, 1.0f, 1.0f),  // Up
+    glm::vec3(0.5f, 0.5f, 0.5f),  // Down
 };
 
 static const glm::vec3 faceNormals[6] = {
-    glm::vec3(0, 0, 1),
-    glm::vec3(0, 0, -1),
-    glm::vec3(-1, 0, 0),
-    glm::vec3(1, 0, 0),
-    glm::vec3(0, 1, 0),
-    glm::vec3(0, -1, 0),
+    glm::vec3(0, 0, 1),   // South
+    glm::vec3(0, 0, -1),  // North
+    glm::vec3(-1, 0, 0),  // West
+    glm::vec3(1, 0, 0),   // East
+    glm::vec3(0, 1, 0),   // Up
+    glm::vec3(0, -1, 0),  // Down
 };
 
 static const int faceDirs[6][3] = {
-    {0, 0, 1},
-    {0, 0, -1},
-    {-1, 0, 0},
-    {1, 0, 0},
-    {0, 1, 0},
-    {0, -1, 0},
+    {0, 0, 1},   // South (+Z)
+    {0, 0, -1},  // North (-Z)
+    {-1, 0, 0},  // West (-X)
+    {1, 0, 0},   // East (+X)
+    {0, 1, 0},   // Up (+Y)
+    {0, -1, 0},  // Down (-Y)
 };
 
 static const glm::vec3 faceVertices[6][4] = {
@@ -63,6 +89,10 @@ ChunkManager::~ChunkManager() {
             thread.join();
         }
     }
+}
+
+void ChunkManager::initializeBlockModels(const std::string& modelsPath) {
+    m_modelManager.initialize(modelsPath);
 }
 
 ChunkPosition ChunkManager::worldToChunkPos(const glm::vec3& worldPos) const {
@@ -201,61 +231,135 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
         chunkPos.z * static_cast<int32_t>(CHUNK_SIZE)
     );
 
-    for (uint32_t x = 0; x < CHUNK_SIZE; x++) {
-        for (uint32_t y = 0; y < CHUNK_SIZE; y++) {
-            for (uint32_t z = 0; z < CHUNK_SIZE; z++) {
-                BlockType blockType = chunk->getBlock(x, y, z);
+    // Iterate through all blocks in the chunk
+    for (uint32_t bx = 0; bx < CHUNK_SIZE; bx++) {
+        for (uint32_t by = 0; by < CHUNK_SIZE; by++) {
+            for (uint32_t bz = 0; bz < CHUNK_SIZE; bz++) {
+                BlockType blockType = chunk->getBlock(bx, by, bz);
                 if (blockType == BlockType::AIR) {
                     continue;
                 }
 
-                glm::vec3 voxelPos(x, y, z);
+                // Get the block model
+                const BlockModel* model = m_modelManager.getModel(blockType);
+                if (!model || model->elements.empty()) {
+                    // Fallback to simple cube if no model found
+                    spdlog::warn("No model found for block type: {}", static_cast<int>(blockType));
+                    continue;
+                }
 
-                for (int face = 0; face < 6; face++) {
-                    int nx = x + faceDirs[face][0];
-                    int ny = y + faceDirs[face][1];
-                    int nz = z + faceDirs[face][2];
+                glm::vec3 blockPos(bx, by, bz);
+                glm::vec3 blockWorldPos = chunkWorldPos + blockPos;
 
-                    bool shouldRenderFace = false;
+                // Process each element in the model
+                for (const auto& element : model->elements) {
+                    // Convert from 0-16 space to 0-1 space
+                    glm::vec3 elemFrom = element.from / 16.0f;
+                    glm::vec3 elemTo = element.to / 16.0f;
 
-                    if (nx < 0 || nx >= CHUNK_SIZE || ny < 0 || ny >= CHUNK_SIZE || nz < 0 || nz >= CHUNK_SIZE) {
-                        // Face is on chunk boundary - check neighbor chunk
-                        ChunkPosition neighborChunkPos = chunkPos;
-                        int localX = nx;
-                        int localY = ny;
-                        int localZ = nz;
+                    // Process each face of the element
+                    for (const auto& [faceDir, face] : element.faces) {
+                        // Check cullface - should we skip this face?
+                        bool shouldRender = true;
 
-                        if (nx < 0) { neighborChunkPos.x--; localX = CHUNK_SIZE - 1; }
-                        else if (nx >= CHUNK_SIZE) { neighborChunkPos.x++; localX = 0; }
+                        if (face.cullface.has_value()) {
+                            // Get the direction to check
+                            int faceIndex = faceDirectionToIndex(face.cullface.value());
+                            int nx = bx + faceDirs[faceIndex][0];
+                            int ny = by + faceDirs[faceIndex][1];
+                            int nz = bz + faceDirs[faceIndex][2];
 
-                        if (ny < 0) { neighborChunkPos.y--; localY = CHUNK_SIZE - 1; }
-                        else if (ny >= CHUNK_SIZE) { neighborChunkPos.y++; localY = 0; }
+                            // Check if neighbor is solid
+                            if (nx < 0 || nx >= CHUNK_SIZE || ny < 0 || ny >= CHUNK_SIZE || nz < 0 || nz >= CHUNK_SIZE) {
+                                // Check neighbor chunk
+                                ChunkPosition neighborChunkPos = chunkPos;
+                                int localX = nx, localY = ny, localZ = nz;
 
-                        if (nz < 0) { neighborChunkPos.z--; localZ = CHUNK_SIZE - 1; }
-                        else if (nz >= CHUNK_SIZE) { neighborChunkPos.z++; localZ = 0; }
+                                if (nx < 0) { neighborChunkPos.x--; localX = CHUNK_SIZE - 1; }
+                                else if (nx >= CHUNK_SIZE) { neighborChunkPos.x++; localX = 0; }
+                                if (ny < 0) { neighborChunkPos.y--; localY = CHUNK_SIZE - 1; }
+                                else if (ny >= CHUNK_SIZE) { neighborChunkPos.y++; localY = 0; }
+                                if (nz < 0) { neighborChunkPos.z--; localZ = CHUNK_SIZE - 1; }
+                                else if (nz >= CHUNK_SIZE) { neighborChunkPos.z++; localZ = 0; }
 
-                        const Chunk* neighborChunk = getChunk(neighborChunkPos);
-                        if (!neighborChunk || neighborChunk->getBlock(localX, localY, localZ) == BlockType::AIR) {
-                            shouldRenderFace = true;
+                                const Chunk* neighborChunk = getChunk(neighborChunkPos);
+                                if (neighborChunk && isBlockSolid(neighborChunk->getBlock(localX, localY, localZ))) {
+                                    shouldRender = false;  // Face is culled
+                                }
+                            } else {
+                                // Check within chunk
+                                if (isBlockSolid(chunk->getBlock(nx, ny, nz))) {
+                                    shouldRender = false;  // Face is culled
+                                }
+                            }
                         }
-                    } else {
-                        if (chunk->getBlock(nx, ny, nz) == BlockType::AIR) {
-                            shouldRenderFace = true;
-                        }
-                    }
 
-                    if (shouldRenderFace) {
+                        if (!shouldRender) {
+                            continue;
+                        }
+
+                        // Generate vertices for this face
+                        glm::vec3 vertices[4];
+                        int faceIndex = faceDirectionToIndex(faceDir);
+
+                        switch (faceDir) {
+                            case FaceDirection::DOWN:  // -Y
+                                vertices[0] = glm::vec3(elemFrom.x, elemFrom.y, elemFrom.z);
+                                vertices[1] = glm::vec3(elemTo.x, elemFrom.y, elemFrom.z);
+                                vertices[2] = glm::vec3(elemTo.x, elemFrom.y, elemTo.z);
+                                vertices[3] = glm::vec3(elemFrom.x, elemFrom.y, elemTo.z);
+                                break;
+                            case FaceDirection::UP:  // +Y
+                                vertices[0] = glm::vec3(elemFrom.x, elemTo.y, elemTo.z);
+                                vertices[1] = glm::vec3(elemTo.x, elemTo.y, elemTo.z);
+                                vertices[2] = glm::vec3(elemTo.x, elemTo.y, elemFrom.z);
+                                vertices[3] = glm::vec3(elemFrom.x, elemTo.y, elemFrom.z);
+                                break;
+                            case FaceDirection::NORTH:  // -Z
+                                vertices[0] = glm::vec3(elemTo.x, elemFrom.y, elemFrom.z);
+                                vertices[1] = glm::vec3(elemFrom.x, elemFrom.y, elemFrom.z);
+                                vertices[2] = glm::vec3(elemFrom.x, elemTo.y, elemFrom.z);
+                                vertices[3] = glm::vec3(elemTo.x, elemTo.y, elemFrom.z);
+                                break;
+                            case FaceDirection::SOUTH:  // +Z
+                                vertices[0] = glm::vec3(elemFrom.x, elemFrom.y, elemTo.z);
+                                vertices[1] = glm::vec3(elemTo.x, elemFrom.y, elemTo.z);
+                                vertices[2] = glm::vec3(elemTo.x, elemTo.y, elemTo.z);
+                                vertices[3] = glm::vec3(elemFrom.x, elemTo.y, elemTo.z);
+                                break;
+                            case FaceDirection::WEST:  // -X
+                                vertices[0] = glm::vec3(elemFrom.x, elemFrom.y, elemFrom.z);
+                                vertices[1] = glm::vec3(elemFrom.x, elemFrom.y, elemTo.z);
+                                vertices[2] = glm::vec3(elemFrom.x, elemTo.y, elemTo.z);
+                                vertices[3] = glm::vec3(elemFrom.x, elemTo.y, elemFrom.z);
+                                break;
+                            case FaceDirection::EAST:  // +X
+                                vertices[0] = glm::vec3(elemTo.x, elemFrom.y, elemTo.z);
+                                vertices[1] = glm::vec3(elemTo.x, elemFrom.y, elemFrom.z);
+                                vertices[2] = glm::vec3(elemTo.x, elemTo.y, elemFrom.z);
+                                vertices[3] = glm::vec3(elemTo.x, elemTo.y, elemTo.z);
+                                break;
+                        }
+
+                        // UV coordinates from model (convert from 0-16 to 0-1)
+                        glm::vec2 uvs[4];
+                        uvs[0] = glm::vec2(face.uv[0] / 16.0f, face.uv[1] / 16.0f);
+                        uvs[1] = glm::vec2(face.uv[2] / 16.0f, face.uv[1] / 16.0f);
+                        uvs[2] = glm::vec2(face.uv[2] / 16.0f, face.uv[3] / 16.0f);
+                        uvs[3] = glm::vec2(face.uv[0] / 16.0f, face.uv[3] / 16.0f);
+
+                        // Add vertices
                         uint32_t baseVertex = static_cast<uint32_t>(mesh.vertices.size());
-
                         for (int i = 0; i < 4; i++) {
                             Vertex vertex;
-                            vertex.position = chunkWorldPos + voxelPos + faceVertices[face][i];
-                            vertex.color = faceColors[face];
-                            vertex.texCoord = faceUVs[i];
+                            vertex.position = blockWorldPos + vertices[i];
+                            vertex.color = faceColors[faceIndex];
+                            vertex.texCoord = uvs[i];
                             vertex.textureIndex = textureIndex;
                             mesh.vertices.push_back(vertex);
                         }
 
+                        // Add indices (two triangles per face)
                         mesh.indices.push_back(baseVertex + 0);
                         mesh.indices.push_back(baseVertex + 1);
                         mesh.indices.push_back(baseVertex + 2);
