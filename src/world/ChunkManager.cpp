@@ -95,6 +95,14 @@ void ChunkManager::initializeBlockModels(const std::string& modelsPath) {
     m_modelManager.initialize(modelsPath);
 }
 
+void ChunkManager::registerTexture(const std::string& textureName, uint32_t textureIndex) {
+    m_modelManager.registerTexture(textureName, textureIndex);
+}
+
+std::vector<std::string> ChunkManager::getRequiredTextures() const {
+    return m_modelManager.getAllTextureNames();
+}
+
 ChunkPosition ChunkManager::worldToChunkPos(const glm::vec3& worldPos) const {
     return {
         static_cast<int32_t>(std::floor(worldPos.x / CHUNK_SIZE)),
@@ -348,6 +356,10 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                         uvs[2] = glm::vec2(face.uv[2] / 16.0f, face.uv[3] / 16.0f);
                         uvs[3] = glm::vec2(face.uv[0] / 16.0f, face.uv[3] / 16.0f);
 
+                        // Resolve texture from model and get its index
+                        std::string resolvedTexture = model->resolveTexture(face.texture);
+                        uint32_t faceTextureIndex = m_modelManager.getTextureIndex(resolvedTexture);
+
                         // Add vertices
                         uint32_t baseVertex = static_cast<uint32_t>(mesh.vertices.size());
                         for (int i = 0; i < 4; i++) {
@@ -355,7 +367,7 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                             vertex.position = blockWorldPos + vertices[i];
                             vertex.color = faceColors[faceIndex];
                             vertex.texCoord = uvs[i];
-                            vertex.textureIndex = textureIndex;
+                            vertex.textureIndex = faceTextureIndex;
                             mesh.vertices.push_back(vertex);
                         }
 

@@ -72,16 +72,29 @@ public:
     // Load a specific model by name (e.g., "block/stone")
     const BlockModel* loadModel(const std::string& modelName);
 
+    // Register a texture name to index mapping
+    void registerTexture(const std::string& textureName, uint32_t textureIndex);
+
+    // Get texture index by name (returns 0 if not found)
+    uint32_t getTextureIndex(const std::string& textureName) const;
+
+    // Get all unique texture names referenced by loaded models
+    std::vector<std::string> getAllTextureNames() const;
+
 private:
     std::string m_modelsPath;
     std::unordered_map<std::string, std::unique_ptr<BlockModel>> m_models;
     std::unordered_map<BlockType, std::string> m_blockToModel;
+    std::unordered_map<std::string, uint32_t> m_textureMap;
 
     // Load model from JSON file
     std::unique_ptr<BlockModel> loadModelFromFile(const std::string& modelPath);
 
     // Resolve parent hierarchy for a model
     void resolveModel(BlockModel* model);
+
+    // Normalize texture names (remove minecraft: prefix, etc.)
+    std::string normalizeTextureName(const std::string& textureName) const;
 };
 
 // Helper function to convert string to FaceDirection

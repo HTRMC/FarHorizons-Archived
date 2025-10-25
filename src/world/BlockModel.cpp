@@ -3,6 +3,7 @@
 #include <spdlog/spdlog.h>
 #include <fstream>
 #include <filesystem>
+#include <unordered_set>
 
 namespace VoxelEngine {
 
@@ -275,6 +276,85 @@ void BlockModelManager::resolveModel(BlockModel* model) {
     }
 
     model->isResolved = true;
+}
+
+void BlockModelManager::registerTexture(const std::string& textureName, uint32_t textureIndex) {
+    std::string normalized = normalizeTextureName(textureName);
+    m_textureMap[normalized] = textureIndex;
+    spdlog::debug("Registered texture '{}' with index {}", normalized, textureIndex);
+}
+
+uint32_t BlockModelManager::getTextureIndex(const std::string& textureName) const {
+    std::string normalized = normalizeTextureName(textureName);
+    auto it = m_textureMap.find(normalized);
+    if (it != m_textureMap.end()) {
+        return it->second;
+    }
+    spdlog::warn("Texture '{}' not found in texture map, using default index 0", normalized);
+    return 0;
+}
+
+std::string BlockModelManager::normalizeTextureName(const std::string& textureName) const {
+    std::string result = textureName;
+
+    // Remove "minecraft:block/" prefix
+    const std::string minecraftBlockPrefix = "minecraft:block/";
+    if (result.find(minecraftBlockPrefix) == 0) {
+        result = result.substr(minecraftBlockPrefix.length());
+    }
+
+    // Remove "minecraft:blocks/" prefix (old format)
+    const std::string minecraftBlocksPrefix = "minecraft:blocks/";
+    if (result.find(minecraftBlocksPrefix) == 0) {
+        result = result.substr(minecraftBlocksPrefix.length());
+    }
+
+    // Remove "minecraft:" prefix
+    const std::string minecraftPrefix = "minecraft:";
+    if (result.find(minecraftPrefix) == 0) {
+        result = result.substr(minecraftPrefix.length());
+    }
+
+    // Remove "block/" prefix
+    const std::string blockPrefix = "block/";
+    if (result.find(blockPrefix) == 0) {
+        result = result.substr(blockPrefix.length());
+    }
+
+    return result;
+}
+
+std::vector<std::string> BlockModelManager::getAllTextureNames() const {
+    std::unordered_set<std::string> uniqueTextures;
+
+    // Only extract textures from models that are actually used by block types
+    // (not parent models like cube.json, cube_all.json, etc.)
+    for (const auto& [blockType, modelName] : m_blockToModel) {
+        auto it = m_models.find(modelName);
+        if (it == m_models.end() || !it->second || !it->second->isResolved) {
+            continue;
+        }
+
+        const BlockModel* model = it->second.get();
+
+        // Go through all elements and their faces
+        for (const auto& element : model->elements) {
+            for (const auto& [faceDir, face] : element.faces) {
+                // Resolve the texture reference
+                std::string resolvedTexture = model->resolveTexture(face.texture);
+
+                // Normalize and add to set
+                std::string normalized = normalizeTextureName(resolvedTexture);
+                if (!normalized.empty() && normalized[0] != '#') {
+                    // Only add if it's a real texture path (not an unresolved reference)
+                    uniqueTextures.insert(normalized);
+                }
+            }
+        }
+    }
+
+    // Convert set to vector
+    return std::vector<std::string>(uniqueTextures.begin(), uniqueTextures.end());
 }
 
 } // namespace VoxelEngine

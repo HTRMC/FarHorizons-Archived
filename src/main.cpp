@@ -80,14 +80,32 @@ int main() {
         VkCommandBuffer uploadCmd;
         vkAllocateCommandBuffers(vulkanContext.getDevice().getLogicalDevice(), &allocInfo, &uploadCmd);
 
+        // Initialize block models first to discover required textures
+        ChunkManager chunkManager;
+        chunkManager.setRenderDistance(8);
+        chunkManager.initializeBlockModels("assets/minecraft/models");
+
+        // Get all textures required by the models
+        auto requiredTextures = chunkManager.getRequiredTextures();
+        spdlog::info("Found {} unique textures required by block models", requiredTextures.size());
+
         BindlessTextureManager textureManager;
         textureManager.init(vulkanContext.getDevice().getLogicalDevice(), vulkanContext.getAllocator(), 1024);
 
+        // Load all required textures
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         vkBeginCommandBuffer(uploadCmd, &beginInfo);
-        uint32_t stoneTextureIndex = textureManager.loadTexture("assets/minecraft/textures/block/stone.png", uploadCmd, false);
+
+        for (const auto& textureName : requiredTextures) {
+            std::string texturePath = "assets/minecraft/textures/block/" + textureName + ".png";
+            spdlog::info("Loading texture: {} -> {}", textureName, texturePath);
+
+            uint32_t textureIndex = textureManager.loadTexture(texturePath, uploadCmd, false);
+            chunkManager.registerTexture(textureName, textureIndex);
+        }
+
         vkEndCommandBuffer(uploadCmd);
 
         VkSubmitInfo submitInfo{};
@@ -150,10 +168,6 @@ int main() {
         Camera camera;
         float aspectRatio = static_cast<float>(window.getWidth()) / static_cast<float>(window.getHeight());
         camera.init(glm::vec3(0.0f, 20.0f, 0.0f), aspectRatio, 70.0f);
-
-        ChunkManager chunkManager;
-        chunkManager.setRenderDistance(8);
-        chunkManager.initializeBlockModels("assets/minecraft/models");
 
         ChunkBufferManager bufferManager;
         bufferManager.init(vulkanContext.getAllocator(), 1000000, 2000000, 1000);

@@ -33,6 +33,8 @@ public:
     ~ChunkManager();
 
     void initializeBlockModels(const std::string& modelsPath);
+    void registerTexture(const std::string& textureName, uint32_t textureIndex);
+    std::vector<std::string> getRequiredTextures() const;
 
     void setRenderDistance(int32_t distance) { m_renderDistance = distance; }
     int32_t getRenderDistance() const { return m_renderDistance; }
