@@ -350,11 +350,13 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                         }
 
                         // UV coordinates from model (convert from 0-16 to 0-1)
+                        // Flip V coordinate because Blockbench/Minecraft UVs are designed for OpenGL (bottom-left origin)
+                        // but Vulkan uses top-left origin
                         glm::vec2 uvs[4];
-                        uvs[0] = glm::vec2(face.uv[0] / 16.0f, face.uv[1] / 16.0f);
-                        uvs[1] = glm::vec2(face.uv[2] / 16.0f, face.uv[1] / 16.0f);
-                        uvs[2] = glm::vec2(face.uv[2] / 16.0f, face.uv[3] / 16.0f);
-                        uvs[3] = glm::vec2(face.uv[0] / 16.0f, face.uv[3] / 16.0f);
+                        uvs[0] = glm::vec2(face.uv[0] / 16.0f, 1.0f - face.uv[1] / 16.0f);
+                        uvs[1] = glm::vec2(face.uv[2] / 16.0f, 1.0f - face.uv[1] / 16.0f);
+                        uvs[2] = glm::vec2(face.uv[2] / 16.0f, 1.0f - face.uv[3] / 16.0f);
+                        uvs[3] = glm::vec2(face.uv[0] / 16.0f, 1.0f - face.uv[3] / 16.0f);
 
                         // Resolve texture from model and get its index
                         std::string resolvedTexture = model->resolveTexture(face.texture);
