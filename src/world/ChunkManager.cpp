@@ -1,77 +1,9 @@
 #include "ChunkManager.hpp"
+#include "FaceUtils.hpp"
 #include <cmath>
 #include <spdlog/spdlog.h>
 
 namespace VoxelEngine {
-
-// Map FaceDirection enum to face index (0-5)
-static int faceDirectionToIndex(FaceDirection dir) {
-    switch (dir) {
-        case FaceDirection::SOUTH: return 0;  // +Z
-        case FaceDirection::NORTH: return 1;  // -Z
-        case FaceDirection::WEST:  return 2;  // -X
-        case FaceDirection::EAST:  return 3;  // +X
-        case FaceDirection::UP:    return 4;  // +Y
-        case FaceDirection::DOWN:  return 5;  // -Y
-    }
-    return 0;
-}
-
-// Map face index to FaceDirection
-static FaceDirection indexToFaceDirection(int index) {
-    switch (index) {
-        case 0: return FaceDirection::SOUTH;
-        case 1: return FaceDirection::NORTH;
-        case 2: return FaceDirection::WEST;
-        case 3: return FaceDirection::EAST;
-        case 4: return FaceDirection::UP;
-        case 5: return FaceDirection::DOWN;
-    }
-    return FaceDirection::NORTH;
-}
-
-static const glm::vec3 faceColors[6] = {
-    glm::vec3(0.8f, 0.8f, 0.8f),  // South
-    glm::vec3(0.8f, 0.8f, 0.8f),  // North
-    glm::vec3(0.6f, 0.6f, 0.6f),  // West
-    glm::vec3(0.6f, 0.6f, 0.6f),  // East
-    glm::vec3(1.0f, 1.0f, 1.0f),  // Up
-    glm::vec3(0.5f, 0.5f, 0.5f),  // Down
-};
-
-static const glm::vec3 faceNormals[6] = {
-    glm::vec3(0, 0, 1),   // South
-    glm::vec3(0, 0, -1),  // North
-    glm::vec3(-1, 0, 0),  // West
-    glm::vec3(1, 0, 0),   // East
-    glm::vec3(0, 1, 0),   // Up
-    glm::vec3(0, -1, 0),  // Down
-};
-
-static const int faceDirs[6][3] = {
-    {0, 0, 1},   // South (+Z)
-    {0, 0, -1},  // North (-Z)
-    {-1, 0, 0},  // West (-X)
-    {1, 0, 0},   // East (+X)
-    {0, 1, 0},   // Up (+Y)
-    {0, -1, 0},  // Down (-Y)
-};
-
-static const glm::vec3 faceVertices[6][4] = {
-    {{0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}},
-    {{1, 0, 0}, {0, 0, 0}, {0, 1, 0}, {1, 1, 0}},
-    {{0, 0, 0}, {0, 0, 1}, {0, 1, 1}, {0, 1, 0}},
-    {{1, 0, 1}, {1, 0, 0}, {1, 1, 0}, {1, 1, 1}},
-    {{0, 1, 1}, {1, 1, 1}, {1, 1, 0}, {0, 1, 0}},
-    {{0, 0, 0}, {1, 0, 0}, {1, 0, 1}, {0, 0, 1}},
-};
-
-static const glm::vec2 faceUVs[4] = {
-    {0.0f, 0.0f},
-    {1.0f, 0.0f},
-    {1.0f, 1.0f},
-    {0.0f, 1.0f}
-};
 
 ChunkManager::ChunkManager() {
     unsigned int numThreads = std::max(1u, std::thread::hardware_concurrency() / 2);
@@ -272,10 +204,10 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
 
                         if (face.cullface.has_value()) {
                             // Get the direction to check
-                            int faceIndex = faceDirectionToIndex(face.cullface.value());
-                            int nx = bx + faceDirs[faceIndex][0];
-                            int ny = by + faceDirs[faceIndex][1];
-                            int nz = bz + faceDirs[faceIndex][2];
+                            int faceIndex = FaceUtils::toIndex(face.cullface.value());
+                            int nx = bx + FaceUtils::FACE_DIRS[faceIndex][0];
+                            int ny = by + FaceUtils::FACE_DIRS[faceIndex][1];
+                            int nz = bz + FaceUtils::FACE_DIRS[faceIndex][2];
 
                             // Check if neighbor is solid
                             if (nx < 0 || nx >= CHUNK_SIZE || ny < 0 || ny >= CHUNK_SIZE || nz < 0 || nz >= CHUNK_SIZE) {
@@ -308,55 +240,12 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
 
                         // Generate vertices for this face
                         glm::vec3 vertices[4];
-                        int faceIndex = faceDirectionToIndex(faceDir);
+                        FaceUtils::getFaceVertices(faceDir, elemFrom, elemTo, vertices);
+                        int faceIndex = FaceUtils::toIndex(faceDir);
 
-                        switch (faceDir) {
-                            case FaceDirection::DOWN:  // -Y
-                                vertices[0] = glm::vec3(elemFrom.x, elemFrom.y, elemFrom.z);
-                                vertices[1] = glm::vec3(elemTo.x, elemFrom.y, elemFrom.z);
-                                vertices[2] = glm::vec3(elemTo.x, elemFrom.y, elemTo.z);
-                                vertices[3] = glm::vec3(elemFrom.x, elemFrom.y, elemTo.z);
-                                break;
-                            case FaceDirection::UP:  // +Y
-                                vertices[0] = glm::vec3(elemFrom.x, elemTo.y, elemTo.z);
-                                vertices[1] = glm::vec3(elemTo.x, elemTo.y, elemTo.z);
-                                vertices[2] = glm::vec3(elemTo.x, elemTo.y, elemFrom.z);
-                                vertices[3] = glm::vec3(elemFrom.x, elemTo.y, elemFrom.z);
-                                break;
-                            case FaceDirection::NORTH:  // -Z
-                                vertices[0] = glm::vec3(elemTo.x, elemFrom.y, elemFrom.z);
-                                vertices[1] = glm::vec3(elemFrom.x, elemFrom.y, elemFrom.z);
-                                vertices[2] = glm::vec3(elemFrom.x, elemTo.y, elemFrom.z);
-                                vertices[3] = glm::vec3(elemTo.x, elemTo.y, elemFrom.z);
-                                break;
-                            case FaceDirection::SOUTH:  // +Z
-                                vertices[0] = glm::vec3(elemFrom.x, elemFrom.y, elemTo.z);
-                                vertices[1] = glm::vec3(elemTo.x, elemFrom.y, elemTo.z);
-                                vertices[2] = glm::vec3(elemTo.x, elemTo.y, elemTo.z);
-                                vertices[3] = glm::vec3(elemFrom.x, elemTo.y, elemTo.z);
-                                break;
-                            case FaceDirection::WEST:  // -X
-                                vertices[0] = glm::vec3(elemFrom.x, elemFrom.y, elemFrom.z);
-                                vertices[1] = glm::vec3(elemFrom.x, elemFrom.y, elemTo.z);
-                                vertices[2] = glm::vec3(elemFrom.x, elemTo.y, elemTo.z);
-                                vertices[3] = glm::vec3(elemFrom.x, elemTo.y, elemFrom.z);
-                                break;
-                            case FaceDirection::EAST:  // +X
-                                vertices[0] = glm::vec3(elemTo.x, elemFrom.y, elemTo.z);
-                                vertices[1] = glm::vec3(elemTo.x, elemFrom.y, elemFrom.z);
-                                vertices[2] = glm::vec3(elemTo.x, elemTo.y, elemFrom.z);
-                                vertices[3] = glm::vec3(elemTo.x, elemTo.y, elemTo.z);
-                                break;
-                        }
-
-                        // UV coordinates from model (convert from 0-16 to 0-1)
-                        // Flip V coordinate because Blockbench/Minecraft UVs are designed for OpenGL (bottom-left origin)
-                        // but Vulkan uses top-left origin
+                        // Convert UVs from Blockbench format to Vulkan format
                         glm::vec2 uvs[4];
-                        uvs[0] = glm::vec2(face.uv[0] / 16.0f, 1.0f - face.uv[1] / 16.0f);
-                        uvs[1] = glm::vec2(face.uv[2] / 16.0f, 1.0f - face.uv[1] / 16.0f);
-                        uvs[2] = glm::vec2(face.uv[2] / 16.0f, 1.0f - face.uv[3] / 16.0f);
-                        uvs[3] = glm::vec2(face.uv[0] / 16.0f, 1.0f - face.uv[3] / 16.0f);
+                        FaceUtils::convertUVs(face.uv, uvs);
 
                         // Resolve texture from model and get its index
                         std::string resolvedTexture = model->resolveTexture(face.texture);
@@ -367,7 +256,7 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                         for (int i = 0; i < 4; i++) {
                             Vertex vertex;
                             vertex.position = blockWorldPos + vertices[i];
-                            vertex.color = faceColors[faceIndex];
+                            vertex.color = FaceUtils::FACE_COLORS[faceIndex];
                             vertex.texCoord = uvs[i];
                             vertex.textureIndex = faceTextureIndex;
                             mesh.vertices.push_back(vertex);
