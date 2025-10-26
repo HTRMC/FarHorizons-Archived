@@ -7,31 +7,81 @@
 
 namespace VoxelEngine {
 
-// Helper function to normalize model names
+// Helper function to normalize model/texture names
 // Converts "minecraft:block/stone" or "block/stone" to "stone"
-static std::string normalizeModelName(const std::string& modelName) {
-    std::string result = modelName;
+static std::string normalizeResourceName(const std::string& name) {
+    std::string result = name;
 
-    // Remove "minecraft:block/" prefix
-    const std::string minecraftPrefix = "minecraft:block/";
-    if (result.find(minecraftPrefix) == 0) {
-        result = result.substr(minecraftPrefix.length());
-    }
+    // Remove prefixes in order
+    const std::vector<std::string> prefixes = {
+        "minecraft:block/",
+        "minecraft:blocks/",
+        "minecraft:",
+        "block/"
+    };
 
-    // Remove "minecraft:" prefix
-    const std::string minecraftNsPrefix = "minecraft:";
-    if (result.find(minecraftNsPrefix) == 0) {
-        result = result.substr(minecraftNsPrefix.length());
-    }
-
-    // Remove "block/" prefix
-    const std::string blockPrefix = "block/";
-    if (result.find(blockPrefix) == 0) {
-        result = result.substr(blockPrefix.length());
+    for (const auto& prefix : prefixes) {
+        if (result.find(prefix) == 0) {
+            result = result.substr(prefix.length());
+            break;  // Only remove the first matching prefix
+        }
     }
 
     return result;
 }
+
+// JSON parsing helpers
+namespace JsonHelpers {
+
+    // Safely get a string from a JSON element
+    inline bool getString(const simdjson::dom::element& elem, std::string& out) {
+        std::string_view sv;
+        if (!elem.get(sv)) {
+            out = std::string(sv);
+            return true;
+        }
+        return false;
+    }
+
+    // Safely get a double from a JSON element
+    inline bool getDouble(const simdjson::dom::element& elem, double& out) {
+        return !elem.get(out);
+    }
+
+    // Parse a vec3 from a JSON array [x, y, z]
+    inline bool parseVec3(const simdjson::dom::element& elem, glm::vec3& out) {
+        simdjson::dom::array arr;
+        if (elem.get(arr)) return false;
+
+        size_t i = 0;
+        for (auto coord : arr) {
+            double val;
+            if (!coord.get(val) && i < 3) {
+                out[i++] = static_cast<float>(val);
+            }
+        }
+        return i == 3;
+    }
+
+    // Parse a vec4 from a JSON array [x, y, z, w]
+    inline bool parseVec4(const simdjson::dom::element& elem, glm::vec4& out) {
+        simdjson::dom::array arr;
+        if (elem.get(arr)) return false;
+
+        size_t i = 0;
+        for (auto coord : arr) {
+            double val;
+            if (!coord.get(val) && i < 4) {
+                out[i++] = static_cast<float>(val);
+            }
+        }
+        return i == 4;
+    }
+}
+
+} // namespace VoxelEngine
+
+namespace VoxelEngine {
 
 void BlockModel::mergeParent(const BlockModel& parentModel) {
     // Merge textures (parent textures don't override existing ones)
@@ -94,7 +144,7 @@ const BlockModel* BlockModelManager::getModel(BlockType type) const {
 
 const BlockModel* BlockModelManager::loadModel(const std::string& modelName) {
     // Normalize the model name
-    std::string normalizedName = normalizeModelName(modelName);
+    std::string normalizedName = normalizeResourceName(modelName);
 
     // Check if already loaded
     auto it = m_models.find(normalizedName);
@@ -295,33 +345,7 @@ uint32_t BlockModelManager::getTextureIndex(const std::string& textureName) cons
 }
 
 std::string BlockModelManager::normalizeTextureName(const std::string& textureName) const {
-    std::string result = textureName;
-
-    // Remove "minecraft:block/" prefix
-    const std::string minecraftBlockPrefix = "minecraft:block/";
-    if (result.find(minecraftBlockPrefix) == 0) {
-        result = result.substr(minecraftBlockPrefix.length());
-    }
-
-    // Remove "minecraft:blocks/" prefix (old format)
-    const std::string minecraftBlocksPrefix = "minecraft:blocks/";
-    if (result.find(minecraftBlocksPrefix) == 0) {
-        result = result.substr(minecraftBlocksPrefix.length());
-    }
-
-    // Remove "minecraft:" prefix
-    const std::string minecraftPrefix = "minecraft:";
-    if (result.find(minecraftPrefix) == 0) {
-        result = result.substr(minecraftPrefix.length());
-    }
-
-    // Remove "block/" prefix
-    const std::string blockPrefix = "block/";
-    if (result.find(blockPrefix) == 0) {
-        result = result.substr(blockPrefix.length());
-    }
-
-    return result;
+    return normalizeResourceName(textureName);
 }
 
 std::vector<std::string> BlockModelManager::getAllTextureNames() const {
