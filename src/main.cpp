@@ -90,6 +90,9 @@ int main() {
         chunkManager.setRenderDistance(8);
         chunkManager.initializeBlockModels("assets/minecraft/models");
 
+        // Preload all blockstate models into cache for fast lookup
+        chunkManager.preloadBlockStateModels();
+
         // Get all textures required by the models
         auto requiredTextures = chunkManager.getRequiredTextures();
         spdlog::info("Found {} unique textures required by block models", requiredTextures.size());

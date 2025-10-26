@@ -27,6 +27,10 @@ void ChunkManager::initializeBlockModels(const std::string& modelsPath) {
     m_modelManager.initialize(modelsPath);
 }
 
+void ChunkManager::preloadBlockStateModels() {
+    m_modelManager.preloadBlockStateModels();
+}
+
 void ChunkManager::registerTexture(const std::string& textureName, uint32_t textureIndex) {
     m_modelManager.registerTexture(textureName, textureIndex);
 }
@@ -181,18 +185,19 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                     continue;
                 }
 
-                // Get the blockstate and its model name
-                const BlockState& blockState = BlockStateRegistry::getInstance().getBlockState(stateId);
-                std::string modelName = blockState.getModelName();
-                BlockType blockType = blockState.getType();
-
-                // Get the block model by name
-                const BlockModel* model = m_modelManager.loadModel("block/" + modelName);
+                // Get the block model from cache (fast O(1) lookup!)
+                const BlockModel* model = m_modelManager.getModelByStateId(stateId);
                 if (!model || model->elements.empty()) {
-                    // Fallback to simple cube if no model found
-                    spdlog::warn("No model found for blockstate: {} (model: {})", static_cast<int>(blockType), modelName);
+                    // Fallback - this shouldn't happen if preloadBlockStateModels was called
+                    const BlockState& blockState = BlockStateRegistry::getInstance().getBlockState(stateId);
+                    BlockType blockType = blockState.getType();
+                    spdlog::warn("No model found for blockstate: {}", static_cast<int>(blockType));
                     continue;
                 }
+
+                // Get block type for solid checks
+                const BlockState& blockState = BlockStateRegistry::getInstance().getBlockState(stateId);
+                BlockType blockType = blockState.getType();
 
                 glm::vec3 blockPos(bx, by, bz);
                 glm::vec3 blockWorldPos = chunkWorldPos + blockPos;
@@ -243,11 +248,11 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                                 // Get neighbor blockstate and type
                                 const BlockState& neighborState = BlockStateRegistry::getInstance().getBlockState(neighborStateId);
                                 BlockType neighborType = neighborState.getType();
-                                std::string neighborModelName = neighborState.getModelName();
 
                                 // Only cull if neighbor is solid AND neighbor's model reaches the opposite boundary
                                 if (isBlockSolid(neighborType)) {
-                                    const BlockModel* neighborModel = m_modelManager.loadModel("block/" + neighborModelName);
+                                    // Use cached model lookup (fast O(1)!)
+                                    const BlockModel* neighborModel = m_modelManager.getModelByStateId(neighborStateId);
                                     if (neighborModel) {
                                         // Check if ANY element in the neighbor model reaches the opposite face
                                         FaceDirection oppositeFace = FaceUtils::getOppositeFace(face.cullface.value());

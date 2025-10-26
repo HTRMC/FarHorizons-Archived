@@ -1,4 +1,5 @@
 #include "BlockModel.hpp"
+#include "BlockState.hpp"
 #include <simdjson.h>
 #include <spdlog/spdlog.h>
 #include <fstream>
@@ -379,6 +380,46 @@ std::vector<std::string> BlockModelManager::getAllTextureNames() const {
 
     // Convert set to vector
     return std::vector<std::string>(uniqueTextures.begin(), uniqueTextures.end());
+}
+
+void BlockModelManager::preloadBlockStateModels() {
+    // Need to include BlockState.hpp at the top of this file
+    auto& registry = BlockStateRegistry::getInstance();
+    size_t stateCount = registry.getStateCount();
+
+    spdlog::info("Preloading models for {} blockstates", stateCount);
+
+    // Iterate through all registered blockstates and cache their models
+    for (uint16_t stateId = 0; stateId < stateCount; ++stateId) {
+        const BlockState& state = registry.getBlockState(stateId);
+        std::string modelName = state.getModelName();
+
+        // Load the model (this will cache it in m_models)
+        const BlockModel* model = loadModel("block/" + modelName);
+
+        // Cache the blockstate -> model mapping
+        if (model) {
+            m_stateToModel[stateId] = model;
+            spdlog::trace("Cached model for blockstate {} ({})", stateId, modelName);
+        } else {
+            spdlog::warn("Failed to load model for blockstate {} ({})", stateId, modelName);
+            // Map to nullptr so we know we tried and failed
+            m_stateToModel[stateId] = nullptr;
+        }
+    }
+
+    spdlog::info("Preloaded {} blockstate models", m_stateToModel.size());
+}
+
+const BlockModel* BlockModelManager::getModelByStateId(uint16_t stateId) const {
+    auto it = m_stateToModel.find(stateId);
+    if (it != m_stateToModel.end()) {
+        return it->second;
+    }
+
+    // Not in cache - this shouldn't happen if preloadBlockStateModels was called
+    spdlog::warn("Blockstate {} not in model cache", stateId);
+    return nullptr;
 }
 
 } // namespace VoxelEngine

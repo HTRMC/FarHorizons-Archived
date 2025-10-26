@@ -81,11 +81,18 @@ public:
     // Get all unique texture names referenced by loaded models
     std::vector<std::string> getAllTextureNames() const;
 
+    // Preload all blockstate models and cache them
+    void preloadBlockStateModels();
+
+    // Get a model by blockstate ID (fast cached lookup)
+    const BlockModel* getModelByStateId(uint16_t stateId) const;
+
 private:
     std::string m_modelsPath;
     std::unordered_map<std::string, std::unique_ptr<BlockModel>> m_models;
     std::unordered_map<BlockType, std::string> m_blockToModel;
     std::unordered_map<std::string, uint32_t> m_textureMap;
+    std::unordered_map<uint16_t, const BlockModel*> m_stateToModel;  // Blockstate ID -> Model cache
 
     // Load model from JSON file
     std::unique_ptr<BlockModel> loadModelFromFile(const std::string& modelPath);
