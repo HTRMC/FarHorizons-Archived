@@ -1,5 +1,6 @@
 #include "ChunkManager.hpp"
 #include "FaceUtils.hpp"
+#include "BlockRegistryNew.hpp"
 #include <cmath>
 #include <spdlog/spdlog.h>
 
@@ -23,8 +24,8 @@ ChunkManager::~ChunkManager() {
     }
 }
 
-void ChunkManager::initializeBlockModels(const std::string& modelsPath) {
-    m_modelManager.initialize(modelsPath);
+void ChunkManager::initializeBlockModels() {
+    m_modelManager.initialize();
 }
 
 void ChunkManager::preloadBlockStateModels() {
@@ -179,21 +180,17 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
     for (uint32_t bx = 0; bx < CHUNK_SIZE; bx++) {
         for (uint32_t by = 0; by < CHUNK_SIZE; by++) {
             for (uint32_t bz = 0; bz < CHUNK_SIZE; bz++) {
-                // Get blockstate instead of just block type
-                BlockStateRegistry::BlockStateId stateId = chunk->getBlockStateId(bx, by, bz);
-                if (stateId == BlockStateRegistry::AIR_ID) {
+                // Get blockstate
+                BlockStateNew state = chunk->getBlockState(bx, by, bz);
+                if (state.isAir()) {
                     continue;
                 }
 
                 // Get the block model from cache (fast O(1) lookup!)
-                const BlockModel* model = m_modelManager.getModelByStateId(stateId);
+                const BlockModel* model = m_modelManager.getModelByStateId(state.id);
                 if (!model || model->elements.empty()) {
                     continue;  // Skip if no model
                 }
-
-                // Cache blockstate and type to avoid repeated lookups
-                const BlockState& blockState = BlockStateRegistry::getInstance().getBlockState(stateId);
-                BlockType blockType = blockState.getType();
 
                 glm::vec3 blockPos(bx, by, bz);
                 glm::vec3 blockWorldPos = chunkWorldPos + blockPos;
@@ -219,7 +216,7 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                                 int nz = bz + FaceUtils::FACE_DIRS[faceIndex][2];
 
                                 // Get neighbor blockstate
-                                BlockStateRegistry::BlockStateId neighborStateId = BlockStateRegistry::AIR_ID;
+                                BlockStateNew neighborState = BlockStateNew(0); // Default to AIR
                                 if (nx < 0 || nx >= CHUNK_SIZE || ny < 0 || ny >= CHUNK_SIZE || nz < 0 || nz >= CHUNK_SIZE) {
                                     // Check neighbor chunk
                                     ChunkPosition neighborChunkPos = chunkPos;
@@ -234,21 +231,17 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
 
                                     const Chunk* neighborChunk = getChunk(neighborChunkPos);
                                     if (neighborChunk) {
-                                        neighborStateId = neighborChunk->getBlockStateId(localX, localY, localZ);
+                                        neighborState = neighborChunk->getBlockState(localX, localY, localZ);
                                     }
                                 } else {
                                     // Check within chunk
-                                    neighborStateId = chunk->getBlockStateId(nx, ny, nz);
+                                    neighborState = chunk->getBlockState(nx, ny, nz);
                                 }
 
-                                // Get neighbor blockstate and type
-                                const BlockState& neighborState = BlockStateRegistry::getInstance().getBlockState(neighborStateId);
-                                BlockType neighborType = neighborState.getType();
-
                                 // Only cull if neighbor is solid AND neighbor's model reaches the opposite boundary
-                                if (isBlockSolid(neighborType)) {
+                                if (BlockRegistryNew::isSolid(neighborState)) {
                                     // Use cached model lookup (fast O(1)!)
-                                    const BlockModel* neighborModel = m_modelManager.getModelByStateId(neighborStateId);
+                                    const BlockModel* neighborModel = m_modelManager.getModelByStateId(neighborState.id);
                                     if (neighborModel) {
                                         // Check if ANY element in the neighbor model reaches the opposite face
                                         FaceDirection oppositeFace = FaceUtils::getOppositeFace(face.cullface.value());

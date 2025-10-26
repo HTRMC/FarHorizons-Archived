@@ -16,7 +16,7 @@
 #include "renderer/texture/BindlessTextureManager.hpp"
 #include "renderer/DepthBuffer.hpp"
 #include "world/ChunkManager.hpp"
-#include "world/BlockState.hpp"
+#include "world/BlockRegistryNew.hpp"
 
 using namespace VoxelEngine;
 
@@ -81,14 +81,14 @@ int main() {
         VkCommandBuffer uploadCmd;
         vkAllocateCommandBuffers(vulkanContext.getDevice().getLogicalDevice(), &allocInfo, &uploadCmd);
 
-        // Initialize blockstate registry before loading models
-        BlockStateRegistry::getInstance().initializeDefaultStates();
-        spdlog::info("Initialized {} blockstates", BlockStateRegistry::getInstance().getStateCount());
+        // Initialize block registry before loading models
+        BlockRegistryNew::init();
+        spdlog::info("Initialized block registry");
 
         // Initialize block models first to discover required textures
         ChunkManager chunkManager;
         chunkManager.setRenderDistance(8);
-        chunkManager.initializeBlockModels("assets/minecraft/models");
+        chunkManager.initializeBlockModels();
 
         // Preload all blockstate models into cache for fast lookup
         chunkManager.preloadBlockStateModels();

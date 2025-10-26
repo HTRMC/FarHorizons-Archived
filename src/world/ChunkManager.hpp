@@ -32,7 +32,7 @@ public:
     ChunkManager();
     ~ChunkManager();
 
-    void initializeBlockModels(const std::string& modelsPath);
+    void initializeBlockModels();
     void preloadBlockStateModels();  // Preload all blockstate models into cache
     void registerTexture(const std::string& textureName, uint32_t textureIndex);
     std::vector<std::string> getRequiredTextures() const;

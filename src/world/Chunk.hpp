@@ -1,8 +1,8 @@
 #pragma once
 
 #include "BlockType.hpp"
-#include "BlockState.hpp"
-#include "ChunkPalette.hpp"
+#include "BlockStateNew.hpp"
+#include "ChunkPaletteNew.hpp"
 #include <glm/glm.hpp>
 #include <vector>
 #include <cstdint>
@@ -40,17 +40,11 @@ public:
 
     const ChunkPosition& getPosition() const { return m_position; }
 
-    // Legacy BlockType methods (internally use blockstates with empty variant)
-    BlockType getBlock(uint32_t x, uint32_t y, uint32_t z) const;
-    void setBlock(uint32_t x, uint32_t y, uint32_t z, BlockType type);
+    // BlockState methods
+    BlockStateNew getBlockState(uint32_t x, uint32_t y, uint32_t z) const;
+    void setBlockState(uint32_t x, uint32_t y, uint32_t z, BlockStateNew state);
 
-    // New BlockState methods
-    BlockStateRegistry::BlockStateId getBlockStateId(uint32_t x, uint32_t y, uint32_t z) const;
-    void setBlockState(uint32_t x, uint32_t y, uint32_t z, BlockStateRegistry::BlockStateId stateId);
-    void setBlockState(uint32_t x, uint32_t y, uint32_t z, BlockType type, const std::string& variant = "");
-
-    const uint8_t* getData() const { return reinterpret_cast<const uint8_t*>(m_data.data()); }
-    const uint16_t* getBlockData() const { return m_data.data(); }
+    const uint8_t* getData() const { return m_data.data(); }
 
     void generate();
 
@@ -59,12 +53,12 @@ public:
     void markNonEmpty() { m_isEmpty = false; }
 
     // Access to palette
-    const ChunkPalette& getPalette() const { return m_palette; }
+    const ChunkPaletteNew& getPalette() const { return m_palette; }
 
 private:
     ChunkPosition m_position;
-    ChunkPalette m_palette;  // Maps local indices to global blockstate IDs
-    std::array<uint16_t, CHUNK_VOLUME> m_data;  // Each uint16_t stores a palette index
+    ChunkPaletteNew m_palette;  // Maps local indices to global blockstate IDs
+    std::array<uint8_t, CHUNK_VOLUME> m_data;  // Each uint8_t stores a palette index
     bool m_isEmpty = true;
 
     uint32_t getBlockIndex(uint32_t x, uint32_t y, uint32_t z) const;

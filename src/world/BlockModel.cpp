@@ -1,5 +1,5 @@
 #include "BlockModel.hpp"
-#include "BlockState.hpp"
+#include "BlockRegistryNew.hpp"
 #include <simdjson.h>
 #include <spdlog/spdlog.h>
 #include <fstream>
@@ -114,37 +114,26 @@ std::string BlockModel::resolveTexture(const std::string& textureRef) const {
 }
 
 BlockModelManager::BlockModelManager() {
-    // Map block types to their model names
-    m_blockToModel[BlockType::STONE] = "stone";
-    m_blockToModel[BlockType::STONE_SLAB] = "stone_slab";
 }
 
-void BlockModelManager::initialize(const std::string& modelsPath) {
-    m_modelsPath = modelsPath;
-    spdlog::info("Initializing BlockModelManager with path: {}", modelsPath);
-
-    // Pre-load all registered block models
-    for (const auto& [blockType, modelName] : m_blockToModel) {
-        loadModel(modelName);
-    }
-}
-
-const BlockModel* BlockModelManager::getModel(BlockType type) const {
-    auto it = m_blockToModel.find(type);
-    if (it == m_blockToModel.end()) {
-        return nullptr;
-    }
-
-    auto modelIt = m_models.find(it->second);
-    if (modelIt == m_models.end()) {
-        return nullptr;
-    }
-
-    return modelIt->second.get();
+void BlockModelManager::initialize() {
+    m_assetsPath = "assets";
+    spdlog::info("Initializing BlockModelManager with assets path: {}", m_assetsPath);
 }
 
 const BlockModel* BlockModelManager::loadModel(const std::string& modelName) {
-    // Normalize the model name
+    // Parse namespace and path from model name
+    std::string namespaceName = "minecraft"; // Default namespace
+    std::string modelPath = modelName;
+
+    // Check if there's a namespace prefix (e.g., "minecraft:block/stone")
+    size_t colonPos = modelName.find(':');
+    if (colonPos != std::string::npos) {
+        namespaceName = modelName.substr(0, colonPos);
+        modelPath = modelName.substr(colonPos + 1);
+    }
+
+    // Normalize for cache key (without namespace)
     std::string normalizedName = normalizeResourceName(modelName);
 
     // Check if already loaded
@@ -153,13 +142,13 @@ const BlockModel* BlockModelManager::loadModel(const std::string& modelName) {
         return it->second.get();
     }
 
-    // Construct file path
-    std::string modelPath = m_modelsPath + "/" + normalizedName + ".json";
+    // Construct file path: assets/{namespace}/models/{path}.json
+    std::string fullPath = m_assetsPath + "/" + namespaceName + "/models/" + modelPath + ".json";
 
     // Load the model
-    auto model = loadModelFromFile(modelPath);
+    auto model = loadModelFromFile(fullPath);
     if (!model) {
-        spdlog::error("Failed to load model: {}", normalizedName);
+        spdlog::error("Failed to load model: {} (path: {})", modelName, fullPath);
         return nullptr;
     }
 
@@ -170,7 +159,7 @@ const BlockModel* BlockModelManager::loadModel(const std::string& modelName) {
     // Resolve parent hierarchy
     resolveModel(modelPtr);
 
-    spdlog::debug("Loaded model: {}", normalizedName);
+    spdlog::debug("Loaded model: {} from {}", normalizedName, fullPath);
     return modelPtr;
 }
 
@@ -352,15 +341,11 @@ std::string BlockModelManager::normalizeTextureName(const std::string& textureNa
 std::vector<std::string> BlockModelManager::getAllTextureNames() const {
     std::unordered_set<std::string> uniqueTextures;
 
-    // Only extract textures from models that are actually used by block types
-    // (not parent models like cube.json, cube_all.json, etc.)
-    for (const auto& [blockType, modelName] : m_blockToModel) {
-        auto it = m_models.find(modelName);
-        if (it == m_models.end() || !it->second || !it->second->isResolved) {
+    // Extract textures from all models that are actually used by blockstates
+    for (const auto& [stateId, model] : m_stateToModel) {
+        if (!model || !model->isResolved) {
             continue;
         }
-
-        const BlockModel* model = it->second.get();
 
         // Go through all elements and their faces
         for (const auto& element : model->elements) {
@@ -382,33 +367,106 @@ std::vector<std::string> BlockModelManager::getAllTextureNames() const {
     return std::vector<std::string>(uniqueTextures.begin(), uniqueTextures.end());
 }
 
-void BlockModelManager::preloadBlockStateModels() {
-    auto& registry = BlockStateRegistry::getInstance();
-    size_t stateCount = registry.getStateCount();
+std::unordered_map<std::string, std::string> BlockModelManager::loadBlockstatesFile(const std::string& blockName) {
+    std::unordered_map<std::string, std::string> variantToModel;
 
-    spdlog::info("Preloading models for {} blockstates", stateCount);
+    // Construct path: assets/minecraft/blockstates/{blockName}.json
+    std::string blockstatesPath = m_assetsPath + "/minecraft/blockstates/" + blockName + ".json";
 
-    // Iterate through all registered blockstates and cache their models
-    for (uint16_t stateId = 0; stateId < stateCount; ++stateId) {
-        const BlockState& state = registry.getBlockState(stateId);
+    // Check if file exists
+    if (!std::filesystem::exists(blockstatesPath)) {
+        spdlog::debug("Blockstates file not found: {} (block has no properties)", blockstatesPath);
+        return variantToModel;
+    }
 
-        // Skip AIR - it doesn't need a model
-        if (state.getType() == BlockType::AIR) {
-            m_stateToModel[stateId] = nullptr;
-            continue;
+    // Read file
+    std::ifstream file(blockstatesPath);
+    if (!file.is_open()) {
+        spdlog::error("Failed to open blockstates file: {}", blockstatesPath);
+        return variantToModel;
+    }
+
+    std::string jsonContent((std::istreambuf_iterator<char>(file)),
+                            std::istreambuf_iterator<char>());
+    file.close();
+
+    // Parse JSON
+    simdjson::dom::parser parser;
+    simdjson::dom::element doc;
+    auto error = parser.parse(jsonContent).get(doc);
+    if (error) {
+        spdlog::error("Failed to parse blockstates JSON: {}", blockstatesPath);
+        return variantToModel;
+    }
+
+    // Parse variants
+    simdjson::dom::element variantsElem;
+    if (!doc["variants"].get(variantsElem)) {
+        simdjson::dom::object variantsObj;
+        if (!variantsElem.get(variantsObj)) {
+            for (auto [variantKey, variantValue] : variantsObj) {
+                std::string_view variantKeyStr = variantKey;
+                std::string variantStr(variantKeyStr);
+
+                // Get model name from variant value
+                std::string_view modelName;
+                if (!variantValue["model"].get(modelName)) {
+                    variantToModel[variantStr] = std::string(modelName);
+                }
+            }
         }
+    }
 
-        std::string modelName = state.getModelName();
+    spdlog::debug("Loaded {} variants from blockstates/{}.json", variantToModel.size(), blockName);
+    return variantToModel;
+}
 
-        // Load the model (this will cache it in m_models)
-        const BlockModel* model = loadModel("block/" + modelName);
+void BlockModelManager::preloadBlockStateModels() {
+    spdlog::info("Preloading blockstate models...");
 
-        // Cache the blockstate -> model mapping
-        if (model) {
+    // Preload models for AIR (always null)
+    m_stateToModel[0] = nullptr;
+
+    // Preload models for STONE (simple full block)
+    BlockNew* stone = BlockRegistryNew::STONE;
+    auto stoneVariants = loadBlockstatesFile(stone->m_name);
+
+    if (stoneVariants.empty()) {
+        // No blockstates file - use default model based on block name
+        for (size_t i = 0; i < stone->getStateCount(); ++i) {
+            uint16_t stateId = stone->m_baseStateId + i;
+            const BlockModel* model = loadModel("block/" + stone->m_name);
             m_stateToModel[stateId] = model;
-            spdlog::trace("Cached model for blockstate {} ({})", stateId, modelName);
+            if (model) {
+                spdlog::trace("Cached model for state {} ({})", stateId, stone->m_name);
+            }
+        }
+    }
+
+    // Preload models for STONE_SLAB using blockstates file
+    BlockNew* stoneSlab = BlockRegistryNew::STONE_SLAB;
+    auto slabVariants = loadBlockstatesFile(stoneSlab->m_name);
+
+    // SlabBlock has TYPE property with values: bottom, top, double (in that order)
+    const char* slabTypes[] = {"bottom", "top", "double"};
+    for (size_t i = 0; i < stoneSlab->getStateCount(); ++i) {
+        uint16_t stateId = stoneSlab->m_baseStateId + i;
+
+        // Build variant string: "type=bottom", "type=top", "type=double"
+        std::string variantStr = std::string("type=") + slabTypes[i];
+
+        // Look up model name from blockstates variants
+        auto it = slabVariants.find(variantStr);
+        if (it != slabVariants.end()) {
+            const BlockModel* model = loadModel(it->second);
+            m_stateToModel[stateId] = model;
+            if (model) {
+                spdlog::trace("Cached model for state {} ({} -> {})", stateId, variantStr, it->second);
+            } else {
+                spdlog::warn("Failed to load model for state {} ({})", stateId, it->second);
+            }
         } else {
-            spdlog::warn("Failed to load model for blockstate {} ({})", stateId, modelName);
+            spdlog::warn("No variant '{}' found in blockstates/{}.json", variantStr, stoneSlab->m_name);
             m_stateToModel[stateId] = nullptr;
         }
     }

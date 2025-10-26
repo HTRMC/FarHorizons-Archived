@@ -63,11 +63,8 @@ class BlockModelManager {
 public:
     BlockModelManager();
 
-    // Initialize and load all block models
-    void initialize(const std::string& modelsPath);
-
-    // Get a block model by block type
-    const BlockModel* getModel(BlockType type) const;
+    // Initialize block model system
+    void initialize();
 
     // Load a specific model by name (e.g., "block/stone")
     const BlockModel* loadModel(const std::string& modelName);
@@ -88,14 +85,16 @@ public:
     const BlockModel* getModelByStateId(uint16_t stateId) const;
 
 private:
-    std::string m_modelsPath;
+    std::string m_assetsPath;  // Base assets path (e.g., "assets")
     std::unordered_map<std::string, std::unique_ptr<BlockModel>> m_models;
-    std::unordered_map<BlockType, std::string> m_blockToModel;
     std::unordered_map<std::string, uint32_t> m_textureMap;
     std::unordered_map<uint16_t, const BlockModel*> m_stateToModel;  // Blockstate ID -> Model cache
 
     // Load model from JSON file
     std::unique_ptr<BlockModel> loadModelFromFile(const std::string& modelPath);
+
+    // Load blockstates JSON file and return variant -> model name mapping
+    std::unordered_map<std::string, std::string> loadBlockstatesFile(const std::string& blockName);
 
     // Resolve parent hierarchy for a model
     void resolveModel(BlockModel* model);
