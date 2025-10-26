@@ -62,8 +62,8 @@ BlockStateRegistry::BlockStateId BlockStateRegistry::registerBlockState(const Bl
 }
 
 const BlockState& BlockStateRegistry::getBlockState(BlockStateId id) const {
-    std::lock_guard<std::mutex> lock(m_mutex);
-
+    // No mutex lock needed - m_states is only written during initialization
+    // Reads are safe once initialization is complete
     if (id >= m_states.size()) {
         // Return AIR state for invalid IDs
         return m_states[AIR_ID];

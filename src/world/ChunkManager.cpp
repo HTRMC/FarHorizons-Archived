@@ -188,14 +188,10 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                 // Get the block model from cache (fast O(1) lookup!)
                 const BlockModel* model = m_modelManager.getModelByStateId(stateId);
                 if (!model || model->elements.empty()) {
-                    // Fallback - this shouldn't happen if preloadBlockStateModels was called
-                    const BlockState& blockState = BlockStateRegistry::getInstance().getBlockState(stateId);
-                    BlockType blockType = blockState.getType();
-                    spdlog::warn("No model found for blockstate: {}", static_cast<int>(blockType));
-                    continue;
+                    continue;  // Skip if no model
                 }
 
-                // Get block type for solid checks
+                // Cache blockstate and type to avoid repeated lookups
                 const BlockState& blockState = BlockStateRegistry::getInstance().getBlockState(stateId);
                 BlockType blockType = blockState.getType();
 
