@@ -383,7 +383,6 @@ std::vector<std::string> BlockModelManager::getAllTextureNames() const {
 }
 
 void BlockModelManager::preloadBlockStateModels() {
-    // Need to include BlockState.hpp at the top of this file
     auto& registry = BlockStateRegistry::getInstance();
     size_t stateCount = registry.getStateCount();
 
@@ -392,6 +391,13 @@ void BlockModelManager::preloadBlockStateModels() {
     // Iterate through all registered blockstates and cache their models
     for (uint16_t stateId = 0; stateId < stateCount; ++stateId) {
         const BlockState& state = registry.getBlockState(stateId);
+
+        // Skip AIR - it doesn't need a model
+        if (state.getType() == BlockType::AIR) {
+            m_stateToModel[stateId] = nullptr;
+            continue;
+        }
+
         std::string modelName = state.getModelName();
 
         // Load the model (this will cache it in m_models)
@@ -403,7 +409,6 @@ void BlockModelManager::preloadBlockStateModels() {
             spdlog::trace("Cached model for blockstate {} ({})", stateId, modelName);
         } else {
             spdlog::warn("Failed to load model for blockstate {} ({})", stateId, modelName);
-            // Map to nullptr so we know we tried and failed
             m_stateToModel[stateId] = nullptr;
         }
     }
