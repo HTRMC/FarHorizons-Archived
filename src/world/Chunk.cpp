@@ -7,26 +7,46 @@ namespace VoxelEngine {
 Chunk::Chunk(const ChunkPosition& position)
     : m_position(position)
 {
-    // Initialize all blocks to AIR
-    std::memset(m_data.data(), static_cast<uint8_t>(BlockType::AIR), CHUNK_VOLUME);
+    // Initialize all blocks to AIR (palette index 0)
+    std::memset(m_data.data(), 0, CHUNK_VOLUME * sizeof(uint16_t));
 }
 
 uint32_t Chunk::getBlockIndex(uint32_t x, uint32_t y, uint32_t z) const {
     return x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE;
 }
 
+// Legacy BlockType methods
 BlockType Chunk::getBlock(uint32_t x, uint32_t y, uint32_t z) const {
-    uint32_t index = getBlockIndex(x, y, z);
-    return static_cast<BlockType>(m_data[index]);
+    BlockStateRegistry::BlockStateId stateId = getBlockStateId(x, y, z);
+    const BlockState& state = BlockStateRegistry::getInstance().getBlockState(stateId);
+    return state.getType();
 }
 
 void Chunk::setBlock(uint32_t x, uint32_t y, uint32_t z, BlockType type) {
-    uint32_t index = getBlockIndex(x, y, z);
-    m_data[index] = static_cast<uint8_t>(type);
+    setBlockState(x, y, z, type, "");
+}
 
-    if (type != BlockType::AIR) {
+// New BlockState methods
+BlockStateRegistry::BlockStateId Chunk::getBlockStateId(uint32_t x, uint32_t y, uint32_t z) const {
+    uint32_t index = getBlockIndex(x, y, z);
+    ChunkPalette::LocalIndex paletteIndex = m_data[index];
+    return m_palette.getStateId(paletteIndex);
+}
+
+void Chunk::setBlockState(uint32_t x, uint32_t y, uint32_t z, BlockStateRegistry::BlockStateId stateId) {
+    uint32_t index = getBlockIndex(x, y, z);
+    ChunkPalette::LocalIndex paletteIndex = m_palette.getOrAddIndex(stateId);
+    m_data[index] = paletteIndex;
+
+    if (stateId != BlockStateRegistry::AIR_ID) {
         m_isEmpty = false;
     }
+}
+
+void Chunk::setBlockState(uint32_t x, uint32_t y, uint32_t z, BlockType type, const std::string& variant) {
+    BlockStateRegistry::BlockStateId stateId =
+        BlockStateRegistry::getInstance().getOrCreateId(type, variant);
+    setBlockState(x, y, z, stateId);
 }
 
 void Chunk::generate() {
@@ -43,6 +63,7 @@ void Chunk::generate() {
             for (uint32_t z = 0; z < CHUNK_SIZE; z++) {
                 glm::vec3 worldPos = chunkWorldPos + glm::vec3(x, y, z);
                 BlockType blockType = BlockType::AIR;
+                std::string variant = "";
 
                 if (worldPos.y >= 0.0f && worldPos.y <= 1.0f) {
                     blockType = BlockType::STONE;
@@ -52,11 +73,17 @@ void Chunk::generate() {
 
                     if (distance >= 20.0f && distance <= 30.0f) {
                         blockType = BlockType::STONE_SLAB;
+
+                        // Use "top" variant for upper half of blocks (y % 2 == 1)
+                        // Use default variant for lower half
+                        if (static_cast<int>(worldPos.y) % 2 == 1) {
+                            variant = "top";
+                        }
                     }
                 }
 
                 if (blockType != BlockType::AIR) {
-                    setBlock(x, y, z, blockType);
+                    setBlockState(x, y, z, blockType, variant);
                     hasBlocks = true;
                 }
             }

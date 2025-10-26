@@ -61,7 +61,7 @@ private:
     int32_t m_renderDistance = 8;
     ChunkPosition m_lastCameraChunkPos = {INT32_MAX, INT32_MAX, INT32_MAX};
 
-    BlockModelManager m_modelManager;
+    mutable BlockModelManager m_modelManager;
 
     std::vector<std::thread> m_workerThreads;
     std::queue<ChunkPosition> m_meshQueue;
