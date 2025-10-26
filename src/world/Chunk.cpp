@@ -51,7 +51,7 @@ void Chunk::generate() {
                     float distance = glm::length(worldPos - center);
 
                     if (distance >= 20.0f && distance <= 30.0f) {
-                        blockType = BlockType::STONE;
+                        blockType = BlockType::STONE_SLAB;
                     }
                 }
 

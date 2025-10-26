@@ -203,33 +203,58 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                         bool shouldRender = true;
 
                         if (face.cullface.has_value()) {
-                            // Get the direction to check
-                            int faceIndex = FaceUtils::toIndex(face.cullface.value());
-                            int nx = bx + FaceUtils::FACE_DIRS[faceIndex][0];
-                            int ny = by + FaceUtils::FACE_DIRS[faceIndex][1];
-                            int nz = bz + FaceUtils::FACE_DIRS[faceIndex][2];
+                            // Only cull if this element actually reaches the block boundary
+                            if (FaceUtils::faceReachesBoundary(face.cullface.value(), elemFrom, elemTo)) {
+                                // Get the direction to check
+                                int faceIndex = FaceUtils::toIndex(face.cullface.value());
+                                int nx = bx + FaceUtils::FACE_DIRS[faceIndex][0];
+                                int ny = by + FaceUtils::FACE_DIRS[faceIndex][1];
+                                int nz = bz + FaceUtils::FACE_DIRS[faceIndex][2];
 
-                            // Check if neighbor is solid
-                            if (nx < 0 || nx >= CHUNK_SIZE || ny < 0 || ny >= CHUNK_SIZE || nz < 0 || nz >= CHUNK_SIZE) {
-                                // Check neighbor chunk
-                                ChunkPosition neighborChunkPos = chunkPos;
-                                int localX = nx, localY = ny, localZ = nz;
+                                // Get neighbor block type
+                                BlockType neighborType = BlockType::AIR;
+                                if (nx < 0 || nx >= CHUNK_SIZE || ny < 0 || ny >= CHUNK_SIZE || nz < 0 || nz >= CHUNK_SIZE) {
+                                    // Check neighbor chunk
+                                    ChunkPosition neighborChunkPos = chunkPos;
+                                    int localX = nx, localY = ny, localZ = nz;
 
-                                if (nx < 0) { neighborChunkPos.x--; localX = CHUNK_SIZE - 1; }
-                                else if (nx >= CHUNK_SIZE) { neighborChunkPos.x++; localX = 0; }
-                                if (ny < 0) { neighborChunkPos.y--; localY = CHUNK_SIZE - 1; }
-                                else if (ny >= CHUNK_SIZE) { neighborChunkPos.y++; localY = 0; }
-                                if (nz < 0) { neighborChunkPos.z--; localZ = CHUNK_SIZE - 1; }
-                                else if (nz >= CHUNK_SIZE) { neighborChunkPos.z++; localZ = 0; }
+                                    if (nx < 0) { neighborChunkPos.x--; localX = CHUNK_SIZE - 1; }
+                                    else if (nx >= CHUNK_SIZE) { neighborChunkPos.x++; localX = 0; }
+                                    if (ny < 0) { neighborChunkPos.y--; localY = CHUNK_SIZE - 1; }
+                                    else if (ny >= CHUNK_SIZE) { neighborChunkPos.y++; localY = 0; }
+                                    if (nz < 0) { neighborChunkPos.z--; localZ = CHUNK_SIZE - 1; }
+                                    else if (nz >= CHUNK_SIZE) { neighborChunkPos.z++; localZ = 0; }
 
-                                const Chunk* neighborChunk = getChunk(neighborChunkPos);
-                                if (neighborChunk && isBlockSolid(neighborChunk->getBlock(localX, localY, localZ))) {
-                                    shouldRender = false;  // Face is culled
+                                    const Chunk* neighborChunk = getChunk(neighborChunkPos);
+                                    if (neighborChunk) {
+                                        neighborType = neighborChunk->getBlock(localX, localY, localZ);
+                                    }
+                                } else {
+                                    // Check within chunk
+                                    neighborType = chunk->getBlock(nx, ny, nz);
                                 }
-                            } else {
-                                // Check within chunk
-                                if (isBlockSolid(chunk->getBlock(nx, ny, nz))) {
-                                    shouldRender = false;  // Face is culled
+
+                                // Only cull if neighbor is solid AND neighbor's model reaches the opposite boundary
+                                if (isBlockSolid(neighborType)) {
+                                    const BlockModel* neighborModel = m_modelManager.getModel(neighborType);
+                                    if (neighborModel) {
+                                        // Check if ANY element in the neighbor model reaches the opposite face
+                                        FaceDirection oppositeFace = FaceUtils::getOppositeFace(face.cullface.value());
+                                        bool neighborReachesBoundary = false;
+
+                                        for (const auto& neighborElem : neighborModel->elements) {
+                                            glm::vec3 neighborFrom = neighborElem.from / 16.0f;
+                                            glm::vec3 neighborTo = neighborElem.to / 16.0f;
+                                            if (FaceUtils::faceReachesBoundary(oppositeFace, neighborFrom, neighborTo)) {
+                                                neighborReachesBoundary = true;
+                                                break;
+                                            }
+                                        }
+
+                                        if (neighborReachesBoundary) {
+                                            shouldRender = false;  // Face is culled
+                                        }
+                                    }
                                 }
                             }
                         }

@@ -170,7 +170,7 @@ int main() {
         camera.init(glm::vec3(0.0f, 20.0f, 0.0f), aspectRatio, 70.0f);
 
         ChunkBufferManager bufferManager;
-        bufferManager.init(vulkanContext.getAllocator(), 1000000, 2000000, 1000);
+        bufferManager.init(vulkanContext.getAllocator(), 5000000, 10000000, 5000);
 
         spdlog::info("Setup complete, entering render loop...");
 

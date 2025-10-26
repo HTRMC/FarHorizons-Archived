@@ -114,6 +114,42 @@ inline void convertUVs(const glm::vec4& uvIn, glm::vec2 uvOut[4]) {
     uvOut[3] = glm::vec2(uvIn[0] / 16.0f, 1.0f - uvIn[3] / 16.0f);
 }
 
+// Check if an element face reaches the block boundary (for cullface)
+// elemFrom/elemTo are in 0-1 space (already divided by 16)
+// Returns true if the face actually touches the edge in the given direction
+inline bool faceReachesBoundary(FaceDirection dir, const glm::vec3& elemFrom, const glm::vec3& elemTo) {
+    constexpr float EPSILON = 1e-5f;  // Tolerance for floating point comparison
+
+    switch (dir) {
+        case FaceDirection::DOWN:  // -Y, check if elemFrom.y is at 0
+            return elemFrom.y < EPSILON;
+        case FaceDirection::UP:    // +Y, check if elemTo.y is at 1
+            return elemTo.y > (1.0f - EPSILON);
+        case FaceDirection::NORTH: // -Z, check if elemFrom.z is at 0
+            return elemFrom.z < EPSILON;
+        case FaceDirection::SOUTH: // +Z, check if elemTo.z is at 1
+            return elemTo.z > (1.0f - EPSILON);
+        case FaceDirection::WEST:  // -X, check if elemFrom.x is at 0
+            return elemFrom.x < EPSILON;
+        case FaceDirection::EAST:  // +X, check if elemTo.x is at 1
+            return elemTo.x > (1.0f - EPSILON);
+    }
+    return false;
+}
+
+// Get the opposite face direction (for checking neighbor culling)
+inline FaceDirection getOppositeFace(FaceDirection dir) {
+    switch (dir) {
+        case FaceDirection::DOWN: return FaceDirection::UP;
+        case FaceDirection::UP: return FaceDirection::DOWN;
+        case FaceDirection::NORTH: return FaceDirection::SOUTH;
+        case FaceDirection::SOUTH: return FaceDirection::NORTH;
+        case FaceDirection::WEST: return FaceDirection::EAST;
+        case FaceDirection::EAST: return FaceDirection::WEST;
+    }
+    return dir;
+}
+
 } // namespace FaceUtils
 
 } // namespace VoxelEngine
