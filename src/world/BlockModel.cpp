@@ -515,4 +515,42 @@ const BlockModel* BlockModelManager::getModelByStateId(uint16_t stateId) const {
     return nullptr;
 }
 
+void BlockModelManager::cacheTextureIndices() {
+    spdlog::info("Caching texture indices in block models...");
+
+    size_t totalFacesCached = 0;
+    std::unordered_set<const BlockModel*> processedModels;
+
+    // Only cache texture indices for models actually used by blockstates
+    // (not parent/template models which may have unresolved texture variables)
+    for (const auto& [stateId, model] : m_stateToModel) {
+        if (!model || !model->isResolved) {
+            continue;
+        }
+
+        // Skip if we've already processed this model
+        if (processedModels.find(model) != processedModels.end()) {
+            continue;
+        }
+        processedModels.insert(model);
+
+        // Process each element in the model (need to cast away const to modify)
+        BlockModel* mutableModel = const_cast<BlockModel*>(model);
+        for (auto& element : mutableModel->elements) {
+            // Process each face of the element
+            for (auto& [faceDir, face] : element.faces) {
+                // Resolve the texture reference (e.g., "#side" -> "minecraft:blocks/stone")
+                std::string resolvedTexture = model->resolveTexture(face.texture);
+
+                // Get and cache the texture index
+                face.textureIndex = getTextureIndex(resolvedTexture);
+                totalFacesCached++;
+            }
+        }
+    }
+
+    spdlog::info("Cached texture indices for {} faces across {} unique models",
+                 totalFacesCached, processedModels.size());
+}
+
 } // namespace VoxelEngine

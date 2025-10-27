@@ -36,6 +36,7 @@ public:
     void preloadBlockStateModels();  // Preload all blockstate models into cache
     void registerTexture(const std::string& textureName, uint32_t textureIndex);
     std::vector<std::string> getRequiredTextures() const;
+    void cacheTextureIndices();  // Cache texture indices in models (call after texture registration)
 
     void setRenderDistance(int32_t distance) { m_renderDistance = distance; }
     int32_t getRenderDistance() const { return m_renderDistance; }

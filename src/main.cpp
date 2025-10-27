@@ -114,6 +114,9 @@ int main() {
             chunkManager.registerTexture(textureName, textureIndex);
         }
 
+        // Cache texture indices in block models for fast lookup during meshing
+        chunkManager.cacheTextureIndices();
+
         vkEndCommandBuffer(uploadCmd);
 
         VkSubmitInfo submitInfo{};

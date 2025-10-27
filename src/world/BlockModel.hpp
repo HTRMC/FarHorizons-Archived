@@ -24,6 +24,7 @@ struct BlockFace {
     glm::vec4 uv;  // UV coordinates (minU, minV, maxU, maxV)
     std::string texture;  // Texture variable (e.g., "#side")
     std::optional<FaceDirection> cullface;  // Which face to cull against
+    uint32_t textureIndex = 0;  // Cached texture index (set during preloading)
 };
 
 // Represents a cuboid element of a block model
@@ -79,6 +80,9 @@ public:
 
     // Preload all blockstate models and cache them
     void preloadBlockStateModels();
+
+    // Cache texture indices in all loaded models (call after texture registration)
+    void cacheTextureIndices();
 
     // Get a model by blockstate ID (fast cached lookup)
     const BlockModel* getModelByStateId(uint16_t stateId) const;

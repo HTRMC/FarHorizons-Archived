@@ -40,6 +40,10 @@ std::vector<std::string> ChunkManager::getRequiredTextures() const {
     return m_modelManager.getAllTextureNames();
 }
 
+void ChunkManager::cacheTextureIndices() {
+    m_modelManager.cacheTextureIndices();
+}
+
 ChunkPosition ChunkManager::worldToChunkPos(const glm::vec3& worldPos) const {
     return {
         static_cast<int32_t>(std::floor(worldPos.x / CHUNK_SIZE)),
@@ -277,9 +281,8 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                         glm::vec2 uvs[4];
                         FaceUtils::convertUVs(face.uv, uvs);
 
-                        // Resolve texture from model and get its index
-                        std::string resolvedTexture = model->resolveTexture(face.texture);
-                        uint32_t faceTextureIndex = m_modelManager.getTextureIndex(resolvedTexture);
+                        // Use cached texture index (no string operations!)
+                        uint32_t faceTextureIndex = face.textureIndex;
 
                         // Add vertices
                         uint32_t baseVertex = static_cast<uint32_t>(mesh.vertices.size());
