@@ -364,10 +364,9 @@ void ChunkManager::meshWorker() {
         if (!mesh.indices.empty()) {
             std::lock_guard<std::mutex> lock(m_readyMutex);
             m_readyMeshes.push(std::move(mesh));
-        }
 
-        // If this was a new chunk, queue neighbors for remeshing to update boundary faces
-        if (wasNewlyCreated) {
+            // Always queue neighbors for remeshing to ensure border face culling is consistent
+            // This is necessary because neighbors might have been meshed before this chunk existed
             queueNeighborRemesh(pos);
         }
     }
