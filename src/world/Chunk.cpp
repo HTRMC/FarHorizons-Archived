@@ -1,5 +1,5 @@
 #include "Chunk.hpp"
-#include "BlockRegistryNew.hpp"
+#include "BlockRegistry.hpp"
 #include "blocks/SlabBlock.hpp"
 #include <cstring>
 #include <cmath>
@@ -18,14 +18,14 @@ uint32_t Chunk::getBlockIndex(uint32_t x, uint32_t y, uint32_t z) const {
 }
 
 // BlockState methods
-BlockStateNew Chunk::getBlockState(uint32_t x, uint32_t y, uint32_t z) const {
+BlockState Chunk::getBlockState(uint32_t x, uint32_t y, uint32_t z) const {
     uint32_t index = getBlockIndex(x, y, z);
     uint8_t paletteIndex = m_data[index];
     uint16_t stateId = m_palette.getStateId(paletteIndex);
-    return BlockStateNew(stateId);
+    return BlockState(stateId);
 }
 
-void Chunk::setBlockState(uint32_t x, uint32_t y, uint32_t z, BlockStateNew state) {
+void Chunk::setBlockState(uint32_t x, uint32_t y, uint32_t z, BlockState state) {
     uint32_t index = getBlockIndex(x, y, z);
     uint8_t paletteIndex = m_palette.getOrAddIndex(state.id);
     m_data[index] = paletteIndex;
@@ -48,11 +48,11 @@ void Chunk::generate() {
         for (uint32_t y = 0; y < CHUNK_SIZE; y++) {
             for (uint32_t z = 0; z < CHUNK_SIZE; z++) {
                 glm::vec3 worldPos = chunkWorldPos + glm::vec3(x, y, z);
-                BlockStateNew state = BlockRegistryNew::AIR->getDefaultState();
+                BlockState state = BlockRegistry::AIR->getDefaultState();
 
                 if (worldPos.y >= 0.0f && worldPos.y <= 1.0f) {
                     // Place stone blocks at bottom layers
-                    state = BlockRegistryNew::STONE->getDefaultState();
+                    state = BlockRegistry::STONE->getDefaultState();
                 } else {
                     glm::vec3 center(0.0f, 10.0f, 0.0f);
                     float distance = glm::length(worldPos - center);
@@ -61,7 +61,7 @@ void Chunk::generate() {
                         // Place slabs in a sphere
                         // Use "top" variant for upper half of blocks (y % 2 == 1)
                         // Use "bottom" variant for lower half
-                        SlabBlock* slabBlock = static_cast<SlabBlock*>(BlockRegistryNew::STONE_SLAB);
+                        SlabBlock* slabBlock = static_cast<SlabBlock*>(BlockRegistry::STONE_SLAB);
                         if (static_cast<int>(worldPos.y) % 2 == 1) {
                             state = slabBlock->withType(SlabType::TOP);
                         } else {

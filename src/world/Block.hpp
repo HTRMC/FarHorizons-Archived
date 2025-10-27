@@ -1,5 +1,5 @@
 #pragma once
-#include "BlockStateNew.hpp"
+#include "BlockState.hpp"
 #include "Property.hpp"
 #include "BlockRenderType.hpp"
 #include <string>
@@ -8,16 +8,16 @@
 namespace VoxelEngine {
 
 // Block base class - defines game logic behavior
-class BlockNew {
+class Block {
 public:
     std::string m_name;
     uint16_t m_baseStateId;
 
-    BlockNew(const std::string& name) : m_name(name), m_baseStateId(0) {}
-    virtual ~BlockNew() = default;
+    Block(const std::string& name) : m_name(name), m_baseStateId(0) {}
+    virtual ~Block() = default;
 
     // Game logic queries - override in subclasses
-    virtual bool isFaceOpaque(BlockStateNew state, Face face) const {
+    virtual bool isFaceOpaque(BlockState state, Face face) const {
         return true; // Full blocks are opaque on all faces
     }
 
@@ -34,13 +34,13 @@ public:
     }
 
     // Rendering queries - override in blocks like AirBlock
-    virtual BlockRenderType getRenderType(BlockStateNew state) const {
+    virtual BlockRenderType getRenderType(BlockState state) const {
         return BlockRenderType::MODEL; // Most blocks have models
     }
 
     // Get the default state (base state with all properties at default)
-    BlockStateNew getDefaultState() const {
-        return BlockStateNew(m_baseStateId);
+    BlockState getDefaultState() const {
+        return BlockState(m_baseStateId);
     }
 
     // Check if a state ID belongs to this block

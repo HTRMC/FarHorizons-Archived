@@ -1,15 +1,15 @@
 #pragma once
-#include "../BlockNew.hpp"
+#include "world/Block.hpp"
 
 namespace VoxelEngine {
 
 // AirBlock - invisible, non-solid block
-class AirBlock : public BlockNew {
+class AirBlock : public Block {
 public:
-    AirBlock(const std::string& name) : BlockNew(name) {}
+    AirBlock(const std::string& name) : Block(name) {}
 
     // Air is never opaque
-    bool isFaceOpaque(BlockStateNew state, Face face) const override {
+    bool isFaceOpaque(BlockState state, Face face) const override {
         return false;
     }
 
@@ -24,7 +24,7 @@ public:
     }
 
     // Air has no model - skip rendering entirely
-    BlockRenderType getRenderType(BlockStateNew state) const override {
+    BlockRenderType getRenderType(BlockState state) const override {
         return BlockRenderType::INVISIBLE;
     }
 

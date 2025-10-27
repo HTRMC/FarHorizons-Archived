@@ -1,5 +1,5 @@
 #include "BlockModel.hpp"
-#include "BlockRegistryNew.hpp"
+#include "BlockRegistry.hpp"
 #include <simdjson.h>
 #include <spdlog/spdlog.h>
 #include <fstream>
@@ -425,7 +425,7 @@ void BlockModelManager::preloadBlockStateModels() {
     spdlog::info("Preloading blockstate models...");
 
     // Iterate through all registered blocks
-    for (const auto& [blockName, block] : BlockRegistryNew::getAllBlocks()) {
+    for (const auto& [blockName, block] : BlockRegistry::getAllBlocks()) {
         // Skip blocks with INVISIBLE render type (air, barriers, etc.)
         if (block->getRenderType(block->getDefaultState()) == BlockRenderType::INVISIBLE) {
             // Cache null for all states of invisible blocks

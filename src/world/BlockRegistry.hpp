@@ -1,5 +1,5 @@
 #pragma once
-#include "BlockNew.hpp"
+#include "Block.hpp"
 #include "blocks/AirBlock.hpp"
 #include "blocks/SimpleBlock.hpp"
 #include "blocks/SlabBlock.hpp"
@@ -10,12 +10,12 @@
 
 namespace VoxelEngine {
 
-class BlockRegistryNew {
+class BlockRegistry {
 public:
     // Block instances (owned by registry)
-    static BlockNew* AIR;
-    static BlockNew* STONE;
-    static BlockNew* STONE_SLAB;
+    static Block* AIR;
+    static Block* STONE;
+    static Block* STONE_SLAB;
 
     // Initialize all blocks
     static void init();
@@ -24,24 +24,24 @@ public:
     static void cleanup();
 
     // Query methods
-    static BlockNew* getBlock(BlockStateNew state);
-    static BlockNew* getBlock(const std::string& name);
+    static Block* getBlock(BlockState state);
+    static Block* getBlock(const std::string& name);
 
     // Game logic queries (delegates to Block)
-    static bool isFaceOpaque(BlockStateNew state, Face face);
-    static bool isSolid(BlockStateNew state);
-    static bool isFullCube(BlockStateNew state);
+    static bool isFaceOpaque(BlockState state, Face face);
+    static bool isSolid(BlockState state);
+    static bool isFullCube(BlockState state);
 
     // Get all registered blocks (for iteration)
-    static const std::unordered_map<std::string, BlockNew*>& getAllBlocks();
+    static const std::unordered_map<std::string, Block*>& getAllBlocks();
 
 private:
     static uint16_t m_nextStateId;
-    static std::unordered_map<std::string, BlockNew*> m_blocks;
+    static std::unordered_map<std::string, Block*> m_blocks;
 
     // Register a block and assign state IDs
     template<typename T>
-    static BlockNew* registerBlock(const std::string& name) {
+    static Block* registerBlock(const std::string& name) {
         T* block = new T(name);
         block->m_baseStateId = m_nextStateId;
 

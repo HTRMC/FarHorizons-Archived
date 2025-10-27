@@ -1,6 +1,6 @@
 #include "ChunkManager.hpp"
 #include "FaceUtils.hpp"
-#include "BlockRegistryNew.hpp"
+#include "BlockRegistry.hpp"
 #include <cmath>
 #include <spdlog/spdlog.h>
 
@@ -181,7 +181,7 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
         for (uint32_t by = 0; by < CHUNK_SIZE; by++) {
             for (uint32_t bz = 0; bz < CHUNK_SIZE; bz++) {
                 // Get blockstate
-                BlockStateNew state = chunk->getBlockState(bx, by, bz);
+                BlockState state = chunk->getBlockState(bx, by, bz);
                 if (state.isAir()) {
                     continue;
                 }
@@ -216,7 +216,7 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                                 int nz = bz + FaceUtils::FACE_DIRS[faceIndex][2];
 
                                 // Get neighbor blockstate
-                                BlockStateNew neighborState = BlockStateNew(0); // Default to AIR
+                                BlockState neighborState = BlockState(0); // Default to AIR
                                 if (nx < 0 || nx >= CHUNK_SIZE || ny < 0 || ny >= CHUNK_SIZE || nz < 0 || nz >= CHUNK_SIZE) {
                                     // Check neighbor chunk
                                     ChunkPosition neighborChunkPos = chunkPos;
@@ -239,7 +239,7 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                                 }
 
                                 // Only cull if neighbor is solid AND neighbor's model reaches the opposite boundary
-                                if (BlockRegistryNew::isSolid(neighborState)) {
+                                if (BlockRegistry::isSolid(neighborState)) {
                                     // Use cached model lookup (fast O(1)!)
                                     const BlockModel* neighborModel = m_modelManager.getModelByStateId(neighborState.id);
                                     if (neighborModel) {

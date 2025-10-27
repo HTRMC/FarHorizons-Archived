@@ -1,7 +1,7 @@
 #pragma once
 
-#include "BlockStateNew.hpp"
-#include "ChunkPaletteNew.hpp"
+#include "BlockState.hpp"
+#include "ChunkPalette.hpp"
 #include <glm/glm.hpp>
 #include <vector>
 #include <cstdint>
@@ -40,8 +40,8 @@ public:
     const ChunkPosition& getPosition() const { return m_position; }
 
     // BlockState methods
-    BlockStateNew getBlockState(uint32_t x, uint32_t y, uint32_t z) const;
-    void setBlockState(uint32_t x, uint32_t y, uint32_t z, BlockStateNew state);
+    BlockState getBlockState(uint32_t x, uint32_t y, uint32_t z) const;
+    void setBlockState(uint32_t x, uint32_t y, uint32_t z, BlockState state);
 
     const uint8_t* getData() const { return m_data.data(); }
 
@@ -52,11 +52,11 @@ public:
     void markNonEmpty() { m_isEmpty = false; }
 
     // Access to palette
-    const ChunkPaletteNew& getPalette() const { return m_palette; }
+    const ChunkPalette& getPalette() const { return m_palette; }
 
 private:
     ChunkPosition m_position;
-    ChunkPaletteNew m_palette;  // Maps local indices to global blockstate IDs
+    ChunkPalette m_palette;  // Maps local indices to global blockstate IDs
     std::array<uint8_t, CHUNK_VOLUME> m_data;  // Each uint8_t stores a palette index
     bool m_isEmpty = true;
 

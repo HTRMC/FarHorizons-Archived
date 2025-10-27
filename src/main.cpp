@@ -16,7 +16,7 @@
 #include "renderer/texture/BindlessTextureManager.hpp"
 #include "renderer/DepthBuffer.hpp"
 #include "world/ChunkManager.hpp"
-#include "world/BlockRegistryNew.hpp"
+#include "world/BlockRegistry.hpp"
 
 using namespace VoxelEngine;
 
@@ -82,7 +82,7 @@ int main() {
         vkAllocateCommandBuffers(vulkanContext.getDevice().getLogicalDevice(), &allocInfo, &uploadCmd);
 
         // Initialize block registry before loading models
-        BlockRegistryNew::init();
+        BlockRegistry::init();
         spdlog::info("Initialized block registry");
 
         // Initialize block models first to discover required textures

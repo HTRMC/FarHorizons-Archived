@@ -1,5 +1,5 @@
 #pragma once
-#include "../BlockNew.hpp"
+#include "../Block.hpp"
 
 namespace VoxelEngine {
 
@@ -11,15 +11,15 @@ enum class SlabType : uint8_t {
 };
 
 // SlabBlock - half-height block with directional opacity
-class SlabBlock : public BlockNew {
+class SlabBlock : public Block {
 public:
     // Static property definition (shared by all slab instances)
     static Property<SlabType> TYPE;
 
-    SlabBlock(const std::string& name) : BlockNew(name) {}
+    SlabBlock(const std::string& name) : Block(name) {}
 
     // Slabs have directional opacity based on type
-    bool isFaceOpaque(BlockStateNew state, Face face) const override {
+    bool isFaceOpaque(BlockState state, Face face) const override {
         SlabType type = getSlabType(state);
 
         switch (type) {
@@ -55,13 +55,13 @@ public:
     }
 
     // Helper to get specific state
-    BlockStateNew withType(SlabType type) const {
-        return BlockStateNew(m_baseStateId + static_cast<uint16_t>(type));
+    BlockState withType(SlabType type) const {
+        return BlockState(m_baseStateId + static_cast<uint16_t>(type));
     }
 
 private:
     // Decode slab type from state ID
-    SlabType getSlabType(BlockStateNew state) const {
+    SlabType getSlabType(BlockState state) const {
         int offset = state.id - m_baseStateId;
         return static_cast<SlabType>(offset);
     }

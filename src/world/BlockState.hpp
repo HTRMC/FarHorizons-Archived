@@ -13,16 +13,16 @@ enum class Face : uint8_t {
     EAST = 5    // +X
 };
 
-// BlockStateNew is just a lightweight ID wrapper
+// BlockState is just a lightweight ID wrapper
 // No logic, no virtual functions - just a uint16_t with helper methods
-struct BlockStateNew {
+struct BlockState {
     uint16_t id;
 
-    BlockStateNew() : id(0) {}
-    explicit BlockStateNew(uint16_t stateId) : id(stateId) {}
+    BlockState() : id(0) {}
+    explicit BlockState(uint16_t stateId) : id(stateId) {}
 
-    bool operator==(const BlockStateNew& other) const { return id == other.id; }
-    bool operator!=(const BlockStateNew& other) const { return id != other.id; }
+    bool operator==(const BlockState& other) const { return id == other.id; }
+    bool operator!=(const BlockState& other) const { return id != other.id; }
 
     bool isAir() const { return id == 0; }
 };

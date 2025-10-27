@@ -1,15 +1,15 @@
-#include "ChunkPaletteNew.hpp"
+#include "ChunkPalette.hpp"
 #include <spdlog/spdlog.h>
 
 namespace VoxelEngine {
 
-ChunkPaletteNew::ChunkPaletteNew() {
+ChunkPalette::ChunkPalette() {
     // Initialize with AIR at index 0
     m_palette.push_back(0);
     m_indexMap[0] = 0;
 }
 
-uint16_t ChunkPaletteNew::getStateId(uint8_t index) const {
+uint16_t ChunkPalette::getStateId(uint8_t index) const {
     if (index >= m_palette.size()) {
         spdlog::error("ChunkPaletteNew::getStateId - index {} out of bounds (size: {})",
                       index, m_palette.size());
@@ -18,7 +18,7 @@ uint16_t ChunkPaletteNew::getStateId(uint8_t index) const {
     return m_palette[index];
 }
 
-uint8_t ChunkPaletteNew::getOrAddIndex(uint16_t stateId) {
+uint8_t ChunkPalette::getOrAddIndex(uint16_t stateId) {
     // Check if state is already in palette
     auto it = m_indexMap.find(stateId);
     if (it != m_indexMap.end()) {
@@ -37,7 +37,7 @@ uint8_t ChunkPaletteNew::getOrAddIndex(uint16_t stateId) {
     return newIndex;
 }
 
-void ChunkPaletteNew::clear() {
+void ChunkPalette::clear() {
     m_palette.clear();
     m_indexMap.clear();
 

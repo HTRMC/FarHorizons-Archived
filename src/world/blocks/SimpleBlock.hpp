@@ -1,12 +1,12 @@
 #pragma once
-#include "../BlockNew.hpp"
+#include "../Block.hpp"
 
 namespace VoxelEngine {
 
 // SimpleBlock - regular full cube block (stone, dirt, etc.)
-class SimpleBlock : public BlockNew {
+class SimpleBlock : public Block {
 public:
-    SimpleBlock(const std::string& name) : BlockNew(name) {}
+    SimpleBlock(const std::string& name) : Block(name) {}
 
     // Uses all default behavior from BlockNew:
     // - All faces opaque

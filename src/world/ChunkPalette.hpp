@@ -1,5 +1,5 @@
 #pragma once
-#include "BlockStateNew.hpp"
+#include "BlockState.hpp"
 #include <vector>
 #include <unordered_map>
 #include <cstdint>
@@ -8,9 +8,9 @@ namespace VoxelEngine {
 
 // Per-chunk palette that maps local indices to global blockstate IDs
 // Saves memory - stores only the blockstates actually used in this chunk
-class ChunkPaletteNew {
+class ChunkPalette {
 public:
-    ChunkPaletteNew();
+    ChunkPalette();
 
     // Get the blockstate for a local index
     uint16_t getStateId(uint8_t index) const;
