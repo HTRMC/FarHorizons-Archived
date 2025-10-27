@@ -49,6 +49,12 @@ public:
     virtual size_t getStateCount() const {
         return 1; // Simple blocks have 1 state
     }
+
+    // Get all properties for this block (for model loading)
+    // Override in blocks with properties
+    virtual std::vector<PropertyBase*> getProperties() const {
+        return {}; // Simple blocks have no properties
+    }
 };
 
 } // namespace VoxelEngine

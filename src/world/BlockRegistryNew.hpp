@@ -32,8 +32,8 @@ public:
     static bool isSolid(BlockStateNew state);
     static bool isFullCube(BlockStateNew state);
 
-    // Rendering queries
-    static const BlockModel* getModel(BlockStateNew state);
+    // Get all registered blocks (for iteration)
+    static const std::unordered_map<std::string, BlockNew*>& getAllBlocks();
 
 private:
     static uint16_t m_nextStateId;

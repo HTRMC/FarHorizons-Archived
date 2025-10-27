@@ -427,47 +427,69 @@ void BlockModelManager::preloadBlockStateModels() {
     // Preload models for AIR (always null)
     m_stateToModel[0] = nullptr;
 
-    // Preload models for STONE (simple full block)
-    BlockNew* stone = BlockRegistryNew::STONE;
-    auto stoneVariants = loadBlockstatesFile(stone->m_name);
+    // Iterate through all registered blocks
+    for (const auto& [blockName, block] : BlockRegistryNew::getAllBlocks()) {
+        auto properties = block->getProperties();
+        auto variants = loadBlockstatesFile(block->m_name);
 
-    if (stoneVariants.empty()) {
-        // No blockstates file - use default model based on block name
-        for (size_t i = 0; i < stone->getStateCount(); ++i) {
-            uint16_t stateId = stone->m_baseStateId + i;
-            const BlockModel* model = loadModel("block/" + stone->m_name);
-            m_stateToModel[stateId] = model;
-            if (model) {
-                spdlog::trace("Cached model for state {} ({})", stateId, stone->m_name);
+        if (variants.empty() && properties.empty()) {
+            // Simple block with no properties and no blockstates file
+            // Use default model: block/{blockName}.json
+            for (size_t i = 0; i < block->getStateCount(); ++i) {
+                uint16_t stateId = block->m_baseStateId + i;
+                const BlockModel* model = loadModel("block/" + block->m_name);
+                m_stateToModel[stateId] = model;
+                if (model) {
+                    spdlog::trace("Cached model for state {} ({})", stateId, block->m_name);
+                }
             }
-        }
-    }
+        } else if (!variants.empty() && !properties.empty()) {
+            // Block with properties - map variants to states
+            for (const auto& [variantKey, modelName] : variants) {
+                // Parse variant key like "type=bottom" into property values
+                // For single property blocks, the variant key is "property=value"
+                size_t eqPos = variantKey.find('=');
+                if (eqPos == std::string::npos) {
+                    spdlog::warn("Invalid variant key '{}' in blockstates/{}.json", variantKey, block->m_name);
+                    continue;
+                }
 
-    // Preload models for STONE_SLAB using blockstates file
-    BlockNew* stoneSlab = BlockRegistryNew::STONE_SLAB;
-    auto slabVariants = loadBlockstatesFile(stoneSlab->m_name);
+                std::string propName = variantKey.substr(0, eqPos);
+                std::string valueName = variantKey.substr(eqPos + 1);
 
-    // SlabBlock has TYPE property with values: bottom, top, double (in that order)
-    const char* slabTypes[] = {"bottom", "top", "double"};
-    for (size_t i = 0; i < stoneSlab->getStateCount(); ++i) {
-        uint16_t stateId = stoneSlab->m_baseStateId + i;
+                // Find the property
+                PropertyBase* prop = nullptr;
+                for (PropertyBase* p : properties) {
+                    if (p->name == propName) {
+                        prop = p;
+                        break;
+                    }
+                }
 
-        // Build variant string: "type=bottom", "type=top", "type=double"
-        std::string variantStr = std::string("type=") + slabTypes[i];
+                if (!prop) {
+                    spdlog::warn("Property '{}' not found in block {}", propName, block->m_name);
+                    continue;
+                }
 
-        // Look up model name from blockstates variants
-        auto it = slabVariants.find(variantStr);
-        if (it != slabVariants.end()) {
-            const BlockModel* model = loadModel(it->second);
-            m_stateToModel[stateId] = model;
-            if (model) {
-                spdlog::trace("Cached model for state {} ({} -> {})", stateId, variantStr, it->second);
-            } else {
-                spdlog::warn("Failed to load model for state {} ({})", stateId, it->second);
+                // Get state index from property value
+                auto stateIndexOpt = prop->getValueIndexByName(valueName);
+                if (!stateIndexOpt) {
+                    spdlog::warn("Value '{}' not found in property '{}'", valueName, propName);
+                    continue;
+                }
+
+                size_t stateIndex = *stateIndexOpt;
+                uint16_t stateId = block->m_baseStateId + stateIndex;
+
+                // Load and cache the model
+                const BlockModel* model = loadModel(modelName);
+                m_stateToModel[stateId] = model;
+                if (model) {
+                    spdlog::trace("Cached model for state {} ({} -> {})", stateId, variantKey, modelName);
+                } else {
+                    spdlog::warn("Failed to load model for state {} ({})", stateId, modelName);
+                }
             }
-        } else {
-            spdlog::warn("No variant '{}' found in blockstates/{}.json", variantStr, stoneSlab->m_name);
-            m_stateToModel[stateId] = nullptr;
         }
     }
 

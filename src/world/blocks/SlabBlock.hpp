@@ -49,6 +49,11 @@ public:
         return 3;
     }
 
+    // Expose properties for model loading
+    std::vector<PropertyBase*> getProperties() const override {
+        return {const_cast<PropertyBase*>(static_cast<const PropertyBase*>(&TYPE))};
+    }
+
     // Helper to get specific state
     BlockStateNew withType(SlabType type) const {
         return BlockStateNew(m_baseStateId + static_cast<uint16_t>(type));

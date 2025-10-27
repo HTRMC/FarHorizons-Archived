@@ -1,6 +1,5 @@
 #pragma once
 
-#include "BlockType.hpp"
 #include <glm/glm.hpp>
 #include <string>
 #include <vector>

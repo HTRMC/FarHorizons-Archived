@@ -1,6 +1,5 @@
 #pragma once
 
-#include "BlockType.hpp"
 #include "BlockStateNew.hpp"
 #include "ChunkPaletteNew.hpp"
 #include <glm/glm.hpp>

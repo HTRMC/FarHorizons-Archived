@@ -60,11 +60,8 @@ bool BlockRegistryNew::isFullCube(BlockStateNew state) {
     return block ? block->isFullCube() : false;
 }
 
-// Rendering query - integrates with existing BlockModel system
-const BlockModel* BlockRegistryNew::getModel(BlockStateNew state) {
-    // TODO: Implement model loading/caching
-    // This will be integrated with the existing BlockModelManager
-    return nullptr;
+const std::unordered_map<std::string, BlockNew*>& BlockRegistryNew::getAllBlocks() {
+    return m_blocks;
 }
 
 } // namespace VoxelEngine
