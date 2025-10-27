@@ -424,11 +424,19 @@ std::unordered_map<std::string, std::string> BlockModelManager::loadBlockstatesF
 void BlockModelManager::preloadBlockStateModels() {
     spdlog::info("Preloading blockstate models...");
 
-    // Preload models for AIR (always null)
-    m_stateToModel[0] = nullptr;
-
     // Iterate through all registered blocks
     for (const auto& [blockName, block] : BlockRegistryNew::getAllBlocks()) {
+        // Skip blocks with INVISIBLE render type (air, barriers, etc.)
+        if (block->getRenderType(block->getDefaultState()) == BlockRenderType::INVISIBLE) {
+            // Cache null for all states of invisible blocks
+            for (size_t i = 0; i < block->getStateCount(); ++i) {
+                uint16_t stateId = block->m_baseStateId + i;
+                m_stateToModel[stateId] = nullptr;
+            }
+            spdlog::debug("Skipped model loading for invisible block: {}", block->m_name);
+            continue;
+        }
+
         auto properties = block->getProperties();
         auto variants = loadBlockstatesFile(block->m_name);
 

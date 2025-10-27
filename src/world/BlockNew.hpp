@@ -1,6 +1,7 @@
 #pragma once
 #include "BlockStateNew.hpp"
 #include "Property.hpp"
+#include "BlockRenderType.hpp"
 #include <string>
 #include <cstdint>
 
@@ -30,6 +31,11 @@ public:
 
     virtual bool hasBlockEntity() const {
         return false; // Most blocks don't have block entities
+    }
+
+    // Rendering queries - override in blocks like AirBlock
+    virtual BlockRenderType getRenderType(BlockStateNew state) const {
+        return BlockRenderType::MODEL; // Most blocks have models
     }
 
     // Get the default state (base state with all properties at default)

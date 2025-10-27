@@ -23,6 +23,11 @@ public:
         return false;
     }
 
+    // Air has no model - skip rendering entirely
+    BlockRenderType getRenderType(BlockStateNew state) const override {
+        return BlockRenderType::INVISIBLE;
+    }
+
     // No properties, just 1 state
     size_t getStateCount() const override {
         return 1;
