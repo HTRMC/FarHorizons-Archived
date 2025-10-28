@@ -17,6 +17,9 @@
 #include "renderer/DepthBuffer.hpp"
 #include "world/ChunkManager.hpp"
 #include "world/BlockRegistry.hpp"
+#include "text/FontManager.hpp"
+#include "text/TextRenderer.hpp"
+#include "text/Text.hpp"
 
 using namespace VoxelEngine;
 
@@ -120,6 +123,20 @@ int main() {
         // Pre-compute BlockShapes for all BlockStates (eliminates first-access stutter)
         chunkManager.precacheBlockShapes();
 
+        // Initialize font manager and load font
+        // NOTE: You need to provide a font texture at assets/minecraft/textures/font/ascii.png
+        // You can copy it from the Minecraft decompiled folder or create your own
+        FontManager fontManager;
+        fontManager.init(&textureManager);
+
+        // Try to load the font (won't crash if file doesn't exist, just won't render text)
+        fontManager.loadGridFont("default", "assets/minecraft/textures/font/ascii.png",
+                                 uploadCmd, 128, 128, 16, 8);
+
+        // Initialize text renderer
+        TextRenderer textRenderer;
+        textRenderer.init(&fontManager);
+
         vkEndCommandBuffer(uploadCmd);
 
         VkSubmitInfo submitInfo{};
@@ -178,6 +195,68 @@ int main() {
 
         GraphicsPipeline pipeline;
         pipeline.init(vulkanContext.getDevice().getLogicalDevice(), pipelineConfig);
+
+        // Load text shaders and create text pipeline
+        Shader textVertShader, textFragShader;
+        textVertShader.loadFromFile(vulkanContext.getDevice().getLogicalDevice(), "assets/minecraft/shaders/text.vsh.spv");
+        textFragShader.loadFromFile(vulkanContext.getDevice().getLogicalDevice(), "assets/minecraft/shaders/text.fsh.spv");
+
+        GraphicsPipelineConfig textPipelineConfig;
+        textPipelineConfig.vertexShader = &textVertShader;
+        textPipelineConfig.fragmentShader = &textFragShader;
+        textPipelineConfig.colorFormat = swapchain.getImageFormat();
+        textPipelineConfig.depthFormat = depthBuffer.getFormat();  // Must match even if not using depth
+        textPipelineConfig.depthTest = false;  // Text rendered without depth
+        textPipelineConfig.depthWrite = false;
+        textPipelineConfig.cullMode = VK_CULL_MODE_NONE;
+        textPipelineConfig.blendEnable = true;  // Enable alpha blending for text
+
+        // TextVertex format
+        VkVertexInputBindingDescription textBinding{};
+        textBinding.binding = 0;
+        textBinding.stride = sizeof(TextVertex);
+        textBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        textPipelineConfig.vertexBindings.push_back(textBinding);
+
+        VkVertexInputAttributeDescription textPosAttr{};
+        textPosAttr.location = 0;
+        textPosAttr.binding = 0;
+        textPosAttr.format = VK_FORMAT_R32G32_SFLOAT;
+        textPosAttr.offset = offsetof(TextVertex, position);
+        textPipelineConfig.vertexAttributes.push_back(textPosAttr);
+
+        VkVertexInputAttributeDescription textTexCoordAttr{};
+        textTexCoordAttr.location = 1;
+        textTexCoordAttr.binding = 0;
+        textTexCoordAttr.format = VK_FORMAT_R32G32_SFLOAT;
+        textTexCoordAttr.offset = offsetof(TextVertex, texCoord);
+        textPipelineConfig.vertexAttributes.push_back(textTexCoordAttr);
+
+        VkVertexInputAttributeDescription textColorAttr{};
+        textColorAttr.location = 2;
+        textColorAttr.binding = 0;
+        textColorAttr.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        textColorAttr.offset = offsetof(TextVertex, color);
+        textPipelineConfig.vertexAttributes.push_back(textColorAttr);
+
+        VkVertexInputAttributeDescription textTextureIndexAttr{};
+        textTextureIndexAttr.location = 3;
+        textTextureIndexAttr.binding = 0;
+        textTextureIndexAttr.format = VK_FORMAT_R32_UINT;
+        textTextureIndexAttr.offset = offsetof(TextVertex, textureIndex);
+        textPipelineConfig.vertexAttributes.push_back(textTextureIndexAttr);
+
+        textPipelineConfig.descriptorSetLayouts.push_back(textureManager.getDescriptorSetLayout());
+
+        GraphicsPipeline textPipeline;
+        textPipeline.init(vulkanContext.getDevice().getLogicalDevice(), textPipelineConfig);
+
+        // Create a buffer for text vertices
+        Buffer textVertexBuffer;
+        textVertexBuffer.init(vulkanContext.getAllocator(), 100000 * sizeof(TextVertex),
+                             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                             VMA_MEMORY_USAGE_CPU_TO_GPU,
+                             VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
         Camera camera;
         float aspectRatio = static_cast<float>(window.getWidth()) / static_cast<float>(window.getHeight());
@@ -298,6 +377,63 @@ int main() {
                 cmd.drawIndexedIndirect(bufferManager.getIndirectBuffer(), 0, drawCount, sizeof(VkDrawIndexedIndirectCommand));
             }
 
+            // Render text overlay (HUD)
+            if (fontManager.hasFont("default")) {
+                // Calculate FPS
+                static float fpsTimer = 0.0f;
+                static int frameCount = 0;
+                static int fps = 0;
+                fpsTimer += deltaTime;
+                frameCount++;
+                if (fpsTimer >= 1.0f) {
+                    fps = frameCount;
+                    frameCount = 0;
+                    fpsTimer = 0.0f;
+                }
+
+                // Create example text with styling
+                auto titleText = Text::literal("Vulkan Voxel Engine", Style::yellow().withBold(true));
+                auto fpsText = Text::literal("FPS: ", Style::gray())
+                    .append(std::to_string(fps), fps >= 60 ? Style::green() : Style::red());
+
+                auto posText = Text::literal("Position: ", Style::gray())
+                    .append(std::to_string((int)camera.getPosition().x) + ", " +
+                           std::to_string((int)camera.getPosition().y) + ", " +
+                           std::to_string((int)camera.getPosition().z), Style::white());
+
+                // Example of legacy formatting codes
+                auto legacyText = Text::parseLegacy("Styled Text: §aGreen §cRed §eYellow §lBold §rReset");
+
+                // Generate vertices for all text
+                auto titleVertices = textRenderer.generateVertices(titleText, glm::vec2(10, 10), 2.0f,
+                                                                   window.getWidth(), window.getHeight());
+                auto fpsVertices = textRenderer.generateVertices(fpsText, glm::vec2(10, 40), 1.5f,
+                                                                window.getWidth(), window.getHeight());
+                auto posVertices = textRenderer.generateVertices(posText, glm::vec2(10, 65), 1.5f,
+                                                                window.getWidth(), window.getHeight());
+                auto legacyVertices = textRenderer.generateVertices(legacyText, glm::vec2(10, 90), 1.5f,
+                                                                   window.getWidth(), window.getHeight());
+
+                // Combine all vertices
+                std::vector<TextVertex> allTextVertices;
+                allTextVertices.insert(allTextVertices.end(), titleVertices.begin(), titleVertices.end());
+                allTextVertices.insert(allTextVertices.end(), fpsVertices.begin(), fpsVertices.end());
+                allTextVertices.insert(allTextVertices.end(), posVertices.begin(), posVertices.end());
+                allTextVertices.insert(allTextVertices.end(), legacyVertices.begin(), legacyVertices.end());
+
+                if (!allTextVertices.empty()) {
+                    // Upload vertices to buffer
+                    void* data = textVertexBuffer.map();
+                    memcpy(data, allTextVertices.data(), allTextVertices.size() * sizeof(TextVertex));
+
+                    // Bind text pipeline and render
+                    cmd.bindPipeline(textPipeline.getPipeline());
+                    cmd.bindDescriptorSets(textPipeline.getLayout(), 0, 1, &textureDescSet);
+                    cmd.bindVertexBuffer(textVertexBuffer.getBuffer());
+                    cmd.draw(allTextVertices.size(), 1, 0, 0);
+                }
+            }
+
             cmd.endRendering();
             renderer.endFrame();
 
@@ -309,6 +445,10 @@ int main() {
         vulkanContext.waitIdle();
 
         bufferManager.cleanup();
+        textVertexBuffer.cleanup();
+        textPipeline.cleanup();
+        textFragShader.cleanup();
+        textVertShader.cleanup();
         textureManager.shutdown();
         depthBuffer.cleanup(vulkanContext.getDevice().getLogicalDevice(), vulkanContext.getAllocator());
         pipeline.cleanup();

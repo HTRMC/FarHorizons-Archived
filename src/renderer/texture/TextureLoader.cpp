@@ -64,8 +64,8 @@ TextureData TextureLoader::loadPNG(const std::string& filepath) {
     // Allocate buffer for decoded image
     result.pixels.resize(imageSize);
 
-    // Decode image
-    ret = spng_decode_image(ctx, result.pixels.data(), imageSize, fmt, 0);
+    // Decode image - use SPNG_DECODE_TRNS to decode transparency for palette images
+    ret = spng_decode_image(ctx, result.pixels.data(), imageSize, fmt, SPNG_DECODE_TRNS);
     if (ret) {
         spng_ctx_free(ctx);
         throw std::runtime_error("Failed to decode PNG image: " + std::string(spng_strerror(ret)));

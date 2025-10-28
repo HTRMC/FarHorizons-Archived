@@ -1,0 +1,118 @@
+#pragma once
+
+#include "FontAtlas.hpp"
+#include "../renderer/texture/BindlessTextureManager.hpp"
+#include <unordered_map>
+#include <memory>
+#include <spdlog/spdlog.h>
+
+namespace VoxelEngine {
+
+/**
+ * Manages multiple font atlases and their textures.
+ * Similar to Minecraft's FontManager.
+ */
+class FontManager {
+public:
+    FontManager() = default;
+
+    /**
+     * Initialize the font manager with a texture manager.
+     */
+    void init(BindlessTextureManager* textureManager) {
+        m_textureManager = textureManager;
+    }
+
+    /**
+     * Load a simple grid-based font (like Minecraft's ASCII font).
+     * @param fontName Name to identify this font
+     * @param texturePath Path to the font texture
+     * @param uploadCmd Command buffer for texture upload
+     * @param textureWidth Width of the font texture
+     * @param textureHeight Height of the font texture
+     * @param charsPerRow Number of characters per row
+     * @param charsPerCol Number of characters per column
+     * @param firstChar First character code (usually 32 for space)
+     */
+    uint32_t loadGridFont(const std::string& fontName,
+                          const std::string& texturePath,
+                          VkCommandBuffer uploadCmd,
+                          uint32_t textureWidth = 128,
+                          uint32_t textureHeight = 128,
+                          uint32_t charsPerRow = 16,
+                          uint32_t charsPerCol = 8,
+                          uint32_t firstChar = 32) {
+        if (!m_textureManager) {
+            spdlog::error("FontManager not initialized with texture manager");
+            return 0;
+        }
+
+        // Load the texture
+        uint32_t textureIndex = m_textureManager->loadTexture(texturePath, uploadCmd, false);
+        if (textureIndex == 0) {
+            spdlog::error("Failed to load font texture: {}", texturePath);
+            return 0;
+        }
+
+        // Create font atlas
+        auto atlas = std::make_shared<FontAtlas>();
+        atlas->initGrid(textureWidth, textureHeight, charsPerRow, charsPerCol, firstChar);
+
+        m_fonts[fontName] = atlas;
+        m_fontTextures[fontName] = textureIndex;
+
+        spdlog::info("Loaded font '{}' from {} (texture index: {})", fontName, texturePath, textureIndex);
+
+        return textureIndex;
+    }
+
+    /**
+     * Get a font atlas by name.
+     */
+    FontAtlas* getFont(const std::string& fontName) {
+        auto it = m_fonts.find(fontName);
+        if (it != m_fonts.end()) {
+            return it->second.get();
+        }
+
+        // Try to return default font
+        auto defaultIt = m_fonts.find("default");
+        if (defaultIt != m_fonts.end()) {
+            return defaultIt->second.get();
+        }
+
+        return nullptr;
+    }
+
+    /**
+     * Get the texture index for a font.
+     */
+    uint32_t getFontTexture(const std::string& fontName) const {
+        auto it = m_fontTextures.find(fontName);
+        if (it != m_fontTextures.end()) {
+            return it->second;
+        }
+
+        // Try to return default font texture
+        auto defaultIt = m_fontTextures.find("default");
+        if (defaultIt != m_fontTextures.end()) {
+            return defaultIt->second;
+        }
+
+        return 0;
+    }
+
+    /**
+     * Check if a font is loaded.
+     */
+    bool hasFont(const std::string& fontName) const {
+        return m_fonts.find(fontName) != m_fonts.end();
+    }
+
+private:
+    BindlessTextureManager* m_textureManager = nullptr;
+    std::unordered_map<std::string, std::shared_ptr<FontAtlas>> m_fonts;
+    std::unordered_map<std::string, uint32_t> m_fontTextures;
+};
+
+} // namespace VoxelEngine
