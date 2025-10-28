@@ -201,26 +201,20 @@ BlockState FaceCullingSystem::getNeighborBlockState(
     return BlockState(0);  // AIR
 }
 
-const BlockShape& FaceCullingSystem::getBlockShape(BlockState state, const BlockModel* model) const {
-    // ========================================================================
-    // Determine block shape type based on BlockState and BlockModel
-    // ========================================================================
-
-    if (state.isAir()) {
-        return BlockShape::empty();
+const BlockShape& FaceCullingSystem::getBlockShape(BlockState state, const BlockModel* model) {
+    // Check cache first (O(1) lookup)
+    auto it = m_shapeCache.find(state.id);
+    if (it != m_shapeCache.end()) {
+        return it->second;
     }
 
-    if (!model || model->elements.empty()) {
-        return BlockShape::empty();
+    // Cache miss - compute shape and store it
+    if (state.isAir() || !model || model->elements.empty()) {
+        m_shapeCache[state.id] = BlockShape(ShapeType::EMPTY);
+        return m_shapeCache[state.id];
     }
 
-    // Check if model is a full cube by examining all elements
-    // A full cube has:
-    //  - One element with from=(0,0,0) and to=(16,16,16)
-    //  - OR multiple elements that together form a complete cube
-    //
-    // For simplicity, we check if the model's bounding box is (0,0,0) to (16,16,16)
-
+    // Compute bounding box from all model elements
     glm::vec3 minBounds(16.0f);
     glm::vec3 maxBounds(0.0f);
 
@@ -229,19 +223,27 @@ const BlockShape& FaceCullingSystem::getBlockShape(BlockState state, const Block
         maxBounds = glm::max(maxBounds, element.to);
     }
 
+    // Check if it's a full cube
     constexpr float EPSILON = 0.01f;
     bool isFullCube =
         minBounds.x < EPSILON && minBounds.y < EPSILON && minBounds.z < EPSILON &&
         maxBounds.x > (16.0f - EPSILON) && maxBounds.y > (16.0f - EPSILON) && maxBounds.z > (16.0f - EPSILON);
 
     if (isFullCube) {
-        return BlockShape::fullCube();
+        m_shapeCache[state.id] = BlockShape(ShapeType::FULL_CUBE);
+    } else {
+        m_shapeCache[state.id] = BlockShape::partial(minBounds / 16.0f, maxBounds / 16.0f);
     }
 
-    // Partial shape - create a new shape with bounding box
-    // Note: In a production system, you'd want to cache these per BlockState
-    // to avoid allocating new BlockShape objects every time
-    return BlockShape::partial(minBounds / 16.0f, maxBounds / 16.0f);
+    return m_shapeCache[state.id];
+}
+
+void FaceCullingSystem::rebuildShapeCache(const std::function<const BlockModel*(uint16_t)>& getModelFunc) {
+    m_shapeCache.clear();
+
+    // Pre-cache shapes for all block states (optional optimization)
+    // This would iterate through all registered BlockStates and compute their shapes
+    // For now, we use lazy caching (compute on first use)
 }
 
 bool FaceCullingSystem::geometricComparison(
@@ -302,6 +304,7 @@ bool FaceCullingSystem::geometricComparison(
 
 void FaceCullingSystem::clearCache() {
     s_cache.clear();
+    m_shapeCache.clear();
 }
 
 } // namespace VoxelEngine

@@ -105,12 +105,7 @@ void ChunkManager::unloadDistantChunks(const ChunkPosition& centerPos) {
     {
         std::lock_guard<std::mutex> lock(m_chunksMutex);
         for (const auto& [pos, chunk] : m_chunks) {
-            int32_t dx = pos.x - centerPos.x;
-            int32_t dy = pos.y - centerPos.y;
-            int32_t dz = pos.z - centerPos.z;
-            float distance = std::sqrt(dx*dx + dy*dy + dz*dz);
-
-            if (distance > m_renderDistance + 1) {
+            if (pos.distanceTo(centerPos) > m_renderDistance + 1) {
                 chunksToUnload.push_back(pos);
             }
         }
@@ -368,64 +363,13 @@ void ChunkManager::meshWorker() {
         }
 
         if (!needsRemesh) {
-            continue; // Skip if not dirty
+            continue;
         }
 
-        // ================================================================
-        // MINECRAFT'S APPROACH: Wait for all 6 face-adjacent neighbors
-        // ================================================================
-        // ChunkRegion ensures all neighbors are loaded before meshing
-        // This prevents incorrect face culling at chunk boundaries
-        //
-        // We check if all 6 neighbors exist before meshing
-        // If any neighbor is missing AND within render distance, re-queue
-        // If neighbor is outside render distance, proceed (edge chunk)
-        // ================================================================
-
-        bool allRequiredNeighborsLoaded = true;
-        {
-            std::lock_guard<std::mutex> lock(m_chunksMutex);
-
-            // Get camera chunk position for render distance check
-            ChunkPosition cameraChunkPos = m_lastCameraChunkPos;
-
-            // Check 6 face-adjacent neighbors (like Minecraft's directDependencies)
-            const ChunkPosition neighborOffsets[6] = {
-                {pos.x - 1, pos.y, pos.z},  // West
-                {pos.x + 1, pos.y, pos.z},  // East
-                {pos.x, pos.y - 1, pos.z},  // Down
-                {pos.x, pos.y + 1, pos.z},  // Up
-                {pos.x, pos.y, pos.z - 1},  // North
-                {pos.x, pos.y, pos.z + 1}   // South
-            };
-
-            for (const auto& neighborPos : neighborOffsets) {
-                // Check if neighbor is within render distance
-                int32_t dx = neighborPos.x - cameraChunkPos.x;
-                int32_t dy = neighborPos.y - cameraChunkPos.y;
-                int32_t dz = neighborPos.z - cameraChunkPos.z;
-                float distanceToCamera = std::sqrt(static_cast<float>(dx*dx + dy*dy + dz*dz));
-
-                bool neighborWithinRenderDistance = (distanceToCamera <= m_renderDistance);
-
-                if (neighborWithinRenderDistance) {
-                    // Neighbor SHOULD be loaded - check if it exists
-                    if (m_chunks.find(neighborPos) == m_chunks.end()) {
-                        // Required neighbor is missing - wait for it
-                        allRequiredNeighborsLoaded = false;
-                        break;
-                    }
-                }
-                // If neighbor is outside render distance, we don't need it
-                // (This chunk is at the edge, faces toward unloaded chunks will be drawn)
-            }
-        }
-
-        if (!allRequiredNeighborsLoaded) {
-            // Re-queue this chunk for later when required neighbors load
-            // This mimics Minecraft's ChunkRegion approach
+        // Wait for all required neighbors to load (Minecraft's ChunkRegion approach)
+        if (!areNeighborsLoadedForMeshing(pos)) {
             std::lock_guard<std::mutex> lock(m_queueMutex);
-            m_meshQueue.push(pos);
+            m_meshQueue.push(pos);  // Re-queue for later
             continue;
         }
 
@@ -479,29 +423,20 @@ std::vector<ChunkMesh> ChunkManager::getReadyMeshes() {
 }
 
 void ChunkManager::queueNeighborRemesh(const ChunkPosition& pos) {
-    // Queue the 6 face-adjacent neighbors for remeshing
     std::vector<ChunkPosition> neighborsToQueue;
 
-    for (int dx = -1; dx <= 1; dx++) {
-        for (int dy = -1; dy <= 1; dy++) {
-            for (int dz = -1; dz <= 1; dz++) {
-                // Skip self and diagonals (only faces, not edges/corners)
-                if (abs(dx) + abs(dy) + abs(dz) != 1) continue;
+    // Queue the 6 face-adjacent neighbors for remeshing
+    for (const auto& offset : ChunkPosition::getFaceNeighborOffsets()) {
+        ChunkPosition neighborPos = pos.getNeighbor(offset.x, offset.y, offset.z);
 
-                ChunkPosition neighborPos = {pos.x + dx, pos.y + dy, pos.z + dz};
-
-                // Check if neighbor chunk exists and mark it dirty
-                {
-                    std::lock_guard<std::mutex> chunkLock(m_chunksMutex);
-                    auto it = m_chunks.find(neighborPos);
-                    if (it != m_chunks.end()) {
-                        Chunk* neighborChunk = it->second.get();
-                        // Always mark dirty and queue, even if already dirty
-                        // The dirty check in meshWorker will prevent duplicate processing
-                        neighborChunk->markDirty();
-                        neighborsToQueue.push_back(neighborPos);
-                    }
-                }
+        // Check if neighbor chunk exists and mark it dirty
+        {
+            std::lock_guard<std::mutex> chunkLock(m_chunksMutex);
+            auto it = m_chunks.find(neighborPos);
+            if (it != m_chunks.end()) {
+                Chunk* neighborChunk = it->second.get();
+                neighborChunk->markDirty();
+                neighborsToQueue.push_back(neighborPos);
             }
         }
     }
@@ -533,6 +468,26 @@ void ChunkManager::queueChunkRemesh(const ChunkPosition& pos) {
         m_meshQueue.push(pos);
         m_queueCV.notify_one();
     }
+}
+
+bool ChunkManager::areNeighborsLoadedForMeshing(const ChunkPosition& pos) const {
+    std::lock_guard<std::mutex> lock(m_chunksMutex);
+
+    ChunkPosition cameraChunkPos = m_lastCameraChunkPos;
+
+    // Check all 6 face-adjacent neighbors (Minecraft's directDependencies)
+    for (const auto& offset : ChunkPosition::getFaceNeighborOffsets()) {
+        ChunkPosition neighborPos = pos.getNeighbor(offset.x, offset.y, offset.z);
+
+        // Only require neighbor if it's within render distance
+        if (neighborPos.distanceTo(cameraChunkPos) <= m_renderDistance) {
+            if (m_chunks.find(neighborPos) == m_chunks.end()) {
+                return false;  // Required neighbor missing
+            }
+        }
+    }
+
+    return true;  // All required neighbors loaded
 }
 
 } // namespace VoxelEngine

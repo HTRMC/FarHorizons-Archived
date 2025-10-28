@@ -18,6 +18,7 @@ enum class ShapeType : uint8_t {
 // Used to determine if adjacent faces should be rendered
 class BlockShape {
 public:
+    BlockShape() : m_type(ShapeType::EMPTY) {}  // Default constructor for std::unordered_map
     BlockShape(ShapeType type) : m_type(type) {}
 
     // Factory methods for common shapes

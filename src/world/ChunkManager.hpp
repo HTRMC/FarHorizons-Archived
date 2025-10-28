@@ -84,6 +84,9 @@ private:
     Chunk* loadChunk(const ChunkPosition& pos);
     void meshWorker();
     void queueNeighborRemesh(const ChunkPosition& pos);
+
+    // Helper: Check if all required neighbors are loaded for meshing (Minecraft's ChunkRegion approach)
+    bool areNeighborsLoadedForMeshing(const ChunkPosition& pos) const;
 };
 
 } // namespace VoxelEngine

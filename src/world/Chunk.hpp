@@ -22,6 +22,32 @@ struct ChunkPosition {
     bool operator!=(const ChunkPosition& other) const {
         return !(*this == other);
     }
+
+    // Calculate Euclidean distance to another chunk position
+    float distanceTo(const ChunkPosition& other) const {
+        int32_t dx = x - other.x;
+        int32_t dy = y - other.y;
+        int32_t dz = z - other.z;
+        return std::sqrt(static_cast<float>(dx*dx + dy*dy + dz*dz));
+    }
+
+    // Get the 6 face-adjacent neighbor positions (Minecraft's directDependencies)
+    // Order: West, East, Down, Up, North, South
+    static constexpr std::array<glm::ivec3, 6> getFaceNeighborOffsets() {
+        return {{
+            {-1,  0,  0},  // West
+            { 1,  0,  0},  // East
+            { 0, -1,  0},  // Down
+            { 0,  1,  0},  // Up
+            { 0,  0, -1},  // North
+            { 0,  0,  1}   // South
+        }};
+    }
+
+    // Get neighbor position in a specific direction
+    ChunkPosition getNeighbor(int dx, int dy, int dz) const {
+        return {x + dx, y + dy, z + dz};
+    }
 };
 
 struct ChunkPositionHash {

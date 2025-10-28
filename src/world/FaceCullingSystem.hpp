@@ -78,10 +78,13 @@ public:
     ) const;
 
     // Get the culling shape for a block (maps BlockModel to BlockShape)
-    // This would ideally be cached per BlockState for performance
-    const BlockShape& getBlockShape(BlockState state, const BlockModel* model) const;
+    // Cached per BlockState ID for performance - call rebuildShapeCache() after model changes
+    const BlockShape& getBlockShape(BlockState state, const BlockModel* model);
 
-    // Clear all thread-local caches (useful for testing or after large changes)
+    // Rebuild the shape cache (call after block models are loaded/changed)
+    void rebuildShapeCache(const std::function<const BlockModel*(uint16_t)>& getModelFunc);
+
+    // Clear all caches (useful for testing or after large changes)
     void clearCache();
 
 private:
@@ -96,6 +99,10 @@ private:
 
     // Thread-local cache (one per thread, like Minecraft)
     static thread_local FaceCullCache s_cache;
+
+    // BlockShape cache: maps BlockState ID → BlockShape
+    // Avoids recomputing shapes every frame (HUGE performance win)
+    std::unordered_map<uint16_t, BlockShape> m_shapeCache;
 };
 
 } // namespace VoxelEngine
