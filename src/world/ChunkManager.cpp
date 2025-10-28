@@ -136,6 +136,7 @@ Chunk* ChunkManager::loadChunk(const ChunkPosition& pos) {
 
     if (!chunkPtr->isEmpty()) {
         spdlog::trace("Loaded chunk at ({}, {}, {})", pos.x, pos.y, pos.z);
+        chunkPtr->markDirty();
 
         std::lock_guard<std::mutex> lock(m_queueMutex);
         m_meshQueue.push(pos);
@@ -213,57 +214,47 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                         if (face.cullface.has_value()) {
                             // Only cull if this element actually reaches the block boundary
                             if (FaceUtils::faceReachesBoundary(face.cullface.value(), elemFrom, elemTo)) {
-                                // Get the direction to check
+                                // ================================================================
+                                // MINECRAFT-STYLE FACE CULLING SYSTEM
+                                // ================================================================
+                                // Implements Block.shouldDrawSide() with:
+                                //   - Fast path 1: Full cube neighbor check
+                                //   - Fast path 2: Special block logic (TODO: glass-to-glass)
+                                //   - Fast path 3: Empty neighbor check
+                                //   - Fast path 4: Empty current face check
+                                //   - Slow path: Geometric comparison with LRU cache
+                                // ================================================================
+
+                                // Get neighbor position
                                 int faceIndex = FaceUtils::toIndex(face.cullface.value());
                                 int nx = bx + FaceUtils::FACE_DIRS[faceIndex][0];
                                 int ny = by + FaceUtils::FACE_DIRS[faceIndex][1];
                                 int nz = bz + FaceUtils::FACE_DIRS[faceIndex][2];
 
-                                // Get neighbor blockstate
-                                BlockState neighborState = BlockState(0); // Default to AIR
-                                if (nx < 0 || nx >= CHUNK_SIZE || ny < 0 || ny >= CHUNK_SIZE || nz < 0 || nz >= CHUNK_SIZE) {
-                                    // Check neighbor chunk
-                                    ChunkPosition neighborChunkPos = chunkPos;
-                                    int localX = nx, localY = ny, localZ = nz;
-
-                                    if (nx < 0) { neighborChunkPos.x--; localX = CHUNK_SIZE - 1; }
-                                    else if (nx >= CHUNK_SIZE) { neighborChunkPos.x++; localX = 0; }
-                                    if (ny < 0) { neighborChunkPos.y--; localY = CHUNK_SIZE - 1; }
-                                    else if (ny >= CHUNK_SIZE) { neighborChunkPos.y++; localY = 0; }
-                                    if (nz < 0) { neighborChunkPos.z--; localZ = CHUNK_SIZE - 1; }
-                                    else if (nz >= CHUNK_SIZE) { neighborChunkPos.z++; localZ = 0; }
-
-                                    const Chunk* neighborChunk = getChunk(neighborChunkPos);
-                                    if (neighborChunk) {
-                                        neighborState = neighborChunk->getBlockState(localX, localY, localZ);
+                                // Safe neighbor access with chunk boundary checking
+                                BlockState neighborState = m_cullingSystem.getNeighborBlockState(
+                                    chunk, chunkPos, nx, ny, nz,
+                                    [this](const ChunkPosition& pos) -> const Chunk* {
+                                        return this->getChunk(pos);
                                     }
-                                } else {
-                                    // Check within chunk
-                                    neighborState = chunk->getBlockState(nx, ny, nz);
-                                }
+                                );
 
-                                // Only cull if neighbor is solid AND neighbor's model reaches the opposite boundary
-                                if (BlockRegistry::isSolid(neighborState)) {
-                                    // Use cached model lookup (fast O(1)!)
-                                    const BlockModel* neighborModel = m_modelManager.getModelByStateId(neighborState.id);
-                                    if (neighborModel) {
-                                        // Check if ANY element in the neighbor model reaches the opposite face
-                                        FaceDirection oppositeFace = FaceUtils::getOppositeFace(face.cullface.value());
-                                        bool neighborReachesBoundary = false;
+                                // Get block shapes for culling logic
+                                const BlockShape& currentShape = m_cullingSystem.getBlockShape(state, model);
+                                const BlockModel* neighborModel = m_modelManager.getModelByStateId(neighborState.id);
+                                const BlockShape& neighborShape = m_cullingSystem.getBlockShape(neighborState, neighborModel);
 
-                                        for (const auto& neighborElem : neighborModel->elements) {
-                                            glm::vec3 neighborFrom = neighborElem.from / 16.0f;
-                                            glm::vec3 neighborTo = neighborElem.to / 16.0f;
-                                            if (FaceUtils::faceReachesBoundary(oppositeFace, neighborFrom, neighborTo)) {
-                                                neighborReachesBoundary = true;
-                                                break;
-                                            }
-                                        }
+                                // Use Minecraft's shouldDrawSide() logic with fast paths
+                                bool shouldDrawThisFace = m_cullingSystem.shouldDrawFace(
+                                    state,
+                                    neighborState,
+                                    face.cullface.value(),
+                                    currentShape,
+                                    neighborShape
+                                );
 
-                                        if (neighborReachesBoundary) {
-                                            shouldRender = false;  // Face is culled
-                                        }
-                                    }
+                                if (!shouldDrawThisFace) {
+                                    shouldRender = false;  // Face is culled
                                 }
                             }
                         }
@@ -341,16 +332,108 @@ void ChunkManager::meshWorker() {
 
         // If chunk doesn't exist, generate it first
         bool wasNewlyCreated = false;
-        if (!chunkExists) {
+        Chunk* chunkPtr = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(m_chunksMutex);
+            auto it = m_chunks.find(pos);
+            if (it != m_chunks.end()) {
+                chunkPtr = it->second.get();
+            }
+        }
+
+        if (!chunkPtr) {
             auto chunk = std::make_unique<Chunk>(pos);
             chunk->generate();
+            chunk->markDirty();  // Mark new chunks dirty so they get meshed
 
             std::lock_guard<std::mutex> lock(m_chunksMutex);
             // Double-check it wasn't added by another thread
             if (m_chunks.find(pos) == m_chunks.end()) {
+                chunkPtr = chunk.get();
                 m_chunks[pos] = std::move(chunk);
                 wasNewlyCreated = true;
                 spdlog::trace("Worker generated chunk at ({}, {}, {})", pos.x, pos.y, pos.z);
+            } else {
+                chunkPtr = m_chunks[pos].get();
+            }
+        }
+
+        // Check if chunk is actually dirty before remeshing
+        bool needsRemesh = false;
+        {
+            std::lock_guard<std::mutex> lock(m_chunksMutex);
+            if (chunkPtr && chunkPtr->isDirty()) {
+                needsRemesh = true;
+            }
+        }
+
+        if (!needsRemesh) {
+            continue; // Skip if not dirty
+        }
+
+        // ================================================================
+        // MINECRAFT'S APPROACH: Wait for all 6 face-adjacent neighbors
+        // ================================================================
+        // ChunkRegion ensures all neighbors are loaded before meshing
+        // This prevents incorrect face culling at chunk boundaries
+        //
+        // We check if all 6 neighbors exist before meshing
+        // If any neighbor is missing AND within render distance, re-queue
+        // If neighbor is outside render distance, proceed (edge chunk)
+        // ================================================================
+
+        bool allRequiredNeighborsLoaded = true;
+        {
+            std::lock_guard<std::mutex> lock(m_chunksMutex);
+
+            // Get camera chunk position for render distance check
+            ChunkPosition cameraChunkPos = m_lastCameraChunkPos;
+
+            // Check 6 face-adjacent neighbors (like Minecraft's directDependencies)
+            const ChunkPosition neighborOffsets[6] = {
+                {pos.x - 1, pos.y, pos.z},  // West
+                {pos.x + 1, pos.y, pos.z},  // East
+                {pos.x, pos.y - 1, pos.z},  // Down
+                {pos.x, pos.y + 1, pos.z},  // Up
+                {pos.x, pos.y, pos.z - 1},  // North
+                {pos.x, pos.y, pos.z + 1}   // South
+            };
+
+            for (const auto& neighborPos : neighborOffsets) {
+                // Check if neighbor is within render distance
+                int32_t dx = neighborPos.x - cameraChunkPos.x;
+                int32_t dy = neighborPos.y - cameraChunkPos.y;
+                int32_t dz = neighborPos.z - cameraChunkPos.z;
+                float distanceToCamera = std::sqrt(static_cast<float>(dx*dx + dy*dy + dz*dz));
+
+                bool neighborWithinRenderDistance = (distanceToCamera <= m_renderDistance);
+
+                if (neighborWithinRenderDistance) {
+                    // Neighbor SHOULD be loaded - check if it exists
+                    if (m_chunks.find(neighborPos) == m_chunks.end()) {
+                        // Required neighbor is missing - wait for it
+                        allRequiredNeighborsLoaded = false;
+                        break;
+                    }
+                }
+                // If neighbor is outside render distance, we don't need it
+                // (This chunk is at the edge, faces toward unloaded chunks will be drawn)
+            }
+        }
+
+        if (!allRequiredNeighborsLoaded) {
+            // Re-queue this chunk for later when required neighbors load
+            // This mimics Minecraft's ChunkRegion approach
+            std::lock_guard<std::mutex> lock(m_queueMutex);
+            m_meshQueue.push(pos);
+            continue;
+        }
+
+        // Clear dirty flag before meshing to allow new requests while we're meshing
+        {
+            std::lock_guard<std::mutex> lock(m_chunksMutex);
+            if (chunkPtr) {
+                chunkPtr->clearDirty();
             }
         }
 
@@ -367,9 +450,12 @@ void ChunkManager::meshWorker() {
         if (!mesh.indices.empty()) {
             std::lock_guard<std::mutex> lock(m_readyMutex);
             m_readyMeshes.push(std::move(mesh));
+        }
 
-            // Always queue neighbors for remeshing to ensure border face culling is consistent
-            // This is necessary because neighbors might have been meshed before this chunk existed
+        // Only queue neighbors for remeshing when this chunk was newly created
+        // Don't queue self - let neighbors queue us back when they're created
+        // This ensures we only remesh after neighbors exist
+        if (wasNewlyCreated) {
             queueNeighborRemesh(pos);
         }
     }
@@ -393,9 +479,9 @@ std::vector<ChunkMesh> ChunkManager::getReadyMeshes() {
 }
 
 void ChunkManager::queueNeighborRemesh(const ChunkPosition& pos) {
-    std::lock_guard<std::mutex> lock(m_queueMutex);
-
     // Queue the 6 face-adjacent neighbors for remeshing
+    std::vector<ChunkPosition> neighborsToQueue;
+
     for (int dx = -1; dx <= 1; dx++) {
         for (int dy = -1; dy <= 1; dy++) {
             for (int dz = -1; dz <= 1; dz++) {
@@ -404,21 +490,49 @@ void ChunkManager::queueNeighborRemesh(const ChunkPosition& pos) {
 
                 ChunkPosition neighborPos = {pos.x + dx, pos.y + dy, pos.z + dz};
 
-                // Check if neighbor chunk exists
-                bool neighborExists = false;
+                // Check if neighbor chunk exists and mark it dirty
                 {
                     std::lock_guard<std::mutex> chunkLock(m_chunksMutex);
-                    neighborExists = (m_chunks.find(neighborPos) != m_chunks.end());
-                }
-
-                if (neighborExists) {
-                    m_meshQueue.push(neighborPos);
+                    auto it = m_chunks.find(neighborPos);
+                    if (it != m_chunks.end()) {
+                        Chunk* neighborChunk = it->second.get();
+                        // Always mark dirty and queue, even if already dirty
+                        // The dirty check in meshWorker will prevent duplicate processing
+                        neighborChunk->markDirty();
+                        neighborsToQueue.push_back(neighborPos);
+                    }
                 }
             }
         }
     }
 
-    m_queueCV.notify_all();
+    // Queue all neighbors at once
+    if (!neighborsToQueue.empty()) {
+        std::lock_guard<std::mutex> queueLock(m_queueMutex);
+        for (const auto& neighborPos : neighborsToQueue) {
+            m_meshQueue.push(neighborPos);
+        }
+        m_queueCV.notify_all();
+    }
+}
+
+void ChunkManager::queueChunkRemesh(const ChunkPosition& pos) {
+    bool shouldQueue = false;
+    {
+        std::lock_guard<std::mutex> chunkLock(m_chunksMutex);
+        auto it = m_chunks.find(pos);
+        if (it != m_chunks.end()) {
+            Chunk* chunk = it->second.get();
+            chunk->markDirty();
+            shouldQueue = true;
+        }
+    }
+
+    if (shouldQueue) {
+        std::lock_guard<std::mutex> queueLock(m_queueMutex);
+        m_meshQueue.push(pos);
+        m_queueCV.notify_one();
+    }
 }
 
 } // namespace VoxelEngine

@@ -51,6 +51,11 @@ public:
     void markEmpty() { m_isEmpty = true; }
     void markNonEmpty() { m_isEmpty = false; }
 
+    // Mesh dirty flag - tracks if chunk needs remeshing
+    bool isDirty() const { return m_isDirty; }
+    void markDirty() { m_isDirty = true; }
+    void clearDirty() { m_isDirty = false; }
+
     // Access to palette
     const ChunkPalette& getPalette() const { return m_palette; }
 
@@ -59,6 +64,7 @@ private:
     ChunkPalette m_palette;  // Maps local indices to global blockstate IDs
     std::array<uint8_t, CHUNK_VOLUME> m_data;  // Each uint8_t stores a palette index
     bool m_isEmpty = true;
+    bool m_isDirty = false;  // Tracks if chunk needs remeshing
 
     uint32_t getBlockIndex(uint32_t x, uint32_t y, uint32_t z) const;
 };

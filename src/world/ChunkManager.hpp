@@ -2,6 +2,7 @@
 
 #include "Chunk.hpp"
 #include "BlockModel.hpp"
+#include "FaceCullingSystem.hpp"
 #include <glm/glm.hpp>
 #include <unordered_map>
 #include <memory>
@@ -58,12 +59,16 @@ public:
     bool hasReadyMeshes() const;
     std::vector<ChunkMesh> getReadyMeshes();
 
+    // Queue a chunk for remeshing (e.g., when blocks change)
+    void queueChunkRemesh(const ChunkPosition& pos);
+
 private:
     std::unordered_map<ChunkPosition, std::unique_ptr<Chunk>, ChunkPositionHash> m_chunks;
     int32_t m_renderDistance = 8;
     ChunkPosition m_lastCameraChunkPos = {INT32_MAX, INT32_MAX, INT32_MAX};
 
     mutable BlockModelManager m_modelManager;
+    mutable FaceCullingSystem m_cullingSystem;  // Face culling with Minecraft-style fast paths
 
     std::vector<std::thread> m_workerThreads;
     std::queue<ChunkPosition> m_meshQueue;
