@@ -238,12 +238,52 @@ const BlockShape& FaceCullingSystem::getBlockShape(BlockState state, const Block
     return m_shapeCache[state.id];
 }
 
-void FaceCullingSystem::rebuildShapeCache(const std::function<const BlockModel*(uint16_t)>& getModelFunc) {
+void FaceCullingSystem::precacheAllShapes(const std::unordered_map<uint16_t, const BlockModel*>& stateToModel) {
     m_shapeCache.clear();
+    m_shapeCache.reserve(stateToModel.size());
 
-    // Pre-cache shapes for all block states (optional optimization)
-    // This would iterate through all registered BlockStates and compute their shapes
-    // For now, we use lazy caching (compute on first use)
+    spdlog::info("Pre-caching BlockShapes for {} BlockStates...", stateToModel.size());
+
+    size_t fullCubes = 0;
+    size_t emptyShapes = 0;
+    size_t partialShapes = 0;
+
+    for (const auto& [stateId, model] : stateToModel) {
+        BlockState state(stateId);
+
+        // Compute shape
+        if (state.isAir() || !model || model->elements.empty()) {
+            m_shapeCache[stateId] = BlockShape(ShapeType::EMPTY);
+            emptyShapes++;
+            continue;
+        }
+
+        // Compute bounding box from all model elements
+        glm::vec3 minBounds(16.0f);
+        glm::vec3 maxBounds(0.0f);
+
+        for (const auto& element : model->elements) {
+            minBounds = glm::min(minBounds, element.from);
+            maxBounds = glm::max(maxBounds, element.to);
+        }
+
+        // Check if it's a full cube
+        constexpr float EPSILON = 0.01f;
+        bool isFullCube =
+            minBounds.x < EPSILON && minBounds.y < EPSILON && minBounds.z < EPSILON &&
+            maxBounds.x > (16.0f - EPSILON) && maxBounds.y > (16.0f - EPSILON) && maxBounds.z > (16.0f - EPSILON);
+
+        if (isFullCube) {
+            m_shapeCache[stateId] = BlockShape(ShapeType::FULL_CUBE);
+            fullCubes++;
+        } else {
+            m_shapeCache[stateId] = BlockShape::partial(minBounds / 16.0f, maxBounds / 16.0f);
+            partialShapes++;
+        }
+    }
+
+    spdlog::info("BlockShape cache built: {} full cubes, {} partial, {} empty (total: {})",
+                 fullCubes, partialShapes, emptyShapes, m_shapeCache.size());
 }
 
 bool FaceCullingSystem::geometricComparison(

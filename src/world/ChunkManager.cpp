@@ -44,6 +44,11 @@ void ChunkManager::cacheTextureIndices() {
     m_modelManager.cacheTextureIndices();
 }
 
+void ChunkManager::precacheBlockShapes() {
+    // Pre-compute BlockShapes for all BlockStates (eliminates lazy loading stutter)
+    m_cullingSystem.precacheAllShapes(m_modelManager.getStateToModelMap());
+}
+
 ChunkPosition ChunkManager::worldToChunkPos(const glm::vec3& worldPos) const {
     return {
         static_cast<int32_t>(std::floor(worldPos.x / CHUNK_SIZE)),

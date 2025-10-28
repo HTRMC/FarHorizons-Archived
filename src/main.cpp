@@ -117,6 +117,9 @@ int main() {
         // Cache texture indices in block models for fast lookup during meshing
         chunkManager.cacheTextureIndices();
 
+        // Pre-compute BlockShapes for all BlockStates (eliminates first-access stutter)
+        chunkManager.precacheBlockShapes();
+
         vkEndCommandBuffer(uploadCmd);
 
         VkSubmitInfo submitInfo{};

@@ -78,11 +78,12 @@ public:
     ) const;
 
     // Get the culling shape for a block (maps BlockModel to BlockShape)
-    // Cached per BlockState ID for performance - call rebuildShapeCache() after model changes
+    // Cached per BlockState ID for performance - call precacheAllShapes() after model loading
     const BlockShape& getBlockShape(BlockState state, const BlockModel* model);
 
-    // Rebuild the shape cache (call after block models are loaded/changed)
-    void rebuildShapeCache(const std::function<const BlockModel*(uint16_t)>& getModelFunc);
+    // Pre-compute shapes for all BlockStates (call after block models are loaded)
+    // Takes a map of BlockState ID -> BlockModel* to eagerly compute all shapes
+    void precacheAllShapes(const std::unordered_map<uint16_t, const BlockModel*>& stateToModel);
 
     // Clear all caches (useful for testing or after large changes)
     void clearCache();

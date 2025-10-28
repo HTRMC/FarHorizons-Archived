@@ -87,6 +87,11 @@ public:
     // Get a model by blockstate ID (fast cached lookup)
     const BlockModel* getModelByStateId(uint16_t stateId) const;
 
+    // Get the complete state-to-model mapping (for pre-caching BlockShapes)
+    const std::unordered_map<uint16_t, const BlockModel*>& getStateToModelMap() const {
+        return m_stateToModel;
+    }
+
 private:
     std::string m_assetsPath;  // Base assets path (e.g., "assets")
     std::unordered_map<std::string, std::unique_ptr<BlockModel>> m_models;
