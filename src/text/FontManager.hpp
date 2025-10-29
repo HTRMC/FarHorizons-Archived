@@ -83,9 +83,16 @@ public:
 
                 // Update the character info with the calculated width
                 // Width is actualWidth + 1 pixel spacing (Minecraft formula)
+                float advance;
+                if (charCode == 32) { // Space character
+                    advance = 4.0f;
+                } else {
+                    advance = static_cast<float>(actualWidth + 1);
+                }
+
                 auto* charInfo = const_cast<CharInfo*>(atlas->getCharacter(charCode));
                 if (charInfo) {
-                    charInfo->advance = static_cast<float>(actualWidth + 1);
+                    charInfo->advance = advance;
                 }
             }
         }
