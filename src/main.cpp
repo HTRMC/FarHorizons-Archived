@@ -20,6 +20,7 @@
 #include "text/FontManager.hpp"
 #include "text/TextRenderer.hpp"
 #include "text/Text.hpp"
+#include "ui/PauseMenu.hpp"
 
 using namespace VoxelEngine;
 
@@ -47,7 +48,7 @@ int main() {
         spdlog::info("  WASD - Move camera");
         spdlog::info("  Arrow Keys - Rotate camera");
         spdlog::info("  Space/Shift - Move up/down");
-        spdlog::info("  ESC - Exit");
+        spdlog::info("  ESC - Pause menu");
         spdlog::info("==========================================");
 
         VulkanContext vulkanContext;
@@ -267,10 +268,15 @@ int main() {
 
         spdlog::info("Setup complete, entering render loop...");
 
+        // Initialize pause menu
+        PauseMenu pauseMenu(window.getWidth(), window.getHeight());
+        bool isPaused = false;
+
         bool framebufferResized = false;
-        window.setResizeCallback([&framebufferResized, &camera](uint32_t width, uint32_t height) {
+        window.setResizeCallback([&framebufferResized, &camera, &pauseMenu](uint32_t width, uint32_t height) {
             framebufferResized = true;
             camera.setAspectRatio(static_cast<float>(width) / static_cast<float>(height));
+            pauseMenu.onResize(width, height);
         });
 
         auto lastTime = std::chrono::high_resolution_clock::now();
@@ -283,9 +289,39 @@ int main() {
 
             window.pollEvents();
             InputSystem::processEvents();
-            camera.update(deltaTime);
 
-            chunkManager.update(camera.getPosition());
+            // Handle ESC key to toggle pause menu
+            if (InputSystem::isKeyPressed(KeyCode::Escape)) {
+                isPaused = !isPaused;
+                if (isPaused) {
+                    pauseMenu.reset();
+                }
+            }
+
+            // Update pause menu when paused
+            if (isPaused) {
+                auto action = pauseMenu.update(deltaTime);
+                switch (action) {
+                    case PauseMenu::Action::Resume:
+                        isPaused = false;
+                        break;
+                    case PauseMenu::Action::OpenOptions:
+                        // TODO: Open options menu (not implemented yet)
+                        spdlog::info("Options menu not yet implemented");
+                        break;
+                    case PauseMenu::Action::Quit:
+                        window.close();
+                        break;
+                    case PauseMenu::Action::None:
+                        break;
+                }
+            }
+
+            // Only update world when not paused
+            if (!isPaused) {
+                camera.update(deltaTime);
+                chunkManager.update(camera.getPosition());
+            }
 
             // Collect new ready meshes
             if (chunkManager.hasReadyMeshes()) {
@@ -377,49 +413,56 @@ int main() {
                 cmd.drawIndexedIndirect(bufferManager.getIndirectBuffer(), 0, drawCount, sizeof(VkDrawIndexedIndirectCommand));
             }
 
-            // Render text overlay (HUD)
+            // Render text overlay (HUD or pause menu)
             if (fontManager.hasFont("default")) {
-                // Calculate FPS
-                static float fpsTimer = 0.0f;
-                static int frameCount = 0;
-                static int fps = 0;
-                fpsTimer += deltaTime;
-                frameCount++;
-                if (fpsTimer >= 1.0f) {
-                    fps = frameCount;
-                    frameCount = 0;
-                    fpsTimer = 0.0f;
-                }
-
-                // Create example text with styling
-                auto titleText = Text::literal("Vulkan Voxel Engine", Style::yellow().withBold(true));
-                auto fpsText = Text::literal("FPS: ", Style::gray())
-                    .append(std::to_string(fps), fps >= 60 ? Style::green() : Style::red());
-
-                auto posText = Text::literal("Position: ", Style::gray())
-                    .append(std::to_string((int)camera.getPosition().x) + ", " +
-                           std::to_string((int)camera.getPosition().y) + ", " +
-                           std::to_string((int)camera.getPosition().z), Style::white());
-
-                // Example of legacy formatting codes
-                auto legacyText = Text::parseLegacy("Styled Text: §aGreen §cRed §eYellow §lBold §rReset");
-
-                // Generate vertices for all text
-                auto titleVertices = textRenderer.generateVertices(titleText, glm::vec2(10, 10), 3.0f,
-                                                                   window.getWidth(), window.getHeight());
-                auto fpsVertices = textRenderer.generateVertices(fpsText, glm::vec2(10, 50), 2.0f,
-                                                                window.getWidth(), window.getHeight());
-                auto posVertices = textRenderer.generateVertices(posText, glm::vec2(10, 80), 2.0f,
-                                                                window.getWidth(), window.getHeight());
-                auto legacyVertices = textRenderer.generateVertices(legacyText, glm::vec2(10, 110), 2.0f,
-                                                                   window.getWidth(), window.getHeight());
-
-                // Combine all vertices
                 std::vector<TextVertex> allTextVertices;
-                allTextVertices.insert(allTextVertices.end(), titleVertices.begin(), titleVertices.end());
-                allTextVertices.insert(allTextVertices.end(), fpsVertices.begin(), fpsVertices.end());
-                allTextVertices.insert(allTextVertices.end(), posVertices.begin(), posVertices.end());
-                allTextVertices.insert(allTextVertices.end(), legacyVertices.begin(), legacyVertices.end());
+
+                if (isPaused) {
+                    // Render pause menu
+                    auto menuTextVertices = pauseMenu.generateTextVertices(textRenderer);
+                    allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
+                } else {
+                    // Calculate FPS
+                    static float fpsTimer = 0.0f;
+                    static int frameCount = 0;
+                    static int fps = 0;
+                    fpsTimer += deltaTime;
+                    frameCount++;
+                    if (fpsTimer >= 1.0f) {
+                        fps = frameCount;
+                        frameCount = 0;
+                        fpsTimer = 0.0f;
+                    }
+
+                    // Create example text with styling
+                    auto titleText = Text::literal("Vulkan Voxel Engine", Style::yellow().withBold(true));
+                    auto fpsText = Text::literal("FPS: ", Style::gray())
+                        .append(std::to_string(fps), fps >= 60 ? Style::green() : Style::red());
+
+                    auto posText = Text::literal("Position: ", Style::gray())
+                        .append(std::to_string((int)camera.getPosition().x) + ", " +
+                               std::to_string((int)camera.getPosition().y) + ", " +
+                               std::to_string((int)camera.getPosition().z), Style::white());
+
+                    // Example of legacy formatting codes
+                    auto legacyText = Text::parseLegacy("Styled Text: §aGreen §cRed §eYellow §lBold §rReset");
+
+                    // Generate vertices for all text
+                    auto titleVertices = textRenderer.generateVertices(titleText, glm::vec2(10, 10), 3.0f,
+                                                                       window.getWidth(), window.getHeight());
+                    auto fpsVertices = textRenderer.generateVertices(fpsText, glm::vec2(10, 50), 2.0f,
+                                                                    window.getWidth(), window.getHeight());
+                    auto posVertices = textRenderer.generateVertices(posText, glm::vec2(10, 80), 2.0f,
+                                                                    window.getWidth(), window.getHeight());
+                    auto legacyVertices = textRenderer.generateVertices(legacyText, glm::vec2(10, 110), 2.0f,
+                                                                       window.getWidth(), window.getHeight());
+
+                    // Combine all vertices
+                    allTextVertices.insert(allTextVertices.end(), titleVertices.begin(), titleVertices.end());
+                    allTextVertices.insert(allTextVertices.end(), fpsVertices.begin(), fpsVertices.end());
+                    allTextVertices.insert(allTextVertices.end(), posVertices.begin(), posVertices.end());
+                    allTextVertices.insert(allTextVertices.end(), legacyVertices.begin(), legacyVertices.end());
+                }
 
                 if (!allTextVertices.empty()) {
                     // Upload vertices to buffer
@@ -436,10 +479,6 @@ int main() {
 
             cmd.endRendering();
             renderer.endFrame();
-
-            if (InputSystem::isKeyDown(KeyCode::Escape)) {
-                window.close();
-            }
         }
 
         vulkanContext.waitIdle();
