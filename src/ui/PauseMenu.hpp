@@ -34,15 +34,17 @@ public:
     Action update(float deltaTime) {
         m_lastAction = Action::None;
 
-        // Handle keyboard navigation
-        if (InputSystem::isKeyPressed(KeyCode::Up) || InputSystem::isKeyPressed(KeyCode::W)) {
-            selectPreviousButton();
-        }
-        if (InputSystem::isKeyPressed(KeyCode::Down) || InputSystem::isKeyPressed(KeyCode::S)) {
-            selectNextButton();
-        }
-        if (InputSystem::isKeyPressed(KeyCode::Enter) || InputSystem::isKeyPressed(KeyCode::Space)) {
-            activateSelectedButton();
+        // Handle gamepad navigation only if gamepad is connected
+        if (InputSystem::isGamepadConnected(0)) {
+            if (InputSystem::isGamepadButtonDown(GamepadButton::DpadUp, 0)) {
+                selectPreviousButton();
+            }
+            if (InputSystem::isGamepadButtonDown(GamepadButton::DpadDown, 0)) {
+                selectNextButton();
+            }
+            if (InputSystem::isGamepadButtonDown(GamepadButton::A, 0)) {
+                activateSelectedButton();
+            }
         }
 
         // Handle mouse input
@@ -52,21 +54,24 @@ public:
         // Convert mouse position to screen coordinates (GLFW gives us coordinates already in pixels)
         glm::vec2 screenMousePos(mousePos.x, mousePos.y);
 
+        // When no gamepad is connected, clear selection (let hover handle styling)
+        bool useSelection = InputSystem::isGamepadConnected(0);
+
         // Update buttons
         for (size_t i = 0; i < m_buttons.size(); ++i) {
             if (m_buttons[i]->update(screenMousePos, mouseClicked)) {
                 m_lastAction = getActionForButton(i);
             }
 
-            // Update selection based on hover
-            if (m_buttons[i]->isHovered()) {
+            // Update selection based on hover (only if gamepad connected)
+            if (m_buttons[i]->isHovered() && useSelection) {
                 m_selectedButtonIndex = i;
             }
         }
 
-        // Update button selection states
+        // Update button selection states (only when using gamepad)
         for (size_t i = 0; i < m_buttons.size(); ++i) {
-            m_buttons[i]->setSelected(i == m_selectedButtonIndex);
+            m_buttons[i]->setSelected(useSelection && i == m_selectedButtonIndex);
         }
 
         return m_lastAction;
@@ -78,14 +83,14 @@ public:
 
         // Add title
         auto titleText = Text::literal("PAUSED", Style::yellow().withBold(true));
-        float titleWidth = textRenderer.calculateTextWidth(titleText, 2.0f);
+        float titleWidth = textRenderer.calculateTextWidth(titleText, 5.0f);
         float titleX = (m_screenWidth - titleWidth) * 0.5f;
         float titleY = 150.0f;
 
         auto titleVertices = textRenderer.generateVertices(
             titleText,
             glm::vec2(titleX, titleY),
-            2.0f,
+            5.0f,
             m_screenWidth,
             m_screenHeight
         );

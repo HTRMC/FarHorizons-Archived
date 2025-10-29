@@ -290,8 +290,8 @@ int main() {
             window.pollEvents();
             InputSystem::processEvents();
 
-            // Handle ESC key to toggle pause menu
-            if (InputSystem::isKeyPressed(KeyCode::Escape)) {
+            // Handle ESC key to toggle pause menu (use isKeyDown for single press)
+            if (InputSystem::isKeyDown(KeyCode::Escape)) {
                 isPaused = !isPaused;
                 if (isPaused) {
                     pauseMenu.reset();

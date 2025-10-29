@@ -30,8 +30,12 @@ public:
 
     // Update button state with mouse position and click
     bool update(const glm::vec2& mousePos, bool mouseClicked) {
-        if (!m_enabled) return false;
+        if (!m_enabled) {
+            m_hovered = false;
+            return false;
+        }
 
+        // Always update hover state based on current mouse position
         m_hovered = isMouseOver(mousePos);
 
         if (m_hovered && mouseClicked) {
@@ -71,16 +75,17 @@ public:
         // Create text with style
         auto text = Text::literal(m_label, style);
 
-        // Calculate centered position
-        float textWidth = textRenderer.calculateTextWidth(text, 1.0f);
-        float textHeight = textRenderer.calculateTextHeight(text, 1.0f);
+        // Calculate centered position with larger scale
+        float scale = 3.0f;
+        float textWidth = textRenderer.calculateTextWidth(text, scale);
+        float textHeight = textRenderer.calculateTextHeight(text, scale);
 
         glm::vec2 textPos = m_position + glm::vec2(
             (m_size.x - textWidth) * 0.5f,
             (m_size.y - textHeight) * 0.5f
         );
 
-        return textRenderer.generateVertices(text, textPos, 1.0f, screenWidth, screenHeight);
+        return textRenderer.generateVertices(text, textPos, scale, screenWidth, screenHeight);
     }
 
     // Getters/Setters
