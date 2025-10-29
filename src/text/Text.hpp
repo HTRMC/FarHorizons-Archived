@@ -64,19 +64,22 @@ public:
 
     // Parse legacy formatting codes (§ codes like Minecraft)
     static Text parseLegacy(const std::string& text) {
+        static constexpr const char* FORMATTING_CODE_PREFIX = "§";
         Text result;
         std::string current;
         Style currentStyle;
 
         for (size_t i = 0; i < text.length(); ++i) {
-            if (text[i] == '§' && i + 1 < text.length()) {
+            if (i + 2 < text.length() && text.substr(i, 2) == FORMATTING_CODE_PREFIX) {
                 // Save current segment if not empty
                 if (!current.empty()) {
                     result.append(current, currentStyle);
                     current.clear();
                 }
 
-                char code = text[++i];
+                // Skip the § character (2 bytes in UTF-8) and get the code
+                i += 2;
+                char code = text[i];
                 switch (code) {
                     // Colors
                     case '0': currentStyle = Style::black(); break;
@@ -101,7 +104,7 @@ public:
                     case 'r': currentStyle = Style(); break; // Reset
 
                     default:
-                        current += '§';
+                        current += FORMATTING_CODE_PREFIX;
                         current += code;
                         break;
                 }
