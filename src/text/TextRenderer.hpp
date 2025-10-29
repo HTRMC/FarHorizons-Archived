@@ -67,13 +67,15 @@ public:
                 glm::vec2 shadowOffset = glm::vec2(1.0f, 1.0f) * scale;
                 generateSegmentVertices(vertices, segment.content, cursor + shadowOffset,
                                        scale, atlas, textureIndex,
-                                       style.getShadowColor(), screenWidth, screenHeight);
+                                       style.getShadowColor(), screenWidth, screenHeight,
+                                       style.isBold());
             }
 
             // Render main text
             cursor.x += generateSegmentVertices(vertices, segment.content, cursor,
                                                scale, atlas, textureIndex,
-                                               style.getColor(), screenWidth, screenHeight);
+                                               style.getColor(), screenWidth, screenHeight,
+                                               style.isBold());
         }
 
         return vertices;
@@ -124,8 +126,11 @@ private:
                                   uint32_t textureIndex,
                                   const glm::vec4& color,
                                   uint32_t screenWidth,
-                                  uint32_t screenHeight) {
+                                  uint32_t screenHeight,
+                                  bool isBold = false) {
         float startX = position.x;
+        constexpr float BOLD_EXPANSION = 0.1f;  // Minecraft's expansion value
+        constexpr float BOLD_OFFSET = 1.0f;     // Minecraft's bold offset
 
         for (char c : content) {
             const CharInfo* charInfo = atlas->getCharacter(static_cast<uint32_t>(c));
@@ -135,23 +140,35 @@ private:
             glm::vec2 charSize = charInfo->size * scale;
             glm::vec2 charOffset = charInfo->offset * scale;
 
-            // Convert pixel coordinates to normalized device coordinates (-1 to 1)
-            glm::vec2 pos0 = pixelToNDC(position + charOffset, screenWidth, screenHeight);
-            glm::vec2 pos1 = pixelToNDC(position + charOffset + charSize, screenWidth, screenHeight);
+            // Render the glyph (once for normal, twice for bold)
+            int renderCount = isBold ? 2 : 1;
+            for (int i = 0; i < renderCount; ++i) {
+                // For bold, second render is offset horizontally
+                float xOffset = (i == 1) ? BOLD_OFFSET * scale : 0.0f;
 
-            // Create quad (two triangles)
-            // Triangle 1: top-left, bottom-left, top-right
-            vertices.push_back({pos0, charInfo->uvMin, color, textureIndex});
-            vertices.push_back({{pos0.x, pos1.y}, {charInfo->uvMin.x, charInfo->uvMax.y}, color, textureIndex});
-            vertices.push_back({{pos1.x, pos0.y}, {charInfo->uvMax.x, charInfo->uvMin.y}, color, textureIndex});
+                // Apply bold expansion (expand quad on all sides)
+                float expansion = isBold ? BOLD_EXPANSION * scale : 0.0f;
 
-            // Triangle 2: top-right, bottom-left, bottom-right
-            vertices.push_back({{pos1.x, pos0.y}, {charInfo->uvMax.x, charInfo->uvMin.y}, color, textureIndex});
-            vertices.push_back({{pos0.x, pos1.y}, {charInfo->uvMin.x, charInfo->uvMax.y}, color, textureIndex});
-            vertices.push_back({pos1, charInfo->uvMax, color, textureIndex});
+                // Convert pixel coordinates to normalized device coordinates (-1 to 1)
+                glm::vec2 renderPos = position + glm::vec2(xOffset, 0.0f);
+                glm::vec2 pos0 = pixelToNDC(renderPos + charOffset - glm::vec2(expansion), screenWidth, screenHeight);
+                glm::vec2 pos1 = pixelToNDC(renderPos + charOffset + charSize + glm::vec2(expansion), screenWidth, screenHeight);
 
-            // Advance cursor
-            position.x += charInfo->advance * scale;
+                // Create quad (two triangles)
+                // Triangle 1: top-left, bottom-left, top-right
+                vertices.push_back({pos0, charInfo->uvMin, color, textureIndex});
+                vertices.push_back({{pos0.x, pos1.y}, {charInfo->uvMin.x, charInfo->uvMax.y}, color, textureIndex});
+                vertices.push_back({{pos1.x, pos0.y}, {charInfo->uvMax.x, charInfo->uvMin.y}, color, textureIndex});
+
+                // Triangle 2: top-right, bottom-left, bottom-right
+                vertices.push_back({{pos1.x, pos0.y}, {charInfo->uvMax.x, charInfo->uvMin.y}, color, textureIndex});
+                vertices.push_back({{pos0.x, pos1.y}, {charInfo->uvMin.x, charInfo->uvMax.y}, color, textureIndex});
+                vertices.push_back({pos1, charInfo->uvMax, color, textureIndex});
+            }
+
+            // Advance cursor (add extra spacing for bold text)
+            float boldSpacing = isBold ? BOLD_OFFSET : 0.0f;
+            position.x += (charInfo->advance + boldSpacing) * scale;
         }
 
         return position.x - startX;
