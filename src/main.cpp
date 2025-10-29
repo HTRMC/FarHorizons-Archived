@@ -405,13 +405,13 @@ int main() {
                 auto legacyText = Text::parseLegacy("Styled Text: §aGreen §cRed §eYellow §lBold §rReset");
 
                 // Generate vertices for all text
-                auto titleVertices = textRenderer.generateVertices(titleText, glm::vec2(10, 10), 2.0f,
+                auto titleVertices = textRenderer.generateVertices(titleText, glm::vec2(10, 10), 3.0f,
                                                                    window.getWidth(), window.getHeight());
-                auto fpsVertices = textRenderer.generateVertices(fpsText, glm::vec2(10, 40), 1.5f,
+                auto fpsVertices = textRenderer.generateVertices(fpsText, glm::vec2(10, 50), 2.0f,
                                                                 window.getWidth(), window.getHeight());
-                auto posVertices = textRenderer.generateVertices(posText, glm::vec2(10, 65), 1.5f,
+                auto posVertices = textRenderer.generateVertices(posText, glm::vec2(10, 80), 2.0f,
                                                                 window.getWidth(), window.getHeight());
-                auto legacyVertices = textRenderer.generateVertices(legacyText, glm::vec2(10, 90), 1.5f,
+                auto legacyVertices = textRenderer.generateVertices(legacyText, glm::vec2(10, 110), 2.0f,
                                                                    window.getWidth(), window.getHeight());
 
                 // Combine all vertices
