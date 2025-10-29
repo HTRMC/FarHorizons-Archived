@@ -131,7 +131,7 @@ int main() {
 
         // Try to load the font (won't crash if file doesn't exist, just won't render text)
         fontManager.loadGridFont("default", "assets/minecraft/textures/font/ascii.png",
-                                 uploadCmd, 128, 128, 16, 8);
+                                 uploadCmd, 128, 128, 16, 16, 0);
 
         // Initialize text renderer
         TextRenderer textRenderer;
