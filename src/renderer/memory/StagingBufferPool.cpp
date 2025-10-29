@@ -13,11 +13,14 @@ void StagingBufferPool::init(VmaAllocator allocator, VkDeviceSize defaultBufferS
 }
 
 void StagingBufferPool::cleanup() {
-    for (auto& entry : m_pool) {
-        entry.buffer.cleanup();
+    if (m_allocator != VK_NULL_HANDLE) {
+        for (auto& entry : m_pool) {
+            entry.buffer.cleanup();
+        }
+        m_pool.clear();
+        m_allocator = VK_NULL_HANDLE;
+        spdlog::info("[StagingBufferPool] Cleaned up");
     }
-    m_pool.clear();
-    spdlog::info("[StagingBufferPool] Cleaned up");
 }
 
 StagingBuffer* StagingBufferPool::acquire(VkDeviceSize minSize) {
