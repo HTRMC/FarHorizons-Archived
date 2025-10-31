@@ -349,13 +349,12 @@ CompactChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk) const {
                         uint32_t lightIndex = static_cast<uint32_t>(mesh.lighting.size());
                         mesh.lighting.push_back(PackedLighting::uniform(31, 31, 31));  // Full bright
 
-                        // Create FaceData
+                        // Create FaceData (texture is now in QuadInfo, not here)
                         FaceData faceData = FaceData::pack(
                             bx, by, bz,          // Block position within chunk
                             false,                // isBackFace (not used yet)
                             lightIndex,           // Lighting buffer index
-                            faceTextureIndex,     // Texture index
-                            quadIndex             // QuadInfo buffer index
+                            quadIndex             // QuadInfo buffer index (includes texture)
                         );
 
                         mesh.faces.push_back(faceData);

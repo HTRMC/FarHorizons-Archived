@@ -12,7 +12,7 @@ layout(push_constant) uniform PushConstants {
 // Compact face data (per-face data in SSBO instead of vertex attributes)
 struct FaceData {
     uint packed1;  // Position, isBackFace, lightIndex
-    uint packed2;  // textureIndex, quadIndex
+    uint packed2;  // quadIndex (texture is in QuadInfo)
 };
 
 layout(std430, set = 1, binding = 3) readonly buffer FaceDataBuffer {
@@ -100,10 +100,9 @@ void main() {
     uint z = (faceData.packed1 >> 10) & 0x1Fu;
     bool isBackFace = ((faceData.packed1 >> 15) & 0x1u) != 0u;
     uint lightIndex = (faceData.packed1 >> 16) & 0xFFFFu;
-    uint textureIndex = faceData.packed2 & 0xFFFFu;
-    uint quadIndex = (faceData.packed2 >> 16) & 0xFFFFu;
+    uint quadIndex = faceData.packed2 & 0xFFFFu;  // Quad index is now in lower 16 bits
 
-    // Get quad geometry
+    // Get quad geometry (includes texture)
     QuadInfo quad = quadInfos[quadIndex];
 
     // Get lighting data for this face
@@ -177,5 +176,5 @@ void main() {
 
     fragColor = lightColor * diffuse;
     fragTexCoord = uv;
-    fragTextureIndex = textureIndex;
+    fragTextureIndex = quad.textureSlot;  // Texture is now in QuadInfo, not FaceData
 }

@@ -15,21 +15,21 @@ struct FaceData {
     // bits 0-4: X position (0-31)
     // bits 5-9: Y position (0-31)
     // bits 10-14: Z position (0-31)
-    // bits 15: isBackFace flag
+    // bit 15: isBackFace flag (reserved for future use)
     // bits 16-31: lightIndex (reference to lighting buffer)
     uint32_t packed1;
 
-    // bits 0-15: textureIndex (texture atlas slot)
-    // bits 16-31: quadIndex (reference to QuadInfo buffer)
+    // bits 0-15: quadIndex (reference to QuadInfo buffer which contains texture)
+    // bits 16-31: reserved for future use
     uint32_t packed2;
 
     // Helper functions for packing/unpacking
     static FaceData pack(uint32_t x, uint32_t y, uint32_t z, bool isBackFace,
-                         uint32_t lightIndex, uint32_t textureIndex, uint32_t quadIndex) {
+                         uint32_t lightIndex, uint32_t quadIndex) {
         FaceData data;
         data.packed1 = (x & 0x1F) | ((y & 0x1F) << 5) | ((z & 0x1F) << 10) |
                        ((isBackFace ? 1u : 0u) << 15) | ((lightIndex & 0xFFFF) << 16);
-        data.packed2 = (textureIndex & 0xFFFF) | ((quadIndex & 0xFFFF) << 16);
+        data.packed2 = (quadIndex & 0xFFFF);  // Texture is now in QuadInfo, not here
         return data;
     }
 
