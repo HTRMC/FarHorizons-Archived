@@ -9,9 +9,15 @@ layout(push_constant) uniform PushConstants {
     float _pad1;
 } pc;
 
-// Compact face data (per-instance vertex attributes)
-layout(location = 0) in uint inPacked1;
-layout(location = 1) in uint inPacked2;
+// Compact face data (per-face data in SSBO instead of vertex attributes)
+struct FaceData {
+    uint packed1;  // Position, isBackFace, lightIndex
+    uint packed2;  // textureIndex, quadIndex
+};
+
+layout(std430, set = 1, binding = 3) readonly buffer FaceDataBuffer {
+    FaceData faces[];
+};
 
 // QuadInfo buffer (shared geometry)
 struct QuadInfo {
@@ -44,8 +50,8 @@ layout(std430, set = 1, binding = 1) readonly buffer LightingBuffer {
 
 // ChunkData buffer (per-chunk metadata, indexed by gl_BaseInstance)
 struct ChunkData {
-    ivec3 position;  // Chunk world position in blocks (chunkX * 16, chunkY * 16, chunkZ * 16)
-    int voxelSize;   // Block size (1 for now, could support LOD later)
+    ivec3 position;   // Chunk world position in blocks (chunkX * 16, chunkY * 16, chunkZ * 16)
+    uint faceOffset;  // Offset into FaceData buffer where this chunk's faces start
 };
 
 layout(std430, set = 1, binding = 2) readonly buffer ChunkDataBuffer {
@@ -76,18 +82,26 @@ vec3 unpackLighting(uint packed) {
 }
 
 void main() {
-    // Get chunk ID from indirect draw command (gl_BaseInstance)
+    // Get chunk ID from indirect draw command
     uint chunkID = gl_BaseInstance;
 
+    // Get chunk metadata
+    ChunkData chunk = chunks[chunkID];
+
+    // Calculate face index: chunk's face offset + instance offset (0, 1, 2, ...)
+    uint faceIndex = chunk.faceOffset + (gl_InstanceIndex - gl_BaseInstance);
+
+    // Fetch FaceData from SSBO
+    FaceData faceData = faces[faceIndex];
 
     // Unpack FaceData
-    uint x = inPacked1 & 0x1Fu;
-    uint y = (inPacked1 >> 5) & 0x1Fu;
-    uint z = (inPacked1 >> 10) & 0x1Fu;
-    bool isBackFace = ((inPacked1 >> 15) & 0x1u) != 0u;
-    uint lightIndex = (inPacked1 >> 16) & 0xFFFFu;
-    uint textureIndex = inPacked2 & 0xFFFFu;
-    uint quadIndex = (inPacked2 >> 16) & 0xFFFFu;
+    uint x = faceData.packed1 & 0x1Fu;
+    uint y = (faceData.packed1 >> 5) & 0x1Fu;
+    uint z = (faceData.packed1 >> 10) & 0x1Fu;
+    bool isBackFace = ((faceData.packed1 >> 15) & 0x1u) != 0u;
+    uint lightIndex = (faceData.packed1 >> 16) & 0xFFFFu;
+    uint textureIndex = faceData.packed2 & 0xFFFFu;
+    uint quadIndex = (faceData.packed2 >> 16) & 0xFFFFu;
 
     // Get quad geometry
     QuadInfo quad = quadInfos[quadIndex];
@@ -124,22 +138,17 @@ void main() {
         cornerLight = faceLighting.w;
     }
 
-    // Build position step-by-step with camera-relative coordinates for precision
+    // Build world-space position
     // 1. Start with local block position within chunk (0-31)
     vec3 position = vec3(float(x), float(y), float(z));
 
     // 2. Add corner offset (0.0-1.0)
     position += localCorner;
 
-    // 3. Scale by voxel size (1 for normal blocks)
-    position *= float(chunks[chunkID].voxelSize);
+    // 3. Add chunk world position to get absolute world coordinates
+    position += vec3(chunk.position);
 
-    // 4. Transform to camera-relative world space (precision trick)
-    // Add chunk world position, subtract camera position to keep values near zero
-    position += vec3(chunks[chunkID].position) - vec3(pc.cameraPositionInteger);
-    position -= pc.cameraPositionFraction;
-
-    // 5. Transform to clip space
+    // 5. Transform to clip space (view matrix handles camera transform)
     gl_Position = pc.viewProj * vec4(position, 1.0);
 
     // Unpack lighting into color

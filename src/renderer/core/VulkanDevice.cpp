@@ -124,6 +124,11 @@ void VulkanDevice::createLogicalDevice() {
         queueCreateInfos.push_back(queueCreateInfo);
     }
 
+    // Vulkan 1.1 features (includes shaderDrawParameters for gl_BaseInstance)
+    VkPhysicalDeviceVulkan11Features vulkan11Features{};
+    vulkan11Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+    vulkan11Features.shaderDrawParameters = VK_TRUE;
+
     // Vulkan 1.2 features (includes descriptor indexing)
     VkPhysicalDeviceVulkan12Features vulkan12Features{};
     vulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
@@ -133,6 +138,7 @@ void VulkanDevice::createLogicalDevice() {
     vulkan12Features.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
     vulkan12Features.runtimeDescriptorArray = VK_TRUE;
     vulkan12Features.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+    vulkan12Features.pNext = &vulkan11Features;
 
     // Vulkan 1.3 features struct (includes dynamicRendering and synchronization2)
     VkPhysicalDeviceVulkan13Features vulkan13Features{};

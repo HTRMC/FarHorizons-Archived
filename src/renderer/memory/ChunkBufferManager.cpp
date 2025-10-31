@@ -7,11 +7,11 @@ void ChunkBufferManager::init(VmaAllocator allocator, size_t maxFaces, size_t ma
     m_maxFaces = maxFaces;
     m_maxDrawCommands = maxDrawCommands;
 
-    // FaceData buffer (compact 8-byte per face)
+    // FaceData buffer (compact 8-byte per face, used as SSBO)
     m_faceBuffer.init(
         allocator,
         maxFaces * sizeof(FaceData),
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VMA_MEMORY_USAGE_CPU_TO_GPU,
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
     );
@@ -93,7 +93,7 @@ bool ChunkBufferManager::addMeshes(std::vector<CompactChunkMesh>& meshes, size_t
                mesh.lighting.size() * sizeof(PackedLighting));
 
         // Create and store ChunkData (indexed by gl_BaseInstance = drawCommandIndex)
-        ChunkData chunkMetadata = ChunkData::create(mesh.position);
+        ChunkData chunkMetadata = ChunkData::create(mesh.position, m_currentFaceOffset);
         m_chunkDataArray.push_back(chunkMetadata);
         memcpy(static_cast<uint8_t*>(chunkData) + m_drawCommandCount * sizeof(ChunkData),
                &chunkMetadata,
@@ -204,7 +204,7 @@ void ChunkBufferManager::fullRebuild() {
                mesh.lighting.size() * sizeof(PackedLighting));
 
         // Create and store ChunkData (indexed by gl_BaseInstance = drawCommandIndex)
-        ChunkData chunkMetadata = ChunkData::create(mesh.position);
+        ChunkData chunkMetadata = ChunkData::create(mesh.position, m_currentFaceOffset);
         m_chunkDataArray.push_back(chunkMetadata);
         memcpy(static_cast<uint8_t*>(chunkData) + m_drawCommandCount * sizeof(ChunkData),
                &chunkMetadata,

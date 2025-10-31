@@ -169,11 +169,17 @@ int main() {
         chunkDataBinding.descriptorCount = 1;
         chunkDataBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-        VkDescriptorSetLayoutBinding geometryBindings[] = {quadInfoBinding, lightingBinding, chunkDataBinding};
+        VkDescriptorSetLayoutBinding faceDataBinding{};
+        faceDataBinding.binding = 3;
+        faceDataBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        faceDataBinding.descriptorCount = 1;
+        faceDataBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+        VkDescriptorSetLayoutBinding geometryBindings[] = {quadInfoBinding, lightingBinding, chunkDataBinding, faceDataBinding};
 
         VkDescriptorSetLayoutCreateInfo geometryLayoutInfo{};
         geometryLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        geometryLayoutInfo.bindingCount = 3;
+        geometryLayoutInfo.bindingCount = 4;
         geometryLayoutInfo.pBindings = geometryBindings;
 
         VkDescriptorSetLayout geometrySetLayout;
@@ -188,12 +194,9 @@ int main() {
         pipelineConfig.depthWrite = true;
         pipelineConfig.cullMode = VK_CULL_MODE_BACK_BIT;
 
-        // Use compact FaceData vertex input
-        pipelineConfig.vertexBindings.push_back(FaceData::getBindingDescription());
-        auto faceAttributes = FaceData::getAttributeDescriptions();
-        pipelineConfig.vertexAttributes.insert(pipelineConfig.vertexAttributes.end(), faceAttributes.begin(), faceAttributes.end());
+        // No vertex bindings needed - FaceData is now an SSBO, not vertex attributes
 
-        // Descriptor set layouts: set 0 = textures, set 1 = geometry (QuadInfo + Lighting)
+        // Descriptor set layouts: set 0 = textures, set 1 = geometry (QuadInfo + Lighting + ChunkData + FaceData)
         pipelineConfig.descriptorSetLayouts.push_back(textureManager.getDescriptorSetLayout());
         pipelineConfig.descriptorSetLayouts.push_back(geometrySetLayout);
 
@@ -283,7 +286,7 @@ int main() {
 
         // Create descriptor pool for geometry buffers
         VkDescriptorPoolSize geometryPoolSizes[] = {
-            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3}  // QuadInfo + Lighting + ChunkData
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4}  // QuadInfo + Lighting + ChunkData + FaceData
         };
 
         VkDescriptorPoolCreateInfo geometryPoolInfo{};
@@ -413,7 +416,12 @@ int main() {
                     chunkDataBufferInfo.offset = 0;
                     chunkDataBufferInfo.range = VK_WHOLE_SIZE;
 
-                    VkWriteDescriptorSet descriptorWrites[3]{};
+                    VkDescriptorBufferInfo faceDataBufferInfo{};
+                    faceDataBufferInfo.buffer = bufferManager.getFaceBuffer();
+                    faceDataBufferInfo.offset = 0;
+                    faceDataBufferInfo.range = VK_WHOLE_SIZE;
+
+                    VkWriteDescriptorSet descriptorWrites[4]{};
 
                     descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                     descriptorWrites[0].dstSet = geometryDescriptorSet;
@@ -439,7 +447,15 @@ int main() {
                     descriptorWrites[2].descriptorCount = 1;
                     descriptorWrites[2].pBufferInfo = &chunkDataBufferInfo;
 
-                    vkUpdateDescriptorSets(vulkanContext.getDevice().getLogicalDevice(), 3, descriptorWrites, 0, nullptr);
+                    descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                    descriptorWrites[3].dstSet = geometryDescriptorSet;
+                    descriptorWrites[3].dstBinding = 3;
+                    descriptorWrites[3].dstArrayElement = 0;
+                    descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                    descriptorWrites[3].descriptorCount = 1;
+                    descriptorWrites[3].pBufferInfo = &faceDataBufferInfo;
+
+                    vkUpdateDescriptorSets(vulkanContext.getDevice().getLogicalDevice(), 4, descriptorWrites, 0, nullptr);
 
                     quadInfoNeedsUpdate = false;
                     spdlog::debug("Updated QuadInfo buffer with {} unique quad geometries", quadInfos.size());
@@ -542,8 +558,7 @@ int main() {
                     loggedOnce = true;
                 }
 
-                // Bind FaceData buffer (replaces vertex buffer)
-                cmd.bindVertexBuffer(bufferManager.getFaceBuffer());
+                // FaceData is now in SSBO (binding 3), no vertex buffer needed
 
                 // Use non-indexed indirect drawing (6 vertices per face instance)
                 vkCmdDrawIndirect(cmd.getBuffer(), bufferManager.getIndirectBuffer(),
