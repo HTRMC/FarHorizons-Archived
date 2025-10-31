@@ -37,6 +37,13 @@ public:
     const glm::mat4& getProjectionMatrix() const { return m_projectionMatrix; }
     glm::mat4 getViewProjectionMatrix() const { return m_projectionMatrix * m_viewMatrix; }
 
+    // Get rotation-only view-projection matrix for camera-relative rendering
+    // (translation is handled by subtracting camera position in shader)
+    glm::mat4 getRotationOnlyViewProjectionMatrix() const {
+        glm::mat4 rotationOnlyView = glm::lookAt(glm::vec3(0.0f), m_forward, m_up);
+        return m_projectionMatrix * rotationOnlyView;
+    }
+
     float getYaw() const { return m_yaw; }
     float getPitch() const { return m_pitch; }
 

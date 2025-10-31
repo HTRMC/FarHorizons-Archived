@@ -148,11 +148,34 @@ void main() {
     // 3. Add chunk world position to get absolute world coordinates
     position += vec3(chunk.position);
 
-    // 5. Transform to clip space (view matrix handles camera transform)
-    gl_Position = pc.viewProj * vec4(position, 1.0);
+    // 4. Convert to camera-relative position for floating-point precision
+    // Reconstruct full camera position: integer part + fractional part
+    vec3 cameraPosition = vec3(pc.cameraPositionInteger) + pc.cameraPositionFraction;
+
+    // Transform to camera-relative coordinates (keeps positions near origin)
+    vec3 cameraRelativePos = position - cameraPosition;
+
+    // 5. Transform to clip space with camera-relative position
+    gl_Position = pc.viewProj * vec4(cameraRelativePos, 1.0);
 
     // Unpack lighting into color
-    fragColor = unpackLighting(cornerLight);
+    vec3 lightColor = unpackLighting(cornerLight);
+
+    // Apply diffuse shading based on face normal (Minecraft-style)
+    float diffuse = 1.0;
+    vec3 normal = quad.normal;
+    if (abs(normal.y) > 0.9) {
+        // Top/Bottom faces
+        diffuse = (normal.y > 0.0) ? 1.0 : 0.5;  // Top: 100%, Bottom: 50%
+    } else if (abs(normal.z) > 0.9) {
+        // North/South faces
+        diffuse = 0.8;
+    } else if (abs(normal.x) > 0.9) {
+        // East/West faces
+        diffuse = 0.6;
+    }
+
+    fragColor = lightColor * diffuse;
     fragTexCoord = uv;
     fragTextureIndex = textureIndex;
 }

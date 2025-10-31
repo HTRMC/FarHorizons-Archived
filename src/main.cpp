@@ -526,7 +526,8 @@ int main() {
                 float _pad1;
             } pushConstants;
 
-            pushConstants.viewProj = camera.getViewProjectionMatrix();
+            // Use rotation-only view-projection (translation handled in shader for camera-relative rendering)
+            pushConstants.viewProj = camera.getRotationOnlyViewProjectionMatrix();
 
             // Split camera position for floating-point precision
             glm::vec3 camPos = camera.getPosition();
