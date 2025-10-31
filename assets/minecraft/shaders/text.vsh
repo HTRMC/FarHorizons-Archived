@@ -1,4 +1,4 @@
-#version 450
+#version 460
 
 // Vertex attributes from buffer
 layout(location = 0) in vec2 inPosition;      // NDC position (-1 to 1)

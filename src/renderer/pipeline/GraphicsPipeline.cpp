@@ -123,11 +123,12 @@ void GraphicsPipeline::init(VkDevice device, const GraphicsPipelineConfig& confi
     dynamicState.pDynamicStates = dynamicStates.data();
 
     // Pipeline layout with descriptor sets and push constants
-    // Push constant range for view-projection matrix (mat4 = 64 bytes)
+    // Push constant range for view-projection matrix + camera position (96 bytes)
+    // mat4 viewProj (64) + ivec3 cameraPositionInteger (12) + pad (4) + vec3 cameraPositionFraction (12) + pad (4) = 96
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = sizeof(glm::mat4); // 64 bytes
+    pushConstantRange.size = 96; // mat4 + camera position data
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;

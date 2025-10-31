@@ -16,6 +16,7 @@
 #include "renderer/texture/BindlessTextureManager.hpp"
 #include "renderer/DepthBuffer.hpp"
 #include "world/ChunkManager.hpp"
+#include "world/ChunkGpuData.hpp"
 #include "world/BlockRegistry.hpp"
 #include "text/FontManager.hpp"
 #include "text/TextRenderer.hpp"
@@ -149,6 +150,35 @@ int main() {
 
         vkDestroyCommandPool(vulkanContext.getDevice().getLogicalDevice(), uploadPool, nullptr);
 
+        // Create descriptor set layout for QuadInfo, Lighting, and ChunkData buffers (set 1)
+        VkDescriptorSetLayoutBinding quadInfoBinding{};
+        quadInfoBinding.binding = 0;
+        quadInfoBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        quadInfoBinding.descriptorCount = 1;
+        quadInfoBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+        VkDescriptorSetLayoutBinding lightingBinding{};
+        lightingBinding.binding = 1;
+        lightingBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        lightingBinding.descriptorCount = 1;
+        lightingBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+        VkDescriptorSetLayoutBinding chunkDataBinding{};
+        chunkDataBinding.binding = 2;
+        chunkDataBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        chunkDataBinding.descriptorCount = 1;
+        chunkDataBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+        VkDescriptorSetLayoutBinding geometryBindings[] = {quadInfoBinding, lightingBinding, chunkDataBinding};
+
+        VkDescriptorSetLayoutCreateInfo geometryLayoutInfo{};
+        geometryLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        geometryLayoutInfo.bindingCount = 3;
+        geometryLayoutInfo.pBindings = geometryBindings;
+
+        VkDescriptorSetLayout geometrySetLayout;
+        vkCreateDescriptorSetLayout(vulkanContext.getDevice().getLogicalDevice(), &geometryLayoutInfo, nullptr, &geometrySetLayout);
+
         GraphicsPipelineConfig pipelineConfig;
         pipelineConfig.vertexShader = &vertShader;
         pipelineConfig.fragmentShader = &fragShader;
@@ -158,41 +188,14 @@ int main() {
         pipelineConfig.depthWrite = true;
         pipelineConfig.cullMode = VK_CULL_MODE_BACK_BIT;
 
-        VkVertexInputBindingDescription binding{};
-        binding.binding = 0;
-        binding.stride = sizeof(Vertex);
-        binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-        pipelineConfig.vertexBindings.push_back(binding);
+        // Use compact FaceData vertex input
+        pipelineConfig.vertexBindings.push_back(FaceData::getBindingDescription());
+        auto faceAttributes = FaceData::getAttributeDescriptions();
+        pipelineConfig.vertexAttributes.insert(pipelineConfig.vertexAttributes.end(), faceAttributes.begin(), faceAttributes.end());
 
-        VkVertexInputAttributeDescription positionAttr{};
-        positionAttr.location = 0;
-        positionAttr.binding = 0;
-        positionAttr.format = VK_FORMAT_R32G32B32_SFLOAT;
-        positionAttr.offset = offsetof(Vertex, position);
-        pipelineConfig.vertexAttributes.push_back(positionAttr);
-
-        VkVertexInputAttributeDescription colorAttr{};
-        colorAttr.location = 1;
-        colorAttr.binding = 0;
-        colorAttr.format = VK_FORMAT_R32G32B32_SFLOAT;
-        colorAttr.offset = offsetof(Vertex, color);
-        pipelineConfig.vertexAttributes.push_back(colorAttr);
-
-        VkVertexInputAttributeDescription texCoordAttr{};
-        texCoordAttr.location = 2;
-        texCoordAttr.binding = 0;
-        texCoordAttr.format = VK_FORMAT_R32G32_SFLOAT;
-        texCoordAttr.offset = offsetof(Vertex, texCoord);
-        pipelineConfig.vertexAttributes.push_back(texCoordAttr);
-
-        VkVertexInputAttributeDescription textureIndexAttr{};
-        textureIndexAttr.location = 3;
-        textureIndexAttr.binding = 0;
-        textureIndexAttr.format = VK_FORMAT_R32_UINT;
-        textureIndexAttr.offset = offsetof(Vertex, textureIndex);
-        pipelineConfig.vertexAttributes.push_back(textureIndexAttr);
-
+        // Descriptor set layouts: set 0 = textures, set 1 = geometry (QuadInfo + Lighting)
         pipelineConfig.descriptorSetLayouts.push_back(textureManager.getDescriptorSetLayout());
+        pipelineConfig.descriptorSetLayouts.push_back(geometrySetLayout);
 
         GraphicsPipeline pipeline;
         pipeline.init(vulkanContext.getDevice().getLogicalDevice(), pipelineConfig);
@@ -263,8 +266,44 @@ int main() {
         float aspectRatio = static_cast<float>(window.getWidth()) / static_cast<float>(window.getHeight());
         camera.init(glm::vec3(0.0f, 20.0f, 0.0f), aspectRatio, 70.0f);
 
+        // Initialize chunk buffer manager (now uses compact format: faces instead of vertices/indices)
         ChunkBufferManager bufferManager;
-        bufferManager.init(vulkanContext.getAllocator(), 5000000, 10000000, 5000);
+        bufferManager.init(vulkanContext.getAllocator(), 10000000, 5000);  // maxFaces, maxDrawCommands
+
+        // Create global QuadInfo buffer (shared geometry for all chunks)
+        // QuadInfo is 120 bytes with std430 layout (verified at compile time)
+        Buffer quadInfoBuffer;
+        quadInfoBuffer.init(
+            vulkanContext.getAllocator(),
+            16384 * sizeof(QuadInfo),  // Support up to 16K unique quad geometries
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VMA_MEMORY_USAGE_CPU_TO_GPU,
+            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
+        );
+
+        // Create descriptor pool for geometry buffers
+        VkDescriptorPoolSize geometryPoolSizes[] = {
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3}  // QuadInfo + Lighting + ChunkData
+        };
+
+        VkDescriptorPoolCreateInfo geometryPoolInfo{};
+        geometryPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        geometryPoolInfo.maxSets = 1;
+        geometryPoolInfo.poolSizeCount = 1;
+        geometryPoolInfo.pPoolSizes = geometryPoolSizes;
+
+        VkDescriptorPool geometryDescriptorPool;
+        vkCreateDescriptorPool(vulkanContext.getDevice().getLogicalDevice(), &geometryPoolInfo, nullptr, &geometryDescriptorPool);
+
+        // Allocate geometry descriptor set
+        VkDescriptorSetAllocateInfo geometryAllocInfo{};
+        geometryAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        geometryAllocInfo.descriptorPool = geometryDescriptorPool;
+        geometryAllocInfo.descriptorSetCount = 1;
+        geometryAllocInfo.pSetLayouts = &geometrySetLayout;
+
+        VkDescriptorSet geometryDescriptorSet;
+        vkAllocateDescriptorSets(vulkanContext.getDevice().getLogicalDevice(), &geometryAllocInfo, &geometryDescriptorSet);
 
         spdlog::info("Setup complete, entering render loop...");
 
@@ -280,7 +319,8 @@ int main() {
         });
 
         auto lastTime = std::chrono::high_resolution_clock::now();
-        std::vector<ChunkMesh> pendingMeshes;
+        std::vector<CompactChunkMesh> pendingMeshes;
+        bool quadInfoNeedsUpdate = true;  // Flag to track when QuadInfo buffer needs updating
 
         while (!window.shouldClose()) {
             auto currentTime = std::chrono::high_resolution_clock::now();
@@ -343,6 +383,67 @@ int main() {
                 // Remove processed meshes (addMeshes processes from the front)
                 size_t processCount = std::min(pendingMeshes.size(), size_t(20));
                 pendingMeshes.erase(pendingMeshes.begin(), pendingMeshes.begin() + processCount);
+                quadInfoNeedsUpdate = true;  // Mark QuadInfo for update after adding meshes
+            }
+
+            // Update global QuadInfo buffer when needed (BEFORE rendering starts)
+            if (quadInfoNeedsUpdate) {
+                const auto& quadInfos = chunkManager.getQuadInfos();
+                if (!quadInfos.empty()) {
+                    // Wait for GPU to finish using the descriptor set
+                    vulkanContext.waitIdle();
+
+                    void* quadData = quadInfoBuffer.map();
+                    memcpy(quadData, quadInfos.data(), quadInfos.size() * sizeof(QuadInfo));
+                    quadInfoBuffer.unmap();
+
+                    // Update descriptor sets (now safe since GPU is idle)
+                    VkDescriptorBufferInfo quadInfoBufferInfo{};
+                    quadInfoBufferInfo.buffer = quadInfoBuffer.getBuffer();
+                    quadInfoBufferInfo.offset = 0;
+                    quadInfoBufferInfo.range = quadInfos.size() * sizeof(QuadInfo);
+
+                    VkDescriptorBufferInfo lightingBufferInfo{};
+                    lightingBufferInfo.buffer = bufferManager.getLightingBuffer();
+                    lightingBufferInfo.offset = 0;
+                    lightingBufferInfo.range = VK_WHOLE_SIZE;
+
+                    VkDescriptorBufferInfo chunkDataBufferInfo{};
+                    chunkDataBufferInfo.buffer = bufferManager.getChunkDataBuffer();
+                    chunkDataBufferInfo.offset = 0;
+                    chunkDataBufferInfo.range = VK_WHOLE_SIZE;
+
+                    VkWriteDescriptorSet descriptorWrites[3]{};
+
+                    descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                    descriptorWrites[0].dstSet = geometryDescriptorSet;
+                    descriptorWrites[0].dstBinding = 0;
+                    descriptorWrites[0].dstArrayElement = 0;
+                    descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                    descriptorWrites[0].descriptorCount = 1;
+                    descriptorWrites[0].pBufferInfo = &quadInfoBufferInfo;
+
+                    descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                    descriptorWrites[1].dstSet = geometryDescriptorSet;
+                    descriptorWrites[1].dstBinding = 1;
+                    descriptorWrites[1].dstArrayElement = 0;
+                    descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                    descriptorWrites[1].descriptorCount = 1;
+                    descriptorWrites[1].pBufferInfo = &lightingBufferInfo;
+
+                    descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                    descriptorWrites[2].dstSet = geometryDescriptorSet;
+                    descriptorWrites[2].dstBinding = 2;
+                    descriptorWrites[2].dstArrayElement = 0;
+                    descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                    descriptorWrites[2].descriptorCount = 1;
+                    descriptorWrites[2].pBufferInfo = &chunkDataBufferInfo;
+
+                    vkUpdateDescriptorSets(vulkanContext.getDevice().getLogicalDevice(), 3, descriptorWrites, 0, nullptr);
+
+                    quadInfoNeedsUpdate = false;
+                    spdlog::debug("Updated QuadInfo buffer with {} unique quad geometries", quadInfos.size());
+                }
             }
 
             if (framebufferResized) {
@@ -394,23 +495,59 @@ int main() {
 
             cmd.bindPipeline(pipeline.getPipeline());
 
+            // Bind descriptor sets (set 0 = textures, set 1 = geometry)
             VkDescriptorSet textureDescSet = textureManager.getDescriptorSet();
-            cmd.bindDescriptorSets(pipeline.getLayout(), 0, 1, &textureDescSet);
+            VkDescriptorSet descriptorSets[] = {textureDescSet, geometryDescriptorSet};
+            vkCmdBindDescriptorSets(cmd.getBuffer(), VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.getLayout(),
+                                   0, 2, descriptorSets, 0, nullptr);
 
-            glm::mat4 viewProj = camera.getViewProjectionMatrix();
+            // Prepare push constants with camera-relative positioning
+            struct PushConstants {
+                glm::mat4 viewProj;
+                glm::ivec3 cameraPositionInteger;
+                float _pad0;
+                glm::vec3 cameraPositionFraction;
+                float _pad1;
+            } pushConstants;
+
+            pushConstants.viewProj = camera.getViewProjectionMatrix();
+
+            // Split camera position for floating-point precision
+            glm::vec3 camPos = camera.getPosition();
+            pushConstants.cameraPositionInteger = glm::ivec3(
+                static_cast<int32_t>(std::floor(camPos.x)),
+                static_cast<int32_t>(std::floor(camPos.y)),
+                static_cast<int32_t>(std::floor(camPos.z))
+            );
+            pushConstants.cameraPositionFraction = glm::vec3(
+                camPos.x - std::floor(camPos.x),
+                camPos.y - std::floor(camPos.y),
+                camPos.z - std::floor(camPos.z)
+            );
+
             cmd.pushConstants(
                 pipeline.getLayout(),
                 VK_SHADER_STAGE_VERTEX_BIT,
                 0,
-                sizeof(glm::mat4),
-                &viewProj
+                sizeof(PushConstants),
+                &pushConstants
             );
 
+            // Render chunks with new compact format (instanced, non-indexed)
             uint32_t drawCount = bufferManager.getDrawCommandCount();
             if (drawCount > 0) {
-                cmd.bindVertexBuffer(bufferManager.getVertexBuffer());
-                cmd.bindIndexBuffer(bufferManager.getIndexBuffer());
-                cmd.drawIndexedIndirect(bufferManager.getIndirectBuffer(), 0, drawCount, sizeof(VkDrawIndexedIndirectCommand));
+                static bool loggedOnce = false;
+                if (!loggedOnce) {
+                    spdlog::info("Rendering {} chunks with {} draw commands", bufferManager.getMeshCache().size(), drawCount);
+                    loggedOnce = true;
+                }
+
+                // Bind FaceData buffer (replaces vertex buffer)
+                cmd.bindVertexBuffer(bufferManager.getFaceBuffer());
+
+                // Use non-indexed indirect drawing (6 vertices per face instance)
+                vkCmdDrawIndirect(cmd.getBuffer(), bufferManager.getIndirectBuffer(),
+                                 0, drawCount, sizeof(VkDrawIndirectCommand));
             }
 
             // Render text overlay (HUD or pause menu)
@@ -483,6 +620,10 @@ int main() {
 
         vulkanContext.waitIdle();
 
+        // Cleanup resources
+        vkDestroyDescriptorPool(vulkanContext.getDevice().getLogicalDevice(), geometryDescriptorPool, nullptr);
+        vkDestroyDescriptorSetLayout(vulkanContext.getDevice().getLogicalDevice(), geometrySetLayout, nullptr);
+        quadInfoBuffer.cleanup();
         bufferManager.cleanup();
         textVertexBuffer.cleanup();
         textPipeline.cleanup();

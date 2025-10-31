@@ -150,6 +150,11 @@ inline FaceDirection getOppositeFace(FaceDirection dir) {
     return dir;
 }
 
+// Get the normal vector for a face direction
+inline glm::vec3 getFaceNormal(FaceDirection dir) {
+    return FACE_NORMALS[toIndex(dir)];
+}
+
 } // namespace FaceUtils
 
 } // namespace VoxelEngine

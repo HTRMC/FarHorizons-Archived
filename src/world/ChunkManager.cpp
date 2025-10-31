@@ -3,8 +3,86 @@
 #include "BlockRegistry.hpp"
 #include <cmath>
 #include <spdlog/spdlog.h>
+#include <functional>
 
 namespace VoxelEngine {
+
+// ===== QuadInfoLibrary Implementation =====
+
+bool QuadInfoLibrary::QuadKey::operator==(const QuadKey& other) const {
+    if (textureSlot != other.textureSlot) return false;
+    if (normal != other.normal) return false;
+    for (int i = 0; i < 4; i++) {
+        if (corners[i] != other.corners[i]) return false;
+        if (uvs[i] != other.uvs[i]) return false;
+    }
+    return true;
+}
+
+size_t QuadInfoLibrary::QuadKeyHash::operator()(const QuadKey& key) const {
+    size_t hash = std::hash<uint32_t>{}(key.textureSlot);
+
+    // Hash normal
+    hash ^= std::hash<float>{}(key.normal.x) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+    hash ^= std::hash<float>{}(key.normal.y) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+    hash ^= std::hash<float>{}(key.normal.z) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+
+    // Hash corners
+    for (int i = 0; i < 4; i++) {
+        hash ^= std::hash<float>{}(key.corners[i].x) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+        hash ^= std::hash<float>{}(key.corners[i].y) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+        hash ^= std::hash<float>{}(key.corners[i].z) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+        hash ^= std::hash<float>{}(key.uvs[i].x) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+        hash ^= std::hash<float>{}(key.uvs[i].y) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+    }
+
+    return hash;
+}
+
+uint32_t QuadInfoLibrary::getOrCreateQuad(const glm::vec3& normal,
+                                          const glm::vec3 corners[4],
+                                          const glm::vec2 uvs[4],
+                                          uint32_t textureSlot) {
+    QuadKey key;
+    key.normal = normal;
+    for (int i = 0; i < 4; i++) {
+        key.corners[i] = corners[i];
+        key.uvs[i] = uvs[i];
+    }
+    key.textureSlot = textureSlot;
+
+    auto it = m_quadMap.find(key);
+    if (it != m_quadMap.end()) {
+        return it->second;  // Return existing index
+    }
+
+    // Create new QuadInfo
+    uint32_t index = static_cast<uint32_t>(m_quads.size());
+    QuadInfo quad;
+    quad.normal = normal;
+    quad._padding0 = 0.0f;
+    quad.corner0 = corners[0];
+    quad._padding1 = 0.0f;
+    quad.corner1 = corners[1];
+    quad._padding2 = 0.0f;
+    quad.corner2 = corners[2];
+    quad._padding3 = 0.0f;
+    quad.corner3 = corners[3];
+    quad._padding4 = 0.0f;
+    quad.uv0 = uvs[0];
+    quad.uv1 = uvs[1];
+    quad.uv2 = uvs[2];
+    quad.uv3 = uvs[3];
+    quad.textureSlot = textureSlot;
+    quad._padding5 = 0;
+
+    m_quads.push_back(quad);
+    m_quadMap[key] = index;
+
+    return index;
+}
+
+// ===== ChunkManager Implementation =====
 
 ChunkManager::ChunkManager() {
     unsigned int numThreads = std::max(1u, std::thread::hardware_concurrency() / 2);
@@ -167,19 +245,15 @@ bool ChunkManager::hasChunk(const ChunkPosition& pos) const {
     return m_chunks.find(pos) != m_chunks.end();
 }
 
-ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIndex) const {
-    ChunkMesh mesh;
+CompactChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk) const {
+    CompactChunkMesh mesh;
+    mesh.position = chunk->getPosition();
 
     if (chunk->isEmpty()) {
         return mesh;
     }
 
     const ChunkPosition& chunkPos = chunk->getPosition();
-    glm::vec3 chunkWorldPos(
-        chunkPos.x * static_cast<int32_t>(CHUNK_SIZE),
-        chunkPos.y * static_cast<int32_t>(CHUNK_SIZE),
-        chunkPos.z * static_cast<int32_t>(CHUNK_SIZE)
-    );
 
     // Iterate through all blocks in the chunk
     for (uint32_t bx = 0; bx < CHUNK_SIZE; bx++) {
@@ -197,9 +271,6 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                     continue;  // Skip if no model
                 }
 
-                glm::vec3 blockPos(bx, by, bz);
-                glm::vec3 blockWorldPos = chunkWorldPos + blockPos;
-
                 // Process each element in the model
                 for (const auto& element : model->elements) {
                     // Convert from 0-16 space to 0-1 space
@@ -216,13 +287,6 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                             if (FaceUtils::faceReachesBoundary(face.cullface.value(), elemFrom, elemTo)) {
                                 // ================================================================
                                 // MINECRAFT-STYLE FACE CULLING SYSTEM
-                                // ================================================================
-                                // Implements Block.shouldDrawSide() with:
-                                //   - Fast path 1: Full cube neighbor check
-                                //   - Fast path 2: Special block logic (TODO: glass-to-glass)
-                                //   - Fast path 3: Empty neighbor check
-                                //   - Fast path 4: Empty current face check
-                                //   - Slow path: Geometric comparison with LRU cache
                                 // ================================================================
 
                                 // Get neighbor position
@@ -263,9 +327,9 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                             continue;
                         }
 
-                        // Generate vertices for this face
-                        glm::vec3 vertices[4];
-                        FaceUtils::getFaceVertices(faceDir, elemFrom, elemTo, vertices);
+                        // Generate quad geometry
+                        glm::vec3 corners[4];
+                        FaceUtils::getFaceVertices(faceDir, elemFrom, elemTo, corners);
                         int faceIndex = FaceUtils::toIndex(faceDir);
 
                         // Convert UVs from Blockbench format to Vulkan format
@@ -275,31 +339,32 @@ ChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk, uint32_t textureIn
                         // Use cached texture index (no string operations!)
                         uint32_t faceTextureIndex = face.textureIndex;
 
-                        // Add vertices
-                        uint32_t baseVertex = static_cast<uint32_t>(mesh.vertices.size());
-                        for (int i = 0; i < 4; i++) {
-                            Vertex vertex;
-                            vertex.position = blockWorldPos + vertices[i];
-                            vertex.color = FaceUtils::FACE_COLORS[faceIndex];
-                            vertex.texCoord = uvs[i];
-                            vertex.textureIndex = faceTextureIndex;
-                            mesh.vertices.push_back(vertex);
-                        }
+                        // Get face normal
+                        glm::vec3 normal = FaceUtils::getFaceNormal(faceDir);
 
-                        // Add indices (two triangles per face)
-                        mesh.indices.push_back(baseVertex + 0);
-                        mesh.indices.push_back(baseVertex + 1);
-                        mesh.indices.push_back(baseVertex + 2);
-                        mesh.indices.push_back(baseVertex + 2);
-                        mesh.indices.push_back(baseVertex + 3);
-                        mesh.indices.push_back(baseVertex + 0);
+                        // Get or create QuadInfo for this geometry
+                        uint32_t quadIndex = m_quadLibrary.getOrCreateQuad(normal, corners, uvs, faceTextureIndex);
+
+                        // Create packed lighting (uniform bright light for now)
+                        uint32_t lightIndex = static_cast<uint32_t>(mesh.lighting.size());
+                        mesh.lighting.push_back(PackedLighting::uniform(31, 31, 31));  // Full bright
+
+                        // Create FaceData
+                        FaceData faceData = FaceData::pack(
+                            bx, by, bz,          // Block position within chunk
+                            false,                // isBackFace (not used yet)
+                            lightIndex,           // Lighting buffer index
+                            faceTextureIndex,     // Texture index
+                            quadIndex             // QuadInfo buffer index
+                        );
+
+                        mesh.faces.push_back(faceData);
                     }
                 }
             }
         }
     }
 
-    mesh.position = chunkPos;
     return mesh;
 }
 
@@ -387,16 +452,16 @@ void ChunkManager::meshWorker() {
         }
 
         // Now generate the mesh
-        ChunkMesh mesh;
+        CompactChunkMesh mesh;
         {
             std::lock_guard<std::mutex> lock(m_chunksMutex);
             const Chunk* chunk = getChunk(pos);
             if (chunk && !chunk->isEmpty()) {
-                mesh = generateChunkMesh(chunk, 0);
+                mesh = generateChunkMesh(chunk);
             }
         }
 
-        if (!mesh.indices.empty()) {
+        if (!mesh.faces.empty()) {
             std::lock_guard<std::mutex> lock(m_readyMutex);
             m_readyMeshes.push(std::move(mesh));
         }
@@ -415,8 +480,8 @@ bool ChunkManager::hasReadyMeshes() const {
     return !m_readyMeshes.empty();
 }
 
-std::vector<ChunkMesh> ChunkManager::getReadyMeshes() {
-    std::vector<ChunkMesh> meshes;
+std::vector<CompactChunkMesh> ChunkManager::getReadyMeshes() {
+    std::vector<CompactChunkMesh> meshes;
 
     std::lock_guard<std::mutex> lock(m_readyMutex);
     while (!m_readyMeshes.empty()) {

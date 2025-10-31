@@ -3,110 +3,135 @@
 
 namespace VoxelEngine {
 
-void ChunkBufferManager::init(VmaAllocator allocator, size_t maxVertices, size_t maxIndices, size_t maxDrawCommands) {
-    m_maxVertices = maxVertices;
-    m_maxIndices = maxIndices;
+void ChunkBufferManager::init(VmaAllocator allocator, size_t maxFaces, size_t maxDrawCommands) {
+    m_maxFaces = maxFaces;
     m_maxDrawCommands = maxDrawCommands;
 
-    m_vertexBuffer.init(
+    // FaceData buffer (compact 8-byte per face)
+    m_faceBuffer.init(
         allocator,
-        maxVertices * sizeof(Vertex),
+        maxFaces * sizeof(FaceData),
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VMA_MEMORY_USAGE_CPU_TO_GPU,
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
     );
 
-    m_indexBuffer.init(
+    // Lighting buffer (16 bytes per face)
+    m_lightingBuffer.init(
         allocator,
-        maxIndices * sizeof(uint32_t),
-        VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        maxFaces * sizeof(PackedLighting),
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VMA_MEMORY_USAGE_CPU_TO_GPU,
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
     );
 
+    // Indirect draw buffer (non-indexed instanced drawing)
     m_indirectBuffer.init(
         allocator,
-        maxDrawCommands * sizeof(VkDrawIndexedIndirectCommand),
+        maxDrawCommands * sizeof(VkDrawIndirectCommand),
         VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
         VMA_MEMORY_USAGE_CPU_TO_GPU,
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
     );
+
+    // ChunkData buffer (per-chunk metadata, indexed by gl_BaseInstance)
+    m_chunkDataBuffer.init(
+        allocator,
+        maxDrawCommands * sizeof(ChunkData),
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VMA_MEMORY_USAGE_CPU_TO_GPU,
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
+    );
+
+    // Reserve space for chunk data array
+    m_chunkDataArray.reserve(maxDrawCommands);
+
+    spdlog::info("ChunkBufferManager initialized: {} max faces, {} max draw commands", maxFaces, maxDrawCommands);
 }
 
 void ChunkBufferManager::cleanup() {
+    m_chunkDataBuffer.cleanup();
     m_indirectBuffer.cleanup();
-    m_indexBuffer.cleanup();
-    m_vertexBuffer.cleanup();
+    m_lightingBuffer.cleanup();
+    m_faceBuffer.cleanup();
     m_meshCache.clear();
     m_allocations.clear();
+    m_chunkDataArray.clear();
 }
 
-bool ChunkBufferManager::addMeshes(std::vector<ChunkMesh>& meshes, size_t maxPerFrame) {
+bool ChunkBufferManager::addMeshes(std::vector<CompactChunkMesh>& meshes, size_t maxPerFrame) {
     if (meshes.empty()) return true;
 
     size_t processCount = std::min(meshes.size(), maxPerFrame);
     size_t actualProcessed = 0;
 
     // Map buffers once for all updates
-    void* vertexData = m_vertexBuffer.map();
-    void* indexData = m_indexBuffer.map();
+    void* faceData = m_faceBuffer.map();
+    void* lightingData = m_lightingBuffer.map();
     void* indirectData = m_indirectBuffer.map();
+    void* chunkData = m_chunkDataBuffer.map();
 
     for (size_t i = 0; i < processCount; i++) {
-        ChunkMesh& mesh = meshes[i];
-        if (mesh.indices.empty()) continue;
+        CompactChunkMesh& mesh = meshes[i];
+        if (mesh.faces.empty()) continue;
 
         // Check if we have space
-        if (m_currentVertexOffset + mesh.vertices.size() > m_maxVertices ||
-            m_currentIndexOffset + mesh.indices.size() > m_maxIndices ||
+        if (m_currentFaceOffset + mesh.faces.size() > m_maxFaces ||
             m_drawCommandCount >= m_maxDrawCommands) {
             spdlog::warn("Buffer full, cannot add more meshes");
             break;
         }
 
-        // Write vertices
-        memcpy(static_cast<uint8_t*>(vertexData) + m_currentVertexOffset * sizeof(Vertex),
-               mesh.vertices.data(),
-               mesh.vertices.size() * sizeof(Vertex));
+        // Write FaceData
+        memcpy(static_cast<uint8_t*>(faceData) + m_currentFaceOffset * sizeof(FaceData),
+               mesh.faces.data(),
+               mesh.faces.size() * sizeof(FaceData));
 
-        // Write indices
-        memcpy(static_cast<uint8_t*>(indexData) + m_currentIndexOffset * sizeof(uint32_t),
-               mesh.indices.data(),
-               mesh.indices.size() * sizeof(uint32_t));
+        // Write lighting
+        memcpy(static_cast<uint8_t*>(lightingData) + m_currentLightingOffset * sizeof(PackedLighting),
+               mesh.lighting.data(),
+               mesh.lighting.size() * sizeof(PackedLighting));
 
-        // Create draw command
-        VkDrawIndexedIndirectCommand cmd{};
-        cmd.indexCount = static_cast<uint32_t>(mesh.indices.size());
-        cmd.instanceCount = 1;
-        cmd.firstIndex = m_currentIndexOffset;
-        cmd.vertexOffset = static_cast<int32_t>(m_currentVertexOffset);
-        cmd.firstInstance = 0;
+        // Create and store ChunkData (indexed by gl_BaseInstance = drawCommandIndex)
+        ChunkData chunkMetadata = ChunkData::create(mesh.position);
+        m_chunkDataArray.push_back(chunkMetadata);
+        memcpy(static_cast<uint8_t*>(chunkData) + m_drawCommandCount * sizeof(ChunkData),
+               &chunkMetadata,
+               sizeof(ChunkData));
 
-        memcpy(static_cast<uint8_t*>(indirectData) + m_drawCommandCount * sizeof(VkDrawIndexedIndirectCommand),
+        // Create draw command (instanced non-indexed: 6 vertices per face)
+        VkDrawIndirectCommand cmd{};
+        cmd.vertexCount = 6;  // 2 triangles per quad (6 vertices total)
+        cmd.instanceCount = static_cast<uint32_t>(mesh.faces.size());  // One instance per face
+        cmd.firstVertex = 0;
+        cmd.firstInstance = m_drawCommandCount;  // Chunk ID for gl_BaseInstance (indexes into ChunkData buffer)
+
+        memcpy(static_cast<uint8_t*>(indirectData) + m_drawCommandCount * sizeof(VkDrawIndirectCommand),
                &cmd,
-               sizeof(VkDrawIndexedIndirectCommand));
+               sizeof(VkDrawIndirectCommand));
 
         // Store allocation info
         ChunkBufferAllocation allocation;
-        allocation.vertexOffset = m_currentVertexOffset;
-        allocation.vertexCount = static_cast<uint32_t>(mesh.vertices.size());
-        allocation.indexOffset = m_currentIndexOffset;
-        allocation.indexCount = static_cast<uint32_t>(mesh.indices.size());
+        allocation.faceOffset = m_currentFaceOffset;
+        allocation.faceCount = static_cast<uint32_t>(mesh.faces.size());
+        allocation.lightingOffset = m_currentLightingOffset;
         allocation.drawCommandIndex = m_drawCommandCount;
 
         m_allocations[mesh.position] = allocation;
-        m_meshCache[mesh.position] = mesh;
+        m_meshCache[mesh.position] = std::move(mesh);
 
-        m_currentVertexOffset += allocation.vertexCount;
-        m_currentIndexOffset += allocation.indexCount;
+        m_currentFaceOffset += allocation.faceCount;
+        m_currentLightingOffset += allocation.faceCount;  // Same count as faces
         m_drawCommandCount++;
+        actualProcessed++;
     }
 
-    m_vertexBuffer.unmap();
-    m_indexBuffer.unmap();
+    m_chunkDataBuffer.unmap();
+    m_faceBuffer.unmap();
+    m_lightingBuffer.unmap();
     m_indirectBuffer.unmap();
 
-    spdlog::trace("Added {} chunks to buffer ({} total)", processCount, m_meshCache.size());
+    spdlog::trace("Added {} chunks to buffer ({} total)", actualProcessed, m_meshCache.size());
     return true;
 }
 
@@ -128,25 +153,22 @@ void ChunkBufferManager::removeUnloadedChunks(const ChunkManager& chunkManager) 
     }
 }
 
-void ChunkBufferManager::compactIfNeeded(const std::unordered_map<ChunkPosition, ChunkMesh, ChunkPositionHash>& meshCache) {
+void ChunkBufferManager::compactIfNeeded(const std::unordered_map<ChunkPosition, CompactChunkMesh, ChunkPositionHash>& meshCache) {
     // Calculate active space
-    size_t totalActiveVertices = 0;
-    size_t totalActiveIndices = 0;
+    size_t totalActiveFaces = 0;
     for (const auto& [pos, allocation] : m_allocations) {
-        totalActiveVertices += allocation.vertexCount;
-        totalActiveIndices += allocation.indexCount;
+        totalActiveFaces += allocation.faceCount;
     }
 
     // Check if compaction is needed
     bool needsCompaction = false;
-    if (m_currentVertexOffset > m_maxVertices * 0.7f || m_currentIndexOffset > m_maxIndices * 0.7f) {
-        float vertexFragmentation = 1.0f - (static_cast<float>(totalActiveVertices) / m_currentVertexOffset);
-        float indexFragmentation = 1.0f - (static_cast<float>(totalActiveIndices) / m_currentIndexOffset);
+    if (m_currentFaceOffset > m_maxFaces * 0.7f) {
+        float faceFragmentation = 1.0f - (static_cast<float>(totalActiveFaces) / m_currentFaceOffset);
 
-        if (vertexFragmentation > 0.3f || indexFragmentation > 0.3f) {
+        if (faceFragmentation > 0.3f) {
             needsCompaction = true;
-            spdlog::debug("Buffer compaction needed: {:.1f}% vertex frag, {:.1f}% index frag",
-                         vertexFragmentation * 100, indexFragmentation * 100);
+            spdlog::debug("Buffer compaction needed: {:.1f}% face fragmentation",
+                         faceFragmentation * 100);
         }
     }
 
@@ -156,64 +178,72 @@ void ChunkBufferManager::compactIfNeeded(const std::unordered_map<ChunkPosition,
 }
 
 void ChunkBufferManager::fullRebuild() {
-    m_currentVertexOffset = 0;
-    m_currentIndexOffset = 0;
+    m_currentFaceOffset = 0;
+    m_currentLightingOffset = 0;
     m_drawCommandCount = 0;
+    m_chunkDataArray.clear();
 
-    void* vertexData = m_vertexBuffer.map();
-    void* indexData = m_indexBuffer.map();
+    void* faceData = m_faceBuffer.map();
+    void* lightingData = m_lightingBuffer.map();
     void* indirectData = m_indirectBuffer.map();
+    void* chunkData = m_chunkDataBuffer.map();
 
     std::unordered_map<ChunkPosition, ChunkBufferAllocation, ChunkPositionHash> newAllocations;
 
     for (const auto& [pos, mesh] : m_meshCache) {
-        if (mesh.indices.empty()) continue;
+        if (mesh.faces.empty()) continue;
 
-        // Write vertices
-        memcpy(static_cast<uint8_t*>(vertexData) + m_currentVertexOffset * sizeof(Vertex),
-               mesh.vertices.data(),
-               mesh.vertices.size() * sizeof(Vertex));
+        // Write FaceData
+        memcpy(static_cast<uint8_t*>(faceData) + m_currentFaceOffset * sizeof(FaceData),
+               mesh.faces.data(),
+               mesh.faces.size() * sizeof(FaceData));
 
-        // Write indices
-        memcpy(static_cast<uint8_t*>(indexData) + m_currentIndexOffset * sizeof(uint32_t),
-               mesh.indices.data(),
-               mesh.indices.size() * sizeof(uint32_t));
+        // Write lighting
+        memcpy(static_cast<uint8_t*>(lightingData) + m_currentLightingOffset * sizeof(PackedLighting),
+               mesh.lighting.data(),
+               mesh.lighting.size() * sizeof(PackedLighting));
+
+        // Create and store ChunkData (indexed by gl_BaseInstance = drawCommandIndex)
+        ChunkData chunkMetadata = ChunkData::create(mesh.position);
+        m_chunkDataArray.push_back(chunkMetadata);
+        memcpy(static_cast<uint8_t*>(chunkData) + m_drawCommandCount * sizeof(ChunkData),
+               &chunkMetadata,
+               sizeof(ChunkData));
 
         // Create draw command
-        VkDrawIndexedIndirectCommand cmd{};
-        cmd.indexCount = static_cast<uint32_t>(mesh.indices.size());
-        cmd.instanceCount = 1;
-        cmd.firstIndex = m_currentIndexOffset;
-        cmd.vertexOffset = static_cast<int32_t>(m_currentVertexOffset);
-        cmd.firstInstance = 0;
+        VkDrawIndirectCommand cmd{};
+        cmd.vertexCount = 6;
+        cmd.instanceCount = static_cast<uint32_t>(mesh.faces.size());
+        cmd.firstVertex = 0;
+        cmd.firstInstance = m_drawCommandCount;  // Chunk ID for gl_BaseInstance (indexes into ChunkData buffer)
 
-        memcpy(static_cast<uint8_t*>(indirectData) + m_drawCommandCount * sizeof(VkDrawIndexedIndirectCommand),
+        memcpy(static_cast<uint8_t*>(indirectData) + m_drawCommandCount * sizeof(VkDrawIndirectCommand),
                &cmd,
-               sizeof(VkDrawIndexedIndirectCommand));
+               sizeof(VkDrawIndirectCommand));
 
         // Store allocation
         ChunkBufferAllocation allocation;
-        allocation.vertexOffset = m_currentVertexOffset;
-        allocation.vertexCount = static_cast<uint32_t>(mesh.vertices.size());
-        allocation.indexOffset = m_currentIndexOffset;
-        allocation.indexCount = static_cast<uint32_t>(mesh.indices.size());
+        allocation.faceOffset = m_currentFaceOffset;
+        allocation.faceCount = static_cast<uint32_t>(mesh.faces.size());
+        allocation.lightingOffset = m_currentLightingOffset;
         allocation.drawCommandIndex = m_drawCommandCount;
 
         newAllocations[pos] = allocation;
 
-        m_currentVertexOffset += allocation.vertexCount;
-        m_currentIndexOffset += allocation.indexCount;
+        m_currentFaceOffset += allocation.faceCount;
+        m_currentLightingOffset += allocation.faceCount;
         m_drawCommandCount++;
     }
 
     m_allocations = std::move(newAllocations);
 
-    m_vertexBuffer.unmap();
-    m_indexBuffer.unmap();
+    m_chunkDataBuffer.unmap();
+    m_faceBuffer.unmap();
+    m_lightingBuffer.unmap();
     m_indirectBuffer.unmap();
 
-    spdlog::debug("Buffer compacted: {} chunks, {} vertices, {} indices",
-                 m_meshCache.size(), m_currentVertexOffset, m_currentIndexOffset);
+    spdlog::debug("Buffer compacted: {} chunks, {} faces",
+                 m_meshCache.size(), m_currentFaceOffset);
 }
 
 bool ChunkBufferManager::hasAllocation(const ChunkPosition& pos) const {

@@ -3,6 +3,7 @@
 #include "Chunk.hpp"
 #include "BlockModel.hpp"
 #include "FaceCullingSystem.hpp"
+#include "ChunkGpuData.hpp"
 #include <glm/glm.hpp>
 #include <unordered_map>
 #include <memory>
@@ -15,17 +16,40 @@
 
 namespace VoxelEngine {
 
-struct Vertex {
-    glm::vec3 position;
-    glm::vec3 color;
-    glm::vec2 texCoord;
-    uint32_t textureIndex;
-};
+/**
+ * Manages a library of unique quad geometries.
+ * Multiple faces can reference the same QuadInfo to save memory.
+ */
+class QuadInfoLibrary {
+public:
+    /**
+     * Get or create a QuadInfo index for the given geometry.
+     * Returns the index in the QuadInfo buffer.
+     */
+    uint32_t getOrCreateQuad(const glm::vec3& normal,
+                             const glm::vec3 corners[4],
+                             const glm::vec2 uvs[4],
+                             uint32_t textureSlot);
 
-struct ChunkMesh {
-    std::vector<Vertex> vertices;
-    std::vector<uint32_t> indices;
-    ChunkPosition position;
+    const std::vector<QuadInfo>& getQuads() const { return m_quads; }
+    void clear() { m_quads.clear(); m_quadMap.clear(); }
+
+private:
+    struct QuadKey {
+        glm::vec3 normal;
+        glm::vec3 corners[4];
+        glm::vec2 uvs[4];
+        uint32_t textureSlot;
+
+        bool operator==(const QuadKey& other) const;
+    };
+
+    struct QuadKeyHash {
+        size_t operator()(const QuadKey& key) const;
+    };
+
+    std::vector<QuadInfo> m_quads;
+    std::unordered_map<QuadKey, uint32_t, QuadKeyHash> m_quadMap;
 };
 
 class ChunkManager {
@@ -55,13 +79,16 @@ public:
         return m_chunks;
     }
 
-    ChunkMesh generateChunkMesh(const Chunk* chunk, uint32_t textureIndex) const;
+    CompactChunkMesh generateChunkMesh(const Chunk* chunk) const;
 
     bool hasReadyMeshes() const;
-    std::vector<ChunkMesh> getReadyMeshes();
+    std::vector<CompactChunkMesh> getReadyMeshes();
 
     // Queue a chunk for remeshing (e.g., when blocks change)
     void queueChunkRemesh(const ChunkPosition& pos);
+
+    // Get the global QuadInfo buffer (shared across all chunks)
+    const std::vector<QuadInfo>& getQuadInfos() const { return m_quadLibrary.getQuads(); }
 
 private:
     std::unordered_map<ChunkPosition, std::unique_ptr<Chunk>, ChunkPositionHash> m_chunks;
@@ -70,10 +97,11 @@ private:
 
     mutable BlockModelManager m_modelManager;
     mutable FaceCullingSystem m_cullingSystem;  // Face culling with Minecraft-style fast paths
+    mutable QuadInfoLibrary m_quadLibrary;  // Shared quad geometry library
 
     std::vector<std::thread> m_workerThreads;
     std::queue<ChunkPosition> m_meshQueue;
-    std::queue<ChunkMesh> m_readyMeshes;
+    std::queue<CompactChunkMesh> m_readyMeshes;
     mutable std::mutex m_chunksMutex;
     std::mutex m_queueMutex;
     mutable std::mutex m_readyMutex;
