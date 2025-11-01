@@ -25,12 +25,15 @@ void main() {
     float actualRadius = pushConstants.radius >= 0.5 ? round(pushConstants.radius) : 8.0;
 
     // Sample with step of 2 using linear filtering to reduce samples
+    // Clamp UV coordinates to prevent texture wrapping at edges
     for (float a = -actualRadius + 0.5; a <= actualRadius; a += 2.0) {
-        blurred += texture(textures[nonuniformEXT(pushConstants.textureIndex)], fragTexCoord + sampleStep * a);
+        vec2 sampleUV = clamp(fragTexCoord + sampleStep * a, vec2(0.0), vec2(1.0));
+        blurred += texture(textures[nonuniformEXT(pushConstants.textureIndex)], sampleUV);
     }
 
     // Add final half-weighted sample
-    blurred += texture(textures[nonuniformEXT(pushConstants.textureIndex)], fragTexCoord + sampleStep * actualRadius) / 2.0;
+    vec2 finalUV = clamp(fragTexCoord + sampleStep * actualRadius, vec2(0.0), vec2(1.0));
+    blurred += texture(textures[nonuniformEXT(pushConstants.textureIndex)], finalUV) / 2.0;
 
     outColor = blurred / (actualRadius + 0.5);
 }
