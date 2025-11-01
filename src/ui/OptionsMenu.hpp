@@ -7,14 +7,17 @@
 #include "../core/InputSystem.hpp"
 #include "../core/Camera.hpp"
 #include "../core/Settings.hpp"
+#include "../core/KeybindAction.hpp"
 #include "../world/ChunkManager.hpp"
 #include <memory>
 #include <vector>
+#include <optional>
+#include <magic_enum/magic_enum.hpp>
 
 namespace VoxelEngine {
 
 /**
- * Options menu UI with FOV and render distance sliders.
+ * Options menu UI with FOV, render distance sliders, and keybind configuration.
  * Allows real-time adjustment of game settings.
  */
 class OptionsMenu {
@@ -40,6 +43,61 @@ public:
     Action update(float deltaTime) {
         m_lastAction = Action::None;
 
+        // If listening for keybind, wait for any key press
+        if (m_listeningForKeybind.has_value()) {
+            // Check all keys using magic_enum
+            for (auto keyCode : magic_enum::enum_values<KeyCode>()) {
+                if (keyCode == KeyCode::Unknown || keyCode == KeyCode::MaxKeys) continue;
+                if (keyCode == KeyCode::Escape) continue; // Don't allow ESC to be bound
+
+                if (InputSystem::isKeyDown(keyCode)) {
+                    // Rebind the key
+                    std::string keyName = std::string(magic_enum::enum_name(keyCode));
+
+                    // Convert to settings format (e.g., "W" -> "key.keyboard.w")
+                    std::string settingsKey = "key.keyboard.";
+
+                    // Handle special cases with multiple words (e.g., "LeftShift" -> "left.shift")
+                    bool lastWasLower = false;
+                    for (size_t i = 0; i < keyName.size(); i++) {
+                        if (std::isupper(keyName[i]) && i > 0 && lastWasLower) {
+                            settingsKey += '.';
+                        }
+                        settingsKey += std::tolower(keyName[i]);
+                        lastWasLower = std::islower(keyName[i]);
+                    }
+
+                    // Update settings
+                    if (m_settings) {
+                        std::string actionKey = keybindActionToString(m_listeningForKeybind.value());
+                        m_settings->keybinds[actionKey] = settingsKey;
+                        m_settings->save();
+
+                        // Apply keybinds to camera
+                        if (m_camera) {
+                            m_camera->setKeybinds(m_settings->keybinds);
+                        }
+
+                        spdlog::info("Rebound {} to {}", actionKey, settingsKey);
+                    }
+
+                    // Rebuild UI to show new keybind
+                    setupUI();
+                    m_listeningForKeybind.reset();
+                    return m_lastAction;
+                }
+            }
+
+            // Allow ESC to cancel rebinding
+            if (InputSystem::isKeyDown(KeyCode::Escape)) {
+                m_listeningForKeybind.reset();
+                spdlog::info("Cancelled keybind");
+                return m_lastAction;
+            }
+
+            return m_lastAction; // Don't process other input while listening
+        }
+
         // Get mouse input
         auto mousePos = InputSystem::getMousePosition();
         bool mouseDown = InputSystem::isMouseButtonPressed(MouseButton::Left);
@@ -53,12 +111,10 @@ public:
             slider->update(screenMousePos, mouseDown, mouseReleased);
         }
 
-        // Update buttons
+        // Update buttons (keybind buttons don't set m_lastAction, they set m_listeningForKeybind)
         bool mouseClicked = InputSystem::isMouseButtonDown(MouseButton::Left);
         for (size_t i = 0; i < m_buttons.size(); ++i) {
-            if (m_buttons[i]->update(screenMousePos, mouseClicked)) {
-                m_lastAction = getActionForButton(i);
-            }
+            m_buttons[i]->update(screenMousePos, mouseClicked);
         }
 
         // Handle gamepad navigation for buttons (if needed in future)
@@ -205,11 +261,43 @@ private:
         });
         m_sliders.push_back(std::move(renderDistSlider));
 
+        // Keybind buttons section
+        float keybindStartY = startY + sliderSpacing * 2.2f;
+        float keybindButtonWidth = 250.0f;
+        float keybindButtonHeight = 35.0f;
+        float keybindSpacing = 45.0f;
+        float keybindX = (m_screenWidth - keybindButtonWidth) * 0.5f;
+
+        // Add keybind buttons for movement
+        addKeybindButton(KeybindAction::Forward,
+                        glm::vec2(keybindX, keybindStartY),
+                        glm::vec2(keybindButtonWidth, keybindButtonHeight));
+
+        addKeybindButton(KeybindAction::Back,
+                        glm::vec2(keybindX, keybindStartY + keybindSpacing),
+                        glm::vec2(keybindButtonWidth, keybindButtonHeight));
+
+        addKeybindButton(KeybindAction::Left,
+                        glm::vec2(keybindX, keybindStartY + keybindSpacing * 2),
+                        glm::vec2(keybindButtonWidth, keybindButtonHeight));
+
+        addKeybindButton(KeybindAction::Right,
+                        glm::vec2(keybindX, keybindStartY + keybindSpacing * 3),
+                        glm::vec2(keybindButtonWidth, keybindButtonHeight));
+
+        addKeybindButton(KeybindAction::Jump,
+                        glm::vec2(keybindX, keybindStartY + keybindSpacing * 4),
+                        glm::vec2(keybindButtonWidth, keybindButtonHeight));
+
+        addKeybindButton(KeybindAction::Sneak,
+                        glm::vec2(keybindX, keybindStartY + keybindSpacing * 5),
+                        glm::vec2(keybindButtonWidth, keybindButtonHeight));
+
         // Back button
         float buttonWidth = 300.0f;
         float buttonHeight = 60.0f;
         float buttonX = (m_screenWidth - buttonWidth) * 0.5f;
-        float buttonY = startY + sliderSpacing * 2.5f;
+        float buttonY = keybindStartY + keybindSpacing * 6.5f;
 
         auto backButton = std::make_unique<Button>(
             "Back",
@@ -220,6 +308,52 @@ private:
         m_buttons.push_back(std::move(backButton));
 
         m_selectedButtonIndex = 0;
+    }
+
+    void addKeybindButton(KeybindAction action, const glm::vec2& position, const glm::vec2& size) {
+        // Get display label from enum using magic_enum
+        std::string label = std::string(magic_enum::enum_name(action));
+
+        // Get current keybind
+        std::string actionKey = keybindActionToString(action);
+        std::string currentKey = "Unbound";
+
+        if (m_settings) {
+            auto it = m_settings->keybinds.find(actionKey);
+            if (it != m_settings->keybinds.end()) {
+                // Extract just the key name (e.g., "key.keyboard.w" -> "W")
+                std::string fullKey = it->second;
+                size_t lastDot = fullKey.find_last_of('.');
+                if (lastDot != std::string::npos) {
+                    currentKey = fullKey.substr(lastDot + 1);
+                    // Capitalize
+                    if (!currentKey.empty()) {
+                        currentKey[0] = std::toupper(currentKey[0]);
+                    }
+                    // Handle multi-part keys (e.g., "left.shift" -> "Left Shift")
+                    size_t secondLastDot = fullKey.find_last_of('.', lastDot - 1);
+                    if (secondLastDot != std::string::npos) {
+                        std::string firstPart = fullKey.substr(secondLastDot + 1, lastDot - secondLastDot - 1);
+                        firstPart[0] = std::toupper(firstPart[0]);
+                        currentKey = firstPart + " " + currentKey;
+                    }
+                }
+            }
+        }
+
+        auto button = std::make_unique<Button>(
+            label + ": " + currentKey,
+            position,
+            size
+        );
+
+        button->setOnClick([this, action, label]() {
+            // Start listening for key press to rebind
+            m_listeningForKeybind = action;
+            spdlog::info("Press a key to rebind {}", label);
+        });
+
+        m_buttons.push_back(std::move(button));
     }
 
     Action getActionForButton(size_t index) const {
@@ -237,6 +371,7 @@ private:
     size_t m_selectedButtonIndex;
     Action m_lastAction;
     bool m_mouseWasDown;
+    std::optional<KeybindAction> m_listeningForKeybind;  // When set, waiting for key press to rebind
 
     std::vector<std::unique_ptr<Slider>> m_sliders;
     std::vector<std::unique_ptr<Button>> m_buttons;
