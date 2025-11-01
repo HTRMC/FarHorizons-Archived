@@ -715,8 +715,8 @@ int main() {
 
             auto cmd = renderer.getCurrentCommandBuffer();
 
-            // Determine if blur is needed (pause menu or options menu, but not main menu)
-            bool needsBlur = (gameState == GameState::Paused || gameState == GameState::Options);
+            // Determine if blur is needed (pause menu or options menu, but not main menu, and blur amount > 0)
+            bool needsBlur = (gameState == GameState::Paused || gameState == GameState::Options) && settings.menuBlurAmount > 0;
 
             // Render scene to offscreen target if blur is needed, otherwise render directly to swapchain
             VkImageView renderTarget = needsBlur ? sceneTarget.getColorImageView() : swapchain.getImageViews()[renderer.getCurrentImageIndex()];
@@ -831,6 +831,14 @@ int main() {
                     // Render options menu from main menu (no blur)
                     auto menuTextVertices = optionsMenu.generateTextVertices(textRenderer);
                     allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
+                } else if (gameState == GameState::Paused && !needsBlur) {
+                    // Render pause menu without blur (when blur amount is 0)
+                    auto menuTextVertices = pauseMenu.generateTextVertices(textRenderer);
+                    allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
+                } else if (gameState == GameState::Options && !needsBlur) {
+                    // Render options menu without blur (when blur amount is 0)
+                    auto menuTextVertices = optionsMenu.generateTextVertices(textRenderer);
+                    allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
                 } else if (!needsBlur) {
                     // Calculate FPS
                     static float fpsTimer = 0.0f;
@@ -932,7 +940,7 @@ int main() {
                 } blurPC;
                 blurPC.textureIndex = sceneTextureIndex;
                 blurPC.blurDir = glm::vec2(1.0f, 0.0f);  // Horizontal
-                blurPC.radius = 1.0f;
+                blurPC.radius = static_cast<float>(settings.menuBlurAmount);
                 blurPC._pad = 0.0f;
 
                 cmd.pushConstants(blurPipeline.getLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(BlurPushConstants), &blurPC);

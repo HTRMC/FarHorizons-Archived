@@ -161,6 +161,11 @@ public:
         m_onChangeCallback = callback;
     }
 
+    // Set custom value formatter (e.g., to display "Auto" instead of "0")
+    void setValueFormatter(std::function<std::string(float)> formatter) {
+        m_valueFormatter = formatter;
+    }
+
     // Getters/Setters
     void setValue(float value) {
         m_value = std::clamp(value, m_minValue, m_maxValue);
@@ -214,6 +219,12 @@ private:
     }
 
     std::string formatValue(float value) const {
+        // Use custom formatter if provided
+        if (m_valueFormatter) {
+            return m_valueFormatter(value);
+        }
+
+        // Default formatting
         std::ostringstream oss;
         if (m_isInteger) {
             oss << static_cast<int>(std::round(value));
@@ -243,6 +254,7 @@ private:
     bool m_hovered;
 
     std::function<void(float)> m_onChangeCallback;
+    std::function<std::string(float)> m_valueFormatter;
 };
 
 } // namespace VoxelEngine

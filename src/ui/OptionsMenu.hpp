@@ -344,8 +344,50 @@ private:
         });
         m_sliders.push_back(std::move(renderDistSlider));
 
+        // Menu Blur Amount Slider (0 - 10)
+        auto blurSlider = std::make_unique<Slider>(
+            "Menu Blur",
+            glm::vec2(startX, startY + sliderSpacing * 2),
+            sliderWidth,
+            0.0f, 10.0f,
+            m_settings ? static_cast<float>(m_settings->menuBlurAmount) : 5.0f,
+            true // Integer values
+        );
+        blurSlider->setOnChange([this](float value) {
+            if (m_settings) {
+                m_settings->menuBlurAmount = static_cast<int32_t>(value);
+                m_settings->save();
+            }
+        });
+        m_sliders.push_back(std::move(blurSlider));
+
+        // GUI Scale Slider (0-6: 0 = Auto, 1-6 = Manual)
+        auto guiScaleSlider = std::make_unique<Slider>(
+            "GUI Scale",
+            glm::vec2(startX, startY + sliderSpacing * 3),
+            sliderWidth,
+            0.0f, 6.0f,
+            m_settings ? static_cast<float>(m_settings->guiScale) : 0.0f,
+            true // Integer values
+        );
+        guiScaleSlider->setOnChange([this](float value) {
+            if (m_settings) {
+                m_settings->guiScale = static_cast<int32_t>(value);
+                m_settings->save();
+            }
+        });
+        // Custom formatter to display "Auto" for 0
+        guiScaleSlider->setValueFormatter([](float value) -> std::string {
+            int intValue = static_cast<int>(std::round(value));
+            if (intValue == 0) {
+                return "Auto";
+            }
+            return std::to_string(intValue);
+        });
+        m_sliders.push_back(std::move(guiScaleSlider));
+
         // Keybind buttons section
-        float keybindStartY = startY + sliderSpacing * 2.2f;
+        float keybindStartY = startY + sliderSpacing * 4.2f;
         float keybindButtonWidth = 250.0f;
         float keybindButtonHeight = 35.0f;
         float keybindSpacing = 45.0f;

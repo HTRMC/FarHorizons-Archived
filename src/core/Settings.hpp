@@ -22,9 +22,10 @@ public:
     int32_t renderDistance = 8;
     bool enableVsync = true;
     bool fullscreen = false;
-    int32_t guiScale = 3;
+    int32_t guiScale = 0;  // 0 for auto, 1-6 for manual
     int32_t maxFps = 260;
     int32_t mipmapLevels = 4;
+    int32_t menuBlurAmount = 5;
 
     // Rendering options
     bool renderClouds = false;
@@ -56,6 +57,30 @@ public:
         {"key.togglePerspective", "key.keyboard.f5"},
         {"key.fullscreen", "key.keyboard.f11"}
     };
+
+    /**
+     * Calculate automatic GUI scale based on screen height.
+     * Minecraft-style scaling: scale 1 = 240px, scale 2 = 480px, scale 3 = 720px, etc.
+     * Returns the largest scale that fits the screen.
+     */
+    static int32_t calculateAutoGuiScale(uint32_t screenHeight) {
+        // Each scale level requires 240 pixels of height
+        int32_t maxScale = static_cast<int32_t>(screenHeight / 240);
+        // Clamp between 1 and 6
+        return std::max(1, std::min(6, maxScale));
+    }
+
+    /**
+     * Get the effective GUI scale.
+     * If guiScale is 0 (Auto), returns the calculated scale for the given screen height.
+     * Otherwise returns the manual guiScale setting (1-6).
+     */
+    int32_t getEffectiveGuiScale(uint32_t screenHeight) const {
+        if (guiScale == 0) {  // 0 = Auto
+            return calculateAutoGuiScale(screenHeight);
+        }
+        return std::max(1, std::min(6, guiScale));  // Clamp to valid range
+    }
 
     /**
      * Load settings from file. Returns true if successful.
@@ -125,6 +150,7 @@ public:
             parseInt("guiScale", guiScale);
             parseInt("maxFps", maxFps);
             parseInt("mipmapLevels", mipmapLevels);
+            parseInt("menuBlurAmount", menuBlurAmount);
             parseBool("renderClouds", renderClouds);
             parseInt("cloudRange", cloudRange);
             parseBool("saveChatDrafts", saveChatDrafts);
@@ -196,6 +222,7 @@ public:
             file << "  \"guiScale\": " << guiScale << ",\n";
             file << "  \"maxFps\": " << maxFps << ",\n";
             file << "  \"mipmapLevels\": " << mipmapLevels << ",\n";
+            file << "  \"menuBlurAmount\": " << menuBlurAmount << ",\n";
             file << "  \"renderClouds\": " << (renderClouds ? "true" : "false") << ",\n";
             file << "  \"cloudRange\": " << cloudRange << ",\n";
             file << "  \"soundDevice\": \"" << soundDevice << "\",\n";
