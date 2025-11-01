@@ -7,7 +7,7 @@ void ChunkBufferManager::init(VmaAllocator allocator, size_t maxFaces, size_t ma
     m_maxFaces = maxFaces;
     m_maxDrawCommands = maxDrawCommands;
 
-    // FaceData buffer (compact 8-byte per face, used as SSBO)
+    // FaceData buffer (8 bytes per face, used as SSBO)
     m_faceBuffer.init(
         allocator,
         maxFaces * sizeof(FaceData),
@@ -92,12 +92,18 @@ bool ChunkBufferManager::addMeshes(std::vector<CompactChunkMesh>& meshes, size_t
             break;
         }
 
-        // Write FaceData (lightIndex remains local, shader will add chunk.faceOffset)
-        memcpy(static_cast<uint8_t*>(faceData) + m_currentFaceOffset * sizeof(FaceData),
-               mesh.faces.data(),
-               mesh.faces.size() * sizeof(FaceData));
+        // Write FaceData: copy then adjust lightIndex from local to global
+        FaceData* destFaces = static_cast<FaceData*>(faceData) + m_currentFaceOffset;
+        memcpy(destFaces, mesh.faces.data(), mesh.faces.size() * sizeof(FaceData));
 
-        // Write lighting
+        // Adjust lightIndex from local (chunk-relative) to global (buffer-relative)
+        for (size_t j = 0; j < mesh.faces.size(); j++) {
+            uint32_t localLightIndex = (destFaces[j].packed1 >> 16) & 0xFFFF;
+            uint32_t globalLightIndex = m_currentLightingOffset + localLightIndex;
+            destFaces[j].packed1 = (destFaces[j].packed1 & 0xFFFF) | (globalLightIndex << 16);
+        }
+
+        // Write lighting data
         memcpy(static_cast<uint8_t*>(lightingData) + m_currentLightingOffset * sizeof(PackedLighting),
                mesh.lighting.data(),
                mesh.lighting.size() * sizeof(PackedLighting));
@@ -137,9 +143,9 @@ bool ChunkBufferManager::addMeshes(std::vector<CompactChunkMesh>& meshes, size_t
         actualProcessed++;
     }
 
+    m_lightingBuffer.unmap();
     m_chunkDataBuffer.unmap();
     m_faceBuffer.unmap();
-    m_lightingBuffer.unmap();
     m_indirectBuffer.unmap();
 
     spdlog::trace("Added {} chunks to buffer ({} total)", actualProcessed, m_meshCache.size());
@@ -204,12 +210,18 @@ void ChunkBufferManager::fullRebuild() {
     for (const auto& [pos, mesh] : m_meshCache) {
         if (mesh.faces.empty()) continue;
 
-        // Write FaceData (lightIndex remains local, shader will add chunk.faceOffset)
-        memcpy(static_cast<uint8_t*>(faceData) + m_currentFaceOffset * sizeof(FaceData),
-               mesh.faces.data(),
-               mesh.faces.size() * sizeof(FaceData));
+        // Write FaceData: copy then adjust lightIndex from local to global
+        FaceData* destFaces = static_cast<FaceData*>(faceData) + m_currentFaceOffset;
+        memcpy(destFaces, mesh.faces.data(), mesh.faces.size() * sizeof(FaceData));
 
-        // Write lighting
+        // Adjust lightIndex from local (chunk-relative) to global (buffer-relative)
+        for (size_t j = 0; j < mesh.faces.size(); j++) {
+            uint32_t localLightIndex = (destFaces[j].packed1 >> 16) & 0xFFFF;
+            uint32_t globalLightIndex = m_currentLightingOffset + localLightIndex;
+            destFaces[j].packed1 = (destFaces[j].packed1 & 0xFFFF) | (globalLightIndex << 16);
+        }
+
+        // Write lighting data
         memcpy(static_cast<uint8_t*>(lightingData) + m_currentLightingOffset * sizeof(PackedLighting),
                mesh.lighting.data(),
                mesh.lighting.size() * sizeof(PackedLighting));
@@ -249,9 +261,9 @@ void ChunkBufferManager::fullRebuild() {
 
     m_allocations = std::move(newAllocations);
 
+    m_lightingBuffer.unmap();
     m_chunkDataBuffer.unmap();
     m_faceBuffer.unmap();
-    m_lightingBuffer.unmap();
     m_indirectBuffer.unmap();
 
     spdlog::debug("Buffer compacted: {} chunks, {} faces",

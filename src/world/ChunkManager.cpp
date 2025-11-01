@@ -374,26 +374,45 @@ CompactChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk) const {
                         // Get or create QuadInfo for this geometry
                         uint32_t quadIndex = m_quadLibrary.getOrCreateQuad(normal, corners, uvs, faceTextureIndex);
 
-                        // Apply tintindex if present (for grass coloring)
-                        uint32_t lightIndex = static_cast<uint32_t>(mesh.lighting.size());
+                        // Determine lighting value
+                        PackedLighting lighting;
                         if (face.tintindex.has_value()) {
                             // Hardcoded grass color #79C05A (RGB: 121, 192, 90)
                             // Convert to 5-bit values (0-31)
                             uint8_t grassR = static_cast<uint8_t>((121 * 31) / 255);  // ~15
                             uint8_t grassG = static_cast<uint8_t>((192 * 31) / 255);  // ~23
                             uint8_t grassB = static_cast<uint8_t>((90 * 31) / 255);   // ~11
-                            mesh.lighting.push_back(PackedLighting::uniform(grassR, grassG, grassB));
+                            lighting = PackedLighting::uniform(grassR, grassG, grassB);
                         } else {
                             // Full white lighting (no tint)
-                            mesh.lighting.push_back(PackedLighting::uniform(31, 31, 31));
+                            lighting = PackedLighting::uniform(31, 31, 31);
                         }
 
-                        // Create FaceData (texture is now in QuadInfo, not here)
+                        // Deduplicate lighting: find or create index for this lighting value
+                        uint32_t lightIndex = 0;
+                        bool found = false;
+                        for (size_t i = 0; i < mesh.lighting.size(); i++) {
+                            const PackedLighting& existing = mesh.lighting[i];
+                            if (existing.corners[0] == lighting.corners[0] &&
+                                existing.corners[1] == lighting.corners[1] &&
+                                existing.corners[2] == lighting.corners[2] &&
+                                existing.corners[3] == lighting.corners[3]) {
+                                lightIndex = static_cast<uint32_t>(i);
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) {
+                            lightIndex = static_cast<uint32_t>(mesh.lighting.size());
+                            mesh.lighting.push_back(lighting);
+                        }
+
+                        // Create FaceData with deduplicated light index
                         FaceData faceData = FaceData::pack(
-                            bx, by, bz,          // Block position within chunk
-                            false,                // isBackFace (not used yet)
-                            lightIndex,           // Lighting buffer index
-                            quadIndex             // QuadInfo buffer index (includes texture)
+                            bx, by, bz,           // Block position within chunk
+                            false,                 // isBackFace (not used yet)
+                            lightIndex,            // Deduplicated index (0,1,2... only for unique values)
+                            quadIndex              // QuadInfo buffer index (includes texture)
                         );
 
                         mesh.faces.push_back(faceData);

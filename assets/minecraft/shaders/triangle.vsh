@@ -11,7 +11,7 @@ layout(push_constant) uniform PushConstants {
 
 // Compact face data (per-face data in SSBO instead of vertex attributes)
 struct FaceData {
-    uint packed1;  // Position, isBackFace, lightIndex
+    uint packed1;  // Position (bits 0-14), isBackFace (bit 15), lightIndex (bits 16-31)
     uint packed2;  // quadIndex (texture is in QuadInfo)
 };
 
@@ -99,15 +99,14 @@ void main() {
     uint y = (faceData.packed1 >> 5) & 0x1Fu;
     uint z = (faceData.packed1 >> 10) & 0x1Fu;
     bool isBackFace = ((faceData.packed1 >> 15) & 0x1u) != 0u;
-    uint lightIndex = (faceData.packed1 >> 16) & 0xFFFFu;
-    uint quadIndex = faceData.packed2 & 0xFFFFu;  // Quad index is now in lower 16 bits
+    uint lightIndex = (faceData.packed1 >> 16) & 0xFFFFu;  // Global lighting buffer index
+    uint quadIndex = faceData.packed2 & 0xFFFFu;  // Quad index is in lower 16 bits
 
     // Get quad geometry (includes texture)
     QuadInfo quad = quadInfos[quadIndex];
 
-    // Get lighting data for this face (use faceIndex which is already global)
-    // faceIndex == chunk.faceOffset + lightIndex since lightIndex is sequential within chunk
-    uvec4 faceLighting = lighting[faceIndex];
+    // Get lighting data from separate lighting buffer using global index
+    uvec4 faceLighting = lighting[lightIndex];
 
     // Determine which corner based on gl_VertexIndex (0-5 for two triangles)
     // Triangle 1: 0, 1, 2 (counter-clockwise)

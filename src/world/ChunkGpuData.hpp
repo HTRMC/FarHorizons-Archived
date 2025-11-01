@@ -8,6 +8,42 @@
 namespace VoxelEngine {
 
 /**
+ * Packed lighting data per face (16 bytes).
+ * Each corner has 6 channels (RGB for sun, RGB for block light) packed into 5 bits each.
+ */
+struct PackedLighting {
+    // Each uint32_t packs 6 channels of 5-bit lighting values:
+    // Bits 25-29: Sun Red
+    // Bits 20-24: Sun Green
+    // Bits 15-19: Sun Blue
+    // Bits 10-14: Block Light Red
+    // Bits 5-9:   Block Light Green
+    // Bits 0-4:   Block Light Blue
+    uint32_t corners[4];  // One per quad corner
+
+    // Helper to pack a single corner's lighting
+    static uint32_t packCorner(uint8_t sunR, uint8_t sunG, uint8_t sunB,
+                               uint8_t blockR, uint8_t blockG, uint8_t blockB) {
+        return ((sunR & 0x1F) << 25) | ((sunG & 0x1F) << 20) | ((sunB & 0x1F) << 15) |
+               ((blockR & 0x1F) << 10) | ((blockG & 0x1F) << 5) | (blockB & 0x1F);
+    }
+
+    // Helper to create uniform lighting (for now, until lighting system is implemented)
+    static PackedLighting uniform(uint8_t sunR, uint8_t sunG, uint8_t sunB) {
+        PackedLighting lighting;
+        uint32_t packed = packCorner(sunR, sunG, sunB, 0, 0, 0);
+        lighting.corners[0] = packed;
+        lighting.corners[1] = packed;
+        lighting.corners[2] = packed;
+        lighting.corners[3] = packed;
+        return lighting;
+    }
+};
+
+static_assert(sizeof(PackedLighting) == 16, "PackedLighting must be 16 bytes");
+
+
+/**
  * Compact face data sent to GPU (8 bytes per face).
  * Packed bit layout for memory efficiency.
  */
@@ -16,7 +52,7 @@ struct FaceData {
     // bits 5-9: Y position (0-31)
     // bits 10-14: Z position (0-31)
     // bit 15: isBackFace flag (reserved for future use)
-    // bits 16-31: lightIndex (reference to lighting buffer)
+    // bits 16-31: lightIndex (GLOBAL index into lighting buffer)
     uint32_t packed1;
 
     // bits 0-15: quadIndex (reference to QuadInfo buffer which contains texture)
@@ -25,11 +61,11 @@ struct FaceData {
 
     // Helper functions for packing/unpacking
     static FaceData pack(uint32_t x, uint32_t y, uint32_t z, bool isBackFace,
-                         uint32_t lightIndex, uint32_t quadIndex) {
+                         uint32_t globalLightIndex, uint32_t quadIndex) {
         FaceData data;
         data.packed1 = (x & 0x1F) | ((y & 0x1F) << 5) | ((z & 0x1F) << 10) |
-                       ((isBackFace ? 1u : 0u) << 15) | ((lightIndex & 0xFFFF) << 16);
-        data.packed2 = (quadIndex & 0xFFFF);  // Texture is now in QuadInfo, not here
+                       ((isBackFace ? 1u : 0u) << 15) | ((globalLightIndex & 0xFFFF) << 16);
+        data.packed2 = (quadIndex & 0xFFFF);
         return data;
     }
 
@@ -58,7 +94,7 @@ struct FaceData {
     }
 };
 
-// Verify size
+// Verify size (8 bytes total)
 static_assert(sizeof(FaceData) == 8, "FaceData must be 8 bytes");
 
 /**
@@ -94,41 +130,6 @@ struct QuadInfo {
 
 // Verify alignment (size will be 120 bytes with std430 layout)
 static_assert(alignof(QuadInfo) == 16, "QuadInfo must be 16-byte aligned");
-
-/**
- * Packed lighting data per face (16 bytes).
- * Each corner has 6 channels (RGB for sun, RGB for block light) packed into 5 bits each.
- */
-struct PackedLighting {
-    // Each uint32_t packs 6 channels of 5-bit lighting values:
-    // Bits 25-29: Sun Red
-    // Bits 20-24: Sun Green
-    // Bits 15-19: Sun Blue
-    // Bits 10-14: Block Light Red
-    // Bits 5-9:   Block Light Green
-    // Bits 0-4:   Block Light Blue
-    uint32_t corners[4];  // One per quad corner
-
-    // Helper to pack a single corner's lighting
-    static uint32_t packCorner(uint8_t sunR, uint8_t sunG, uint8_t sunB,
-                               uint8_t blockR, uint8_t blockG, uint8_t blockB) {
-        return ((sunR & 0x1F) << 25) | ((sunG & 0x1F) << 20) | ((sunB & 0x1F) << 15) |
-               ((blockR & 0x1F) << 10) | ((blockG & 0x1F) << 5) | (blockB & 0x1F);
-    }
-
-    // Helper to create uniform lighting (for now, until lighting system is implemented)
-    static PackedLighting uniform(uint8_t sunR, uint8_t sunG, uint8_t sunB) {
-        PackedLighting lighting;
-        uint32_t packed = packCorner(sunR, sunG, sunB, 0, 0, 0);
-        lighting.corners[0] = packed;
-        lighting.corners[1] = packed;
-        lighting.corners[2] = packed;
-        lighting.corners[3] = packed;
-        return lighting;
-    }
-};
-
-static_assert(sizeof(PackedLighting) == 16, "PackedLighting must be 16 bytes");
 
 /**
  * Mesh data for a chunk using compact format.
