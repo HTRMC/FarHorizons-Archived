@@ -34,6 +34,12 @@ public:
     Action update(float deltaTime) {
         m_lastAction = Action::None;
 
+        // Handle ESC key to resume (unpause)
+        if (InputSystem::isKeyDown(KeyCode::Escape)) {
+            m_lastAction = Action::Resume;
+            return m_lastAction;
+        }
+
         // Handle gamepad navigation only if gamepad is connected
         if (InputSystem::isGamepadConnected(0)) {
             if (InputSystem::isGamepadButtonDown(GamepadButton::DpadUp, 0)) {
