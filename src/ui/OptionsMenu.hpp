@@ -80,6 +80,8 @@ public:
                 // Rebind to the modifier key
                 std::string keyName = std::string(magic_enum::enum_name(detectedModifier));
 
+                spdlog::debug("Detected modifier: {}, keyName: '{}'", static_cast<int>(detectedModifier), keyName);
+
                 // Convert to settings format
                 std::string settingsKey = "key.keyboard.";
                 bool lastWasLower = false;
@@ -90,6 +92,8 @@ public:
                     settingsKey += std::tolower(keyName[i]);
                     lastWasLower = std::islower(keyName[i]);
                 }
+
+                spdlog::debug("Converted to settingsKey: '{}'", settingsKey);
 
                 // Update settings
                 if (m_settings) {
@@ -422,6 +426,13 @@ private:
         button->setOnClick([this, action, label]() {
             // Start listening for key press to rebind
             m_listeningForKeybind = action;
+            // Initialize modifier state tracking to current state to avoid immediate triggers
+            m_lastModifierState[0] = InputSystem::isKeyPressed(KeyCode::LeftShift);
+            m_lastModifierState[1] = InputSystem::isKeyPressed(KeyCode::RightShift);
+            m_lastModifierState[2] = InputSystem::isKeyPressed(KeyCode::LeftControl);
+            m_lastModifierState[3] = InputSystem::isKeyPressed(KeyCode::RightControl);
+            m_lastModifierState[4] = InputSystem::isKeyPressed(KeyCode::LeftAlt);
+            m_lastModifierState[5] = InputSystem::isKeyPressed(KeyCode::RightAlt);
             spdlog::info("Press a key to rebind {}", label);
         });
 

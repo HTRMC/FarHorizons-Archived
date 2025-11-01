@@ -1,6 +1,7 @@
 #pragma once
 
 #include <GLFW/glfw3.h>
+#include <magic_enum/magic_enum.hpp>
 
 namespace VoxelEngine {
 
@@ -140,3 +141,10 @@ enum class GamepadAxis {
 };
 
 } // namespace VoxelEngine
+
+// Configure magic_enum to support GLFW key codes (range 32-348)
+template <>
+struct magic_enum::customize::enum_range<VoxelEngine::KeyCode> {
+    static constexpr int min = -1;  // GLFW_KEY_UNKNOWN is -1
+    static constexpr int max = 400; // GLFW_KEY_LAST is 348, give some headroom
+};
