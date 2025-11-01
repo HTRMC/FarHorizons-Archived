@@ -60,16 +60,16 @@ public:
         uint32_t screenWidth,
         uint32_t screenHeight
     ) const {
-        // Choose style based on button state
+        // Choose style based on button state (color changes on hover, no bold)
         Style style;
         if (!m_enabled) {
             style = Style::darkGray();
         } else if (m_selected) {
-            style = Style::yellow().withBold(true);
+            style = Style::yellow();
         } else if (m_hovered) {
-            style = Style::white().withBold(true);
+            style = Style::yellow();  // Yellow on hover
         } else {
-            style = Style::gray();
+            style = Style::white();   // White by default
         }
 
         // Create text with style

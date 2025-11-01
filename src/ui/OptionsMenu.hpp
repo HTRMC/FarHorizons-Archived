@@ -45,11 +45,83 @@ public:
 
         // If listening for keybind, wait for any key press
         if (m_listeningForKeybind.has_value()) {
-            // Check all keys using magic_enum
+            // Special handling for modifier keys (they don't always trigger isKeyDown)
+            // Check if any modifiers are currently pressed
+            KeyCode detectedModifier = KeyCode::Unknown;
+            if (InputSystem::isKeyPressed(KeyCode::LeftShift) && !m_lastModifierState[0]) {
+                detectedModifier = KeyCode::LeftShift;
+                m_lastModifierState[0] = true;
+            } else if (InputSystem::isKeyPressed(KeyCode::RightShift) && !m_lastModifierState[1]) {
+                detectedModifier = KeyCode::RightShift;
+                m_lastModifierState[1] = true;
+            } else if (InputSystem::isKeyPressed(KeyCode::LeftControl) && !m_lastModifierState[2]) {
+                detectedModifier = KeyCode::LeftControl;
+                m_lastModifierState[2] = true;
+            } else if (InputSystem::isKeyPressed(KeyCode::RightControl) && !m_lastModifierState[3]) {
+                detectedModifier = KeyCode::RightControl;
+                m_lastModifierState[3] = true;
+            } else if (InputSystem::isKeyPressed(KeyCode::LeftAlt) && !m_lastModifierState[4]) {
+                detectedModifier = KeyCode::LeftAlt;
+                m_lastModifierState[4] = true;
+            } else if (InputSystem::isKeyPressed(KeyCode::RightAlt) && !m_lastModifierState[5]) {
+                detectedModifier = KeyCode::RightAlt;
+                m_lastModifierState[5] = true;
+            }
+
+            // Reset modifier states when released
+            if (!InputSystem::isKeyPressed(KeyCode::LeftShift)) m_lastModifierState[0] = false;
+            if (!InputSystem::isKeyPressed(KeyCode::RightShift)) m_lastModifierState[1] = false;
+            if (!InputSystem::isKeyPressed(KeyCode::LeftControl)) m_lastModifierState[2] = false;
+            if (!InputSystem::isKeyPressed(KeyCode::RightControl)) m_lastModifierState[3] = false;
+            if (!InputSystem::isKeyPressed(KeyCode::LeftAlt)) m_lastModifierState[4] = false;
+            if (!InputSystem::isKeyPressed(KeyCode::RightAlt)) m_lastModifierState[5] = false;
+
+            if (detectedModifier != KeyCode::Unknown) {
+                // Rebind to the modifier key
+                std::string keyName = std::string(magic_enum::enum_name(detectedModifier));
+
+                // Convert to settings format
+                std::string settingsKey = "key.keyboard.";
+                bool lastWasLower = false;
+                for (size_t i = 0; i < keyName.size(); i++) {
+                    if (std::isupper(keyName[i]) && i > 0 && lastWasLower) {
+                        settingsKey += '.';
+                    }
+                    settingsKey += std::tolower(keyName[i]);
+                    lastWasLower = std::islower(keyName[i]);
+                }
+
+                // Update settings
+                if (m_settings) {
+                    std::string actionKey = keybindActionToString(m_listeningForKeybind.value());
+                    m_settings->keybinds[actionKey] = settingsKey;
+                    m_settings->save();
+
+                    if (m_camera) {
+                        m_camera->setKeybinds(m_settings->keybinds);
+                    }
+
+                    spdlog::info("Rebound {} to {}", actionKey, settingsKey);
+                }
+
+                setupUI();
+                m_listeningForKeybind.reset();
+                return m_lastAction;
+            }
+
+            // Check all other keys using magic_enum
             for (auto keyCode : magic_enum::enum_values<KeyCode>()) {
                 if (keyCode == KeyCode::Unknown || keyCode == KeyCode::MaxKeys) continue;
                 if (keyCode == KeyCode::Escape) continue; // Don't allow ESC to be bound
 
+                // Skip modifier keys (handled above)
+                if (keyCode == KeyCode::LeftShift || keyCode == KeyCode::RightShift ||
+                    keyCode == KeyCode::LeftControl || keyCode == KeyCode::RightControl ||
+                    keyCode == KeyCode::LeftAlt || keyCode == KeyCode::RightAlt) {
+                    continue;
+                }
+
+                // isKeyDown detects when key just went down (edge trigger)
                 if (InputSystem::isKeyDown(keyCode)) {
                     // Rebind the key
                     std::string keyName = std::string(magic_enum::enum_name(keyCode));
@@ -372,6 +444,7 @@ private:
     Action m_lastAction;
     bool m_mouseWasDown;
     std::optional<KeybindAction> m_listeningForKeybind;  // When set, waiting for key press to rebind
+    bool m_lastModifierState[6] = {false, false, false, false, false, false};  // Track modifier key states for edge detection
 
     std::vector<std::unique_ptr<Slider>> m_sliders;
     std::vector<std::unique_ptr<Button>> m_buttons;

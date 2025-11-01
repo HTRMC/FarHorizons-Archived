@@ -46,6 +46,9 @@ public:
         float charWidth = static_cast<float>(textureWidth) / charsPerRow;
         float charHeight = static_cast<float>(textureHeight) / charsPerCol;
 
+        // UV padding to prevent texture bleeding (Minecraft-style: 0.01 pixel inset)
+        const float uvPadding = 0.01f;
+
         // Generate character info for ASCII printable characters
         for (uint32_t i = 0; i < charsPerRow * charsPerCol; ++i) {
             uint32_t charCode = firstChar + i;
@@ -54,13 +57,14 @@ public:
             uint32_t row = i / charsPerRow;
 
             CharInfo info;
+            // Apply UV inset padding to prevent bleeding between glyphs
             info.uvMin = glm::vec2(
-                static_cast<float>(col * charWidth) / textureWidth,
-                static_cast<float>(row * charHeight) / textureHeight
+                (static_cast<float>(col * charWidth) + uvPadding) / textureWidth,
+                (static_cast<float>(row * charHeight) + uvPadding) / textureHeight
             );
             info.uvMax = glm::vec2(
-                static_cast<float>((col + 1) * charWidth) / textureWidth,
-                static_cast<float>((row + 1) * charHeight) / textureHeight
+                (static_cast<float>((col + 1) * charWidth) - uvPadding) / textureWidth,
+                (static_cast<float>((row + 1) * charHeight) - uvPadding) / textureHeight
             );
             info.size = glm::vec2(charWidth, charHeight);
             info.offset = glm::vec2(0.0f, 0.0f);
