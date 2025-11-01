@@ -374,21 +374,19 @@ CompactChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk) const {
                         // Get or create QuadInfo for this geometry
                         uint32_t quadIndex = m_quadLibrary.getOrCreateQuad(normal, corners, uvs, faceTextureIndex);
 
-                        // Create packed lighting with tint support
-                        // Grass tint color: #79C05A (hardcoded for now)
-                        uint8_t lightR = 31, lightG = 31, lightB = 31;  // Default: full bright white
-
-                        if (face.tintindex.has_value()) {
-                            // Apply grass tint color #79C05A
-                            // Convert from 8-bit RGB to 5-bit:
-                            // R: 0x79 (121) -> 15, G: 0xC0 (192) -> 23, B: 0x5A (90) -> 11
-                            lightR = 15;
-                            lightG = 23;
-                            lightB = 11;
-                        }
-
+                        // Apply tintindex if present (for grass coloring)
                         uint32_t lightIndex = static_cast<uint32_t>(mesh.lighting.size());
-                        mesh.lighting.push_back(PackedLighting::uniform(lightR, lightG, lightB));
+                        if (face.tintindex.has_value()) {
+                            // Hardcoded grass color #79C05A (RGB: 121, 192, 90)
+                            // Convert to 5-bit values (0-31)
+                            uint8_t grassR = static_cast<uint8_t>((121 * 31) / 255);  // ~15
+                            uint8_t grassG = static_cast<uint8_t>((192 * 31) / 255);  // ~23
+                            uint8_t grassB = static_cast<uint8_t>((90 * 31) / 255);   // ~11
+                            mesh.lighting.push_back(PackedLighting::uniform(grassR, grassG, grassB));
+                        } else {
+                            // Full white lighting (no tint)
+                            mesh.lighting.push_back(PackedLighting::uniform(31, 31, 31));
+                        }
 
                         // Create FaceData (texture is now in QuadInfo, not here)
                         FaceData faceData = FaceData::pack(

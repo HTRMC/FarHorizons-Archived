@@ -92,7 +92,7 @@ bool ChunkBufferManager::addMeshes(std::vector<CompactChunkMesh>& meshes, size_t
             break;
         }
 
-        // Write FaceData
+        // Write FaceData (lightIndex remains local, shader will add chunk.faceOffset)
         memcpy(static_cast<uint8_t*>(faceData) + m_currentFaceOffset * sizeof(FaceData),
                mesh.faces.data(),
                mesh.faces.size() * sizeof(FaceData));
@@ -204,7 +204,7 @@ void ChunkBufferManager::fullRebuild() {
     for (const auto& [pos, mesh] : m_meshCache) {
         if (mesh.faces.empty()) continue;
 
-        // Write FaceData
+        // Write FaceData (lightIndex remains local, shader will add chunk.faceOffset)
         memcpy(static_cast<uint8_t*>(faceData) + m_currentFaceOffset * sizeof(FaceData),
                mesh.faces.data(),
                mesh.faces.size() * sizeof(FaceData));

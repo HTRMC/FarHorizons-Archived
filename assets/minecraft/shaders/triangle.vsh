@@ -105,8 +105,8 @@ void main() {
     // Get quad geometry (includes texture)
     QuadInfo quad = quadInfos[quadIndex];
 
-    // Get lighting data for this face
-    // Use faceIndex directly - it's already global (chunk.faceOffset + instance offset)
+    // Get lighting data for this face (use faceIndex which is already global)
+    // faceIndex == chunk.faceOffset + lightIndex since lightIndex is sequential within chunk
     uvec4 faceLighting = lighting[faceIndex];
 
     // Determine which corner based on gl_VertexIndex (0-5 for two triangles)
