@@ -135,12 +135,15 @@ bool ChunkBufferManager::addMeshes(std::vector<CompactChunkMesh>& meshes, size_t
         allocation.drawCommandIndex = m_drawCommandCount;
 
         m_allocations[mesh.position] = allocation;
-        m_meshCache[mesh.position] = std::move(mesh);
 
+        // Important: increment lighting offset by number of unique lighting values, not faces!
+        uint32_t lightingCount = static_cast<uint32_t>(mesh.lighting.size());
         m_currentFaceOffset += allocation.faceCount;
-        m_currentLightingOffset += allocation.faceCount;  // Same count as faces
+        m_currentLightingOffset += lightingCount;  // Number of unique lighting values
         m_drawCommandCount++;
         actualProcessed++;
+
+        m_meshCache[mesh.position] = std::move(mesh);
     }
 
     m_lightingBuffer.unmap();
