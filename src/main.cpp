@@ -383,7 +383,9 @@ int main() {
                         spdlog::info("Options menu not yet implemented");
                         break;
                     case PauseMenu::Action::Quit:
-                        window.close();
+                        gameState = GameState::MainMenu;
+                        mainMenu.reset();
+                        spdlog::info("Returning to main menu");
                         break;
                     case PauseMenu::Action::None:
                         break;

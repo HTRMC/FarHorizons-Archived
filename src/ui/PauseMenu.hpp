@@ -49,7 +49,7 @@ public:
 
         // Handle mouse input
         auto mousePos = InputSystem::getMousePosition();
-        bool mouseClicked = InputSystem::isMouseButtonPressed(MouseButton::Left);
+        bool mouseClicked = InputSystem::isMouseButtonDown(MouseButton::Left);
 
         // Convert mouse position to screen coordinates (GLFW gives us coordinates already in pixels)
         glm::vec2 screenMousePos(mousePos.x, mousePos.y);
