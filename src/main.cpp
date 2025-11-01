@@ -331,6 +331,7 @@ int main() {
         Camera camera;
         float aspectRatio = static_cast<float>(window.getWidth()) / static_cast<float>(window.getHeight());
         camera.init(glm::vec3(0.0f, 20.0f, 0.0f), aspectRatio, settings.fov);
+        camera.setKeybinds(settings.keybinds);  // Apply keybinds from settings
 
         // Initialize chunk buffer manager (now uses compact format: faces instead of vertices/indices)
         ChunkBufferManager bufferManager;
@@ -451,8 +452,9 @@ int main() {
                         bufferManager.clear();
                         pendingMeshes.clear();
 
-                        // Reset camera to spawn position (preserve FOV from settings)
+                        // Reset camera to spawn position (preserve FOV and keybinds from settings)
                         camera.init(glm::vec3(0.0f, 20.0f, 0.0f), aspectRatio, settings.fov);
+                        camera.setKeybinds(settings.keybinds);
 
                         // Reset buffer offsets
                         quadInfoNeedsUpdate = true;

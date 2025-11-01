@@ -62,6 +62,10 @@ public:
     static void setAnalogDeadzone(float deadzone) { s_analogDeadzone = deadzone; }
     static float getAnalogDeadzone() { return s_analogDeadzone; }
 
+    // Convert keybind string to KeyCode (e.g., "key.keyboard.w" -> KeyCode::W)
+    static KeyCode stringToKeyCode(const std::string& keybind);
+    static MouseButton stringToMouseButton(const std::string& keybind);
+
     // Get raw event queue for advanced users
     static const std::vector<InputEvent>& getProcessedEvents() { return s_processedEvents; }
 

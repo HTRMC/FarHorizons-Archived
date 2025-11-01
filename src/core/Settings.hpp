@@ -129,6 +129,39 @@ public:
             parseInt("cloudRange", cloudRange);
             parseBool("saveChatDrafts", saveChatDrafts);
 
+            // Parse keybinds
+            size_t keybindsPos = content.find("\"keybinds\"");
+            if (keybindsPos != std::string::npos) {
+                size_t openBrace = content.find('{', keybindsPos);
+                size_t closeBrace = content.find('}', openBrace);
+                if (openBrace != std::string::npos && closeBrace != std::string::npos) {
+                    std::string keybindsBlock = content.substr(openBrace + 1, closeBrace - openBrace - 1);
+
+                    // Parse each keybind line
+                    size_t pos = 0;
+                    while (pos < keybindsBlock.size()) {
+                        size_t keyStart = keybindsBlock.find('"', pos);
+                        if (keyStart == std::string::npos) break;
+
+                        size_t keyEnd = keybindsBlock.find('"', keyStart + 1);
+                        if (keyEnd == std::string::npos) break;
+
+                        std::string key = keybindsBlock.substr(keyStart + 1, keyEnd - keyStart - 1);
+
+                        size_t valueStart = keybindsBlock.find('"', keyEnd + 1);
+                        if (valueStart == std::string::npos) break;
+
+                        size_t valueEnd = keybindsBlock.find('"', valueStart + 1);
+                        if (valueEnd == std::string::npos) break;
+
+                        std::string value = keybindsBlock.substr(valueStart + 1, valueEnd - valueStart - 1);
+
+                        keybinds[key] = value;
+                        pos = valueEnd + 1;
+                    }
+                }
+            }
+
             spdlog::info("Loaded settings (v{}): FOV={}, RenderDistance={}, VSync={}",
                         version, fov, renderDistance, enableVsync);
 

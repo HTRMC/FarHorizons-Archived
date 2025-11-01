@@ -2,10 +2,13 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include "InputTypes.hpp"
+#include <unordered_map>
+#include <string>
 
 namespace VoxelEngine {
 
-// First-person camera with WASD movement and arrow key rotation
+// First-person camera with customizable keybinds
 class Camera {
 public:
     Camera() = default;
@@ -13,6 +16,9 @@ public:
 
     // Initialize camera with position and aspect ratio
     void init(const glm::vec3& position, float aspectRatio, float fov = 70.0f);
+
+    // Set keybinds (call once at startup or when keybinds change)
+    void setKeybinds(const std::unordered_map<std::string, std::string>& keybinds);
 
     // Update camera (call each frame with delta time)
     void update(float deltaTime);
@@ -77,6 +83,14 @@ private:
     // Matrices
     glm::mat4 m_viewMatrix = glm::mat4(1.0f);
     glm::mat4 m_projectionMatrix = glm::mat4(1.0f);
+
+    // Parsed keybinds (for fast lookup during update)
+    KeyCode m_keyForward = KeyCode::W;
+    KeyCode m_keyBack = KeyCode::S;
+    KeyCode m_keyLeft = KeyCode::A;
+    KeyCode m_keyRight = KeyCode::D;
+    KeyCode m_keyJump = KeyCode::Space;
+    KeyCode m_keySneak = KeyCode::LeftShift;
 };
 
 } // namespace VoxelEngine

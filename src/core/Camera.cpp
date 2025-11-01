@@ -16,26 +16,45 @@ void Camera::init(const glm::vec3& position, float aspectRatio, float fov) {
     updateProjectionMatrix();
 }
 
+void Camera::setKeybinds(const std::unordered_map<std::string, std::string>& keybinds) {
+    // Parse keybind strings to KeyCode enums once
+    auto getKey = [&](const std::string& action, KeyCode defaultKey) -> KeyCode {
+        auto it = keybinds.find(action);
+        if (it != keybinds.end()) {
+            KeyCode parsed = InputSystem::stringToKeyCode(it->second);
+            return (parsed != KeyCode::Unknown) ? parsed : defaultKey;
+        }
+        return defaultKey;
+    };
+
+    m_keyForward = getKey("key.forward", KeyCode::W);
+    m_keyBack = getKey("key.back", KeyCode::S);
+    m_keyLeft = getKey("key.left", KeyCode::A);
+    m_keyRight = getKey("key.right", KeyCode::D);
+    m_keyJump = getKey("key.jump", KeyCode::Space);
+    m_keySneak = getKey("key.sneak", KeyCode::LeftShift);
+}
+
 void Camera::update(float deltaTime) {
-    // Handle WASD movement (use isKeyPressed for held keys)
+    // Handle movement using configured keybinds
     glm::vec3 moveDirection(0.0f);
 
-    if (InputSystem::isKeyPressed(KeyCode::W)) {
+    if (InputSystem::isKeyPressed(m_keyForward)) {
         moveDirection += m_forward;
     }
-    if (InputSystem::isKeyPressed(KeyCode::S)) {
+    if (InputSystem::isKeyPressed(m_keyBack)) {
         moveDirection -= m_forward;
     }
-    if (InputSystem::isKeyPressed(KeyCode::A)) {
+    if (InputSystem::isKeyPressed(m_keyLeft)) {
         moveDirection -= m_right;
     }
-    if (InputSystem::isKeyPressed(KeyCode::D)) {
+    if (InputSystem::isKeyPressed(m_keyRight)) {
         moveDirection += m_right;
     }
-    if (InputSystem::isKeyPressed(KeyCode::Space)) {
+    if (InputSystem::isKeyPressed(m_keyJump)) {
         moveDirection += glm::vec3(0.0f, 1.0f, 0.0f); // World up
     }
-    if (InputSystem::isKeyPressed(KeyCode::LeftShift)) {
+    if (InputSystem::isKeyPressed(m_keySneak)) {
         moveDirection -= glm::vec3(0.0f, 1.0f, 0.0f); // World down
     }
 

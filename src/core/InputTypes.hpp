@@ -90,7 +90,9 @@ enum class KeyCode {
     RightSuper = GLFW_KEY_RIGHT_SUPER,
     Menu = GLFW_KEY_MENU,
 
-    MaxKeys = GLFW_KEY_LAST + 1
+    MaxKeys = GLFW_KEY_LAST + 1,
+
+    Unknown = GLFW_KEY_UNKNOWN
 };
 
 enum class MouseButton {

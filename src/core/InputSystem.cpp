@@ -410,4 +410,64 @@ glm::vec2 InputSystem::applyDeadzone(glm::vec2 value) {
     return direction * std::min(newMagnitude, 1.0f);
 }
 
+KeyCode InputSystem::stringToKeyCode(const std::string& keybind) {
+    // Map keybind strings to KeyCode enum
+    static const std::unordered_map<std::string, KeyCode> keyMap = {
+        // Letters
+        {"key.keyboard.a", KeyCode::A}, {"key.keyboard.b", KeyCode::B}, {"key.keyboard.c", KeyCode::C},
+        {"key.keyboard.d", KeyCode::D}, {"key.keyboard.e", KeyCode::E}, {"key.keyboard.f", KeyCode::F},
+        {"key.keyboard.g", KeyCode::G}, {"key.keyboard.h", KeyCode::H}, {"key.keyboard.i", KeyCode::I},
+        {"key.keyboard.j", KeyCode::J}, {"key.keyboard.k", KeyCode::K}, {"key.keyboard.l", KeyCode::L},
+        {"key.keyboard.m", KeyCode::M}, {"key.keyboard.n", KeyCode::N}, {"key.keyboard.o", KeyCode::O},
+        {"key.keyboard.p", KeyCode::P}, {"key.keyboard.q", KeyCode::Q}, {"key.keyboard.r", KeyCode::R},
+        {"key.keyboard.s", KeyCode::S}, {"key.keyboard.t", KeyCode::T}, {"key.keyboard.u", KeyCode::U},
+        {"key.keyboard.v", KeyCode::V}, {"key.keyboard.w", KeyCode::W}, {"key.keyboard.x", KeyCode::X},
+        {"key.keyboard.y", KeyCode::Y}, {"key.keyboard.z", KeyCode::Z},
+        // Numbers
+        {"key.keyboard.0", KeyCode::Zero}, {"key.keyboard.1", KeyCode::One}, {"key.keyboard.2", KeyCode::Two},
+        {"key.keyboard.3", KeyCode::Three}, {"key.keyboard.4", KeyCode::Four}, {"key.keyboard.5", KeyCode::Five},
+        {"key.keyboard.6", KeyCode::Six}, {"key.keyboard.7", KeyCode::Seven}, {"key.keyboard.8", KeyCode::Eight},
+        {"key.keyboard.9", KeyCode::Nine},
+        // Special keys
+        {"key.keyboard.space", KeyCode::Space},
+        {"key.keyboard.escape", KeyCode::Escape},
+        {"key.keyboard.enter", KeyCode::Enter},
+        {"key.keyboard.tab", KeyCode::Tab},
+        {"key.keyboard.backspace", KeyCode::Backspace},
+        {"key.keyboard.left.shift", KeyCode::LeftShift},
+        {"key.keyboard.right.shift", KeyCode::RightShift},
+        {"key.keyboard.left.control", KeyCode::LeftControl},
+        {"key.keyboard.right.control", KeyCode::RightControl},
+        {"key.keyboard.left.alt", KeyCode::LeftAlt},
+        {"key.keyboard.right.alt", KeyCode::RightAlt},
+        // Function keys
+        {"key.keyboard.f1", KeyCode::F1}, {"key.keyboard.f2", KeyCode::F2}, {"key.keyboard.f3", KeyCode::F3},
+        {"key.keyboard.f4", KeyCode::F4}, {"key.keyboard.f5", KeyCode::F5}, {"key.keyboard.f6", KeyCode::F6},
+        {"key.keyboard.f7", KeyCode::F7}, {"key.keyboard.f8", KeyCode::F8}, {"key.keyboard.f9", KeyCode::F9},
+        {"key.keyboard.f10", KeyCode::F10}, {"key.keyboard.f11", KeyCode::F11}, {"key.keyboard.f12", KeyCode::F12},
+        // Other
+        {"key.keyboard.slash", KeyCode::Slash}
+    };
+
+    auto it = keyMap.find(keybind);
+    if (it != keyMap.end()) {
+        return it->second;
+    }
+    return KeyCode::Unknown;
+}
+
+MouseButton InputSystem::stringToMouseButton(const std::string& keybind) {
+    static const std::unordered_map<std::string, MouseButton> mouseMap = {
+        {"key.mouse.left", MouseButton::Left},
+        {"key.mouse.right", MouseButton::Right},
+        {"key.mouse.middle", MouseButton::Middle}
+    };
+
+    auto it = mouseMap.find(keybind);
+    if (it != mouseMap.end()) {
+        return it->second;
+    }
+    return MouseButton::MaxButtons; // Invalid
+}
+
 } // namespace VoxelEngine
