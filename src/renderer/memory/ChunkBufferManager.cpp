@@ -170,6 +170,9 @@ void ChunkBufferManager::removeUnloadedChunks(const ChunkManager& chunkManager) 
             m_allocations.erase(pos);
         }
         spdlog::debug("Removed {} unloaded chunks from buffer", toRemove.size());
+
+        // Rebuild all buffers to reflect removed chunks
+        fullRebuild();
     }
 }
 

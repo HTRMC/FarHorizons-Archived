@@ -6,6 +6,7 @@
 #include "core/Window.hpp"
 #include "core/InputSystem.hpp"
 #include "core/Camera.hpp"
+#include "core/Settings.hpp"
 #include "renderer/core/VulkanContext.hpp"
 #include "renderer/swapchain/Swapchain.hpp"
 #include "renderer/RenderContext.hpp"
@@ -96,13 +97,17 @@ int main() {
         VkCommandBuffer uploadCmd;
         vkAllocateCommandBuffers(vulkanContext.getDevice().getLogicalDevice(), &allocInfo, &uploadCmd);
 
+        // Load settings from file
+        Settings settings;
+        settings.load();
+
         // Initialize block registry before loading models
         BlockRegistry::init();
         spdlog::info("Initialized block registry");
 
         // Initialize block models first to discover required textures
         ChunkManager chunkManager;
-        chunkManager.setRenderDistance(8);
+        chunkManager.setRenderDistance(settings.renderDistance);
         chunkManager.initializeBlockModels();
 
         // Preload all blockstate models into cache for fast lookup
@@ -325,7 +330,7 @@ int main() {
 
         Camera camera;
         float aspectRatio = static_cast<float>(window.getWidth()) / static_cast<float>(window.getHeight());
-        camera.init(glm::vec3(0.0f, 20.0f, 0.0f), aspectRatio, 70.0f);
+        camera.init(glm::vec3(0.0f, 20.0f, 0.0f), aspectRatio, settings.fov);
 
         // Initialize chunk buffer manager (now uses compact format: faces instead of vertices/indices)
         ChunkBufferManager bufferManager;
@@ -371,7 +376,7 @@ int main() {
         // Initialize menus
         MainMenu mainMenu(window.getWidth(), window.getHeight());
         PauseMenu pauseMenu(window.getWidth(), window.getHeight());
-        OptionsMenu optionsMenu(window.getWidth(), window.getHeight(), &camera, &chunkManager);
+        OptionsMenu optionsMenu(window.getWidth(), window.getHeight(), &camera, &chunkManager, &settings);
         GameState gameState = GameState::MainMenu;
 
         bool framebufferResized = false;
@@ -446,8 +451,8 @@ int main() {
                         bufferManager.clear();
                         pendingMeshes.clear();
 
-                        // Reset camera to spawn position
-                        camera.init(glm::vec3(0.0f, 20.0f, 0.0f), aspectRatio, 70.0f);
+                        // Reset camera to spawn position (preserve FOV from settings)
+                        camera.init(glm::vec3(0.0f, 20.0f, 0.0f), aspectRatio, settings.fov);
 
                         // Reset buffer offsets
                         quadInfoNeedsUpdate = true;
@@ -464,6 +469,8 @@ int main() {
                     gameState = GameState::Paused;
                     spdlog::info("Returning to pause menu");
                 }
+                // Update chunk manager to apply render distance changes immediately (only during gameplay)
+                chunkManager.update(camera.getPosition());
             } else if (gameState == GameState::OptionsFromMain) {
                 // Update options menu (from main menu)
                 auto action = optionsMenu.update(deltaTime);
@@ -471,6 +478,7 @@ int main() {
                     gameState = GameState::MainMenu;
                     spdlog::info("Returning to main menu");
                 }
+                // Don't update chunk manager - game hasn't started yet!
             }
 
             // Collect new ready meshes

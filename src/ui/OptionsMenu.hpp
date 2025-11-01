@@ -6,6 +6,7 @@
 #include "../text/TextRenderer.hpp"
 #include "../core/InputSystem.hpp"
 #include "../core/Camera.hpp"
+#include "../core/Settings.hpp"
 #include "../world/ChunkManager.hpp"
 #include <memory>
 #include <vector>
@@ -23,11 +24,12 @@ public:
         Back
     };
 
-    OptionsMenu(uint32_t screenWidth, uint32_t screenHeight, Camera* camera, ChunkManager* chunkManager)
+    OptionsMenu(uint32_t screenWidth, uint32_t screenHeight, Camera* camera, ChunkManager* chunkManager, Settings* settings)
         : m_screenWidth(screenWidth)
         , m_screenHeight(screenHeight)
         , m_camera(camera)
         , m_chunkManager(chunkManager)
+        , m_settings(settings)
         , m_selectedButtonIndex(0)
         , m_lastAction(Action::None)
         , m_mouseWasDown(false) {
@@ -141,12 +143,12 @@ public:
         m_selectedButtonIndex = 0;
         m_lastAction = Action::None;
 
-        // Reset sliders to current values
-        if (m_camera && m_sliders.size() > 0) {
-            m_sliders[0]->setValue(m_camera->getFov());
+        // Reset sliders to settings values
+        if (m_settings && m_sliders.size() > 0) {
+            m_sliders[0]->setValue(m_settings->fov);
         }
-        if (m_chunkManager && m_sliders.size() > 1) {
-            m_sliders[1]->setValue(static_cast<float>(m_chunkManager->getRenderDistance()));
+        if (m_settings && m_sliders.size() > 1) {
+            m_sliders[1]->setValue(static_cast<float>(m_settings->renderDistance));
         }
     }
 
@@ -169,12 +171,16 @@ private:
             glm::vec2(startX, startY),
             sliderWidth,
             45.0f, 120.0f,
-            m_camera ? m_camera->getFov() : 70.0f,
+            m_settings ? m_settings->fov : 70.0f,
             true // Integer values
         );
         fovSlider->setOnChange([this](float value) {
             if (m_camera) {
                 m_camera->setFov(value);
+            }
+            if (m_settings) {
+                m_settings->fov = value;
+                m_settings->save();
             }
         });
         m_sliders.push_back(std::move(fovSlider));
@@ -185,12 +191,16 @@ private:
             glm::vec2(startX, startY + sliderSpacing),
             sliderWidth,
             2.0f, 32.0f,
-            m_chunkManager ? static_cast<float>(m_chunkManager->getRenderDistance()) : 8.0f,
+            m_settings ? static_cast<float>(m_settings->renderDistance) : 8.0f,
             true // Integer values
         );
         renderDistSlider->setOnChange([this](float value) {
             if (m_chunkManager) {
                 m_chunkManager->setRenderDistance(static_cast<int32_t>(value));
+            }
+            if (m_settings) {
+                m_settings->renderDistance = static_cast<int32_t>(value);
+                m_settings->save();
             }
         });
         m_sliders.push_back(std::move(renderDistSlider));
@@ -223,6 +233,7 @@ private:
     uint32_t m_screenHeight;
     Camera* m_camera;
     ChunkManager* m_chunkManager;
+    Settings* m_settings;
     size_t m_selectedButtonIndex;
     Action m_lastAction;
     bool m_mouseWasDown;

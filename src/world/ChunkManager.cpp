@@ -127,6 +127,13 @@ void ChunkManager::precacheBlockShapes() {
     m_cullingSystem.precacheAllShapes(m_modelManager.getStateToModelMap());
 }
 
+void ChunkManager::setRenderDistance(int32_t distance) {
+    if (m_renderDistance != distance) {
+        m_renderDistance = distance;
+        m_renderDistanceChanged = true;
+    }
+}
+
 ChunkPosition ChunkManager::worldToChunkPos(const glm::vec3& worldPos) const {
     return {
         static_cast<int32_t>(std::floor(worldPos.x / CHUNK_SIZE)),
@@ -138,10 +145,11 @@ ChunkPosition ChunkManager::worldToChunkPos(const glm::vec3& worldPos) const {
 void ChunkManager::update(const glm::vec3& cameraPosition) {
     ChunkPosition cameraChunkPos = worldToChunkPos(cameraPosition);
 
-    if (cameraChunkPos != m_lastCameraChunkPos) {
+    if (cameraChunkPos != m_lastCameraChunkPos || m_renderDistanceChanged) {
         loadChunksAroundPosition(cameraChunkPos);
         unloadDistantChunks(cameraChunkPos);
         m_lastCameraChunkPos = cameraChunkPos;
+        m_renderDistanceChanged = false;
     }
 }
 

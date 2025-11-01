@@ -64,7 +64,7 @@ public:
     void cacheTextureIndices();  // Cache texture indices in models (call after texture registration)
     void precacheBlockShapes();  // Pre-compute all BlockShapes (call after models are loaded)
 
-    void setRenderDistance(int32_t distance) { m_renderDistance = distance; }
+    void setRenderDistance(int32_t distance);
     int32_t getRenderDistance() const { return m_renderDistance; }
 
     void update(const glm::vec3& cameraPosition);
@@ -95,6 +95,7 @@ private:
     std::unordered_map<ChunkPosition, std::unique_ptr<Chunk>, ChunkPositionHash> m_chunks;
     int32_t m_renderDistance = 8;
     ChunkPosition m_lastCameraChunkPos = {INT32_MAX, INT32_MAX, INT32_MAX};
+    bool m_renderDistanceChanged = false;
 
     mutable BlockModelManager m_modelManager;
     mutable FaceCullingSystem m_cullingSystem;  // Face culling with Minecraft-style fast paths
