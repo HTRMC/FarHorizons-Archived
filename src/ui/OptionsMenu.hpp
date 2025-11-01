@@ -35,7 +35,8 @@ public:
         , m_settings(settings)
         , m_selectedButtonIndex(0)
         , m_lastAction(Action::None)
-        , m_mouseWasDown(false) {
+        , m_mouseWasDown(false)
+        , m_scrollOffset(0.0f) {
         setupUI();
     }
 
@@ -172,6 +173,32 @@ public:
             }
 
             return m_lastAction; // Don't process other input while listening
+        }
+
+        // Handle mouse wheel scrolling
+        auto mouseScroll = InputSystem::getMouseScroll();
+        if (mouseScroll.y != 0.0f) {
+            // Calculate effective GUI scale for scroll speed
+            float guiScale = m_settings ? static_cast<float>(m_settings->getEffectiveGuiScale(m_screenHeight)) : 1.0f;
+            float scrollSpeed = 50.0f * guiScale;
+
+            // Invert scroll direction (negative mouseScroll.y to scroll naturally)
+            float oldScrollOffset = m_scrollOffset;
+            m_scrollOffset -= mouseScroll.y * scrollSpeed;
+
+            // Clamp scroll offset
+            // Calculate total content height and clamp
+            float sliderSpacing = 100.0f * guiScale;
+            float keybindSpacing = 45.0f * guiScale;
+            float totalContentHeight = m_screenHeight * 0.35f + sliderSpacing * 4.2f + keybindSpacing * 6.5f + 60.0f * guiScale + 50.0f;
+            float maxScroll = std::max(0.0f, totalContentHeight - m_screenHeight);
+
+            m_scrollOffset = std::clamp(m_scrollOffset, 0.0f, maxScroll);
+
+            // Only rebuild UI if scroll offset actually changed
+            if (std::abs(m_scrollOffset - oldScrollOffset) > 0.1f) {
+                setupUI();
+            }
         }
 
         // Get mouse input
@@ -311,7 +338,7 @@ private:
 
         // Center sliders on screen
         float startX = (m_screenWidth - sliderWidth) * 0.5f;
-        float startY = m_screenHeight * 0.35f;
+        float startY = m_screenHeight * 0.35f - m_scrollOffset;
 
         // FOV Slider (45 - 120 degrees)
         auto fovSlider = std::make_unique<Slider>(
@@ -520,6 +547,7 @@ private:
     bool m_mouseWasDown;
     std::optional<KeybindAction> m_listeningForKeybind;  // When set, waiting for key press to rebind
     bool m_lastModifierState[6] = {false, false, false, false, false, false};  // Track modifier key states for edge detection
+    float m_scrollOffset;  // Vertical scroll offset for the menu
 
     std::vector<std::unique_ptr<Slider>> m_sliders;
     std::vector<std::unique_ptr<Button>> m_buttons;
