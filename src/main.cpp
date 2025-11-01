@@ -22,8 +22,15 @@
 #include "text/TextRenderer.hpp"
 #include "text/Text.hpp"
 #include "ui/PauseMenu.hpp"
+#include "ui/MainMenu.hpp"
 
 using namespace VoxelEngine;
+
+enum class GameState {
+    MainMenu,
+    Playing,
+    Paused
+};
 
 int main() {
     try {
@@ -310,15 +317,17 @@ int main() {
 
         spdlog::info("Setup complete, entering render loop...");
 
-        // Initialize pause menu
+        // Initialize menus
+        MainMenu mainMenu(window.getWidth(), window.getHeight());
         PauseMenu pauseMenu(window.getWidth(), window.getHeight());
-        bool isPaused = false;
+        GameState gameState = GameState::MainMenu;
 
         bool framebufferResized = false;
-        window.setResizeCallback([&framebufferResized, &camera, &pauseMenu](uint32_t width, uint32_t height) {
+        window.setResizeCallback([&framebufferResized, &camera, &pauseMenu, &mainMenu](uint32_t width, uint32_t height) {
             framebufferResized = true;
             camera.setAspectRatio(static_cast<float>(width) / static_cast<float>(height));
             pauseMenu.onResize(width, height);
+            mainMenu.onResize(width, height);
         });
 
         auto lastTime = std::chrono::high_resolution_clock::now();
@@ -333,20 +342,41 @@ int main() {
             window.pollEvents();
             InputSystem::processEvents();
 
-            // Handle ESC key to toggle pause menu (use isKeyDown for single press)
-            if (InputSystem::isKeyDown(KeyCode::Escape)) {
-                isPaused = !isPaused;
-                if (isPaused) {
+            // Handle game state updates
+            if (gameState == GameState::MainMenu) {
+                // Update main menu
+                auto action = mainMenu.update(deltaTime);
+                switch (action) {
+                    case MainMenu::Action::Singleplayer:
+                        gameState = GameState::Playing;
+                        spdlog::info("Starting singleplayer game");
+                        break;
+                    case MainMenu::Action::OpenOptions:
+                        // TODO: Open options menu (not implemented yet)
+                        spdlog::info("Options menu not yet implemented");
+                        break;
+                    case MainMenu::Action::Quit:
+                        window.close();
+                        break;
+                    case MainMenu::Action::None:
+                        break;
+                }
+            } else if (gameState == GameState::Playing) {
+                // Handle ESC key to toggle pause menu (use isKeyDown for single press)
+                if (InputSystem::isKeyDown(KeyCode::Escape)) {
+                    gameState = GameState::Paused;
                     pauseMenu.reset();
                 }
-            }
 
-            // Update pause menu when paused
-            if (isPaused) {
+                // Update camera and world
+                camera.update(deltaTime);
+                chunkManager.update(camera.getPosition());
+            } else if (gameState == GameState::Paused) {
+                // Update pause menu
                 auto action = pauseMenu.update(deltaTime);
                 switch (action) {
                     case PauseMenu::Action::Resume:
-                        isPaused = false;
+                        gameState = GameState::Playing;
                         break;
                     case PauseMenu::Action::OpenOptions:
                         // TODO: Open options menu (not implemented yet)
@@ -358,12 +388,6 @@ int main() {
                     case PauseMenu::Action::None:
                         break;
                 }
-            }
-
-            // Only update world when not paused
-            if (!isPaused) {
-                camera.update(deltaTime);
-                chunkManager.update(camera.getPosition());
             }
 
             // Collect new ready meshes
@@ -566,11 +590,15 @@ int main() {
                                  0, drawCount, sizeof(VkDrawIndirectCommand));
             }
 
-            // Render text overlay (HUD or pause menu)
+            // Render text overlay (main menu, HUD, or pause menu)
             if (fontManager.hasFont("default")) {
                 std::vector<TextVertex> allTextVertices;
 
-                if (isPaused) {
+                if (gameState == GameState::MainMenu) {
+                    // Render main menu
+                    auto menuTextVertices = mainMenu.generateTextVertices(textRenderer);
+                    allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
+                } else if (gameState == GameState::Paused) {
                     // Render pause menu
                     auto menuTextVertices = pauseMenu.generateTextVertices(textRenderer);
                     allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
