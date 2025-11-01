@@ -59,6 +59,16 @@ void ChunkBufferManager::cleanup() {
     m_chunkDataArray.clear();
 }
 
+void ChunkBufferManager::clear() {
+    m_meshCache.clear();
+    m_allocations.clear();
+    m_chunkDataArray.clear();
+    m_currentFaceOffset = 0;
+    m_currentLightingOffset = 0;
+    m_drawCommandCount = 0;
+    spdlog::info("Cleared all chunk meshes from GPU buffers");
+}
+
 bool ChunkBufferManager::addMeshes(std::vector<CompactChunkMesh>& meshes, size_t maxPerFrame) {
     if (meshes.empty()) return true;
 

@@ -385,6 +385,18 @@ int main() {
                     case PauseMenu::Action::Quit:
                         gameState = GameState::MainMenu;
                         mainMenu.reset();
+
+                        // Clear world state
+                        chunkManager.clearAllChunks();
+                        bufferManager.clear();
+                        pendingMeshes.clear();
+
+                        // Reset camera to spawn position
+                        camera.init(glm::vec3(0.0f, 20.0f, 0.0f), aspectRatio, 70.0f);
+
+                        // Reset buffer offsets
+                        quadInfoNeedsUpdate = true;
+
                         spdlog::info("Returning to main menu");
                         break;
                     case PauseMenu::Action::None:

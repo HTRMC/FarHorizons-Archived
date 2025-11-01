@@ -205,6 +205,35 @@ void ChunkManager::unloadDistantChunks(const ChunkPosition& centerPos) {
     }
 }
 
+void ChunkManager::clearAllChunks() {
+    size_t count = 0;
+    {
+        std::lock_guard<std::mutex> lock(m_chunksMutex);
+        count = m_chunks.size();
+        m_chunks.clear();
+    }
+
+    // Clear mesh queues
+    {
+        std::lock_guard<std::mutex> lock(m_queueMutex);
+        while (!m_meshQueue.empty()) {
+            m_meshQueue.pop();
+        }
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(m_readyMutex);
+        while (!m_readyMeshes.empty()) {
+            m_readyMeshes.pop();
+        }
+    }
+
+    // Reset last camera position to force reload on next update
+    m_lastCameraChunkPos = {INT32_MAX, INT32_MAX, INT32_MAX};
+
+    spdlog::info("Cleared all chunks (unloaded {} chunks)", count);
+}
+
 Chunk* ChunkManager::loadChunk(const ChunkPosition& pos) {
     auto chunk = std::make_unique<Chunk>(pos);
     chunk->generate();

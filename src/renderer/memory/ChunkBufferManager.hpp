@@ -19,6 +19,7 @@ class ChunkBufferManager {
 public:
     void init(VmaAllocator allocator, size_t maxFaces, size_t maxDrawCommands);
     void cleanup();
+    void clear();  // Clear all meshes and reset state
 
     // Add new meshes incrementally (returns false if buffer is full)
     bool addMeshes(std::vector<CompactChunkMesh>& meshes, size_t maxPerFrame);

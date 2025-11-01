@@ -68,6 +68,7 @@ public:
     int32_t getRenderDistance() const { return m_renderDistance; }
 
     void update(const glm::vec3& cameraPosition);
+    void clearAllChunks();
 
     ChunkPosition worldToChunkPos(const glm::vec3& worldPos) const;
 
