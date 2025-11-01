@@ -17,9 +17,9 @@ void Camera::init(const glm::vec3& position, float aspectRatio, float fov) {
 }
 
 void Camera::setKeybinds(const std::unordered_map<std::string, std::string>& keybinds) {
-    // Parse keybind strings to KeyCode enums once
-    auto getKey = [&](const std::string& action, KeyCode defaultKey) -> KeyCode {
-        auto it = keybinds.find(action);
+    // Parse keybind strings to KeyCode enums once (using enum for fast lookup)
+    auto getKey = [&](KeybindAction action, KeyCode defaultKey) -> KeyCode {
+        auto it = keybinds.find(keybindActionToString(action));
         if (it != keybinds.end()) {
             KeyCode parsed = InputSystem::stringToKeyCode(it->second);
             return (parsed != KeyCode::Unknown) ? parsed : defaultKey;
@@ -27,12 +27,12 @@ void Camera::setKeybinds(const std::unordered_map<std::string, std::string>& key
         return defaultKey;
     };
 
-    m_keyForward = getKey("key.forward", KeyCode::W);
-    m_keyBack = getKey("key.back", KeyCode::S);
-    m_keyLeft = getKey("key.left", KeyCode::A);
-    m_keyRight = getKey("key.right", KeyCode::D);
-    m_keyJump = getKey("key.jump", KeyCode::Space);
-    m_keySneak = getKey("key.sneak", KeyCode::LeftShift);
+    m_keyForward = getKey(KeybindAction::Forward, KeyCode::W);
+    m_keyBack = getKey(KeybindAction::Back, KeyCode::S);
+    m_keyLeft = getKey(KeybindAction::Left, KeyCode::A);
+    m_keyRight = getKey(KeybindAction::Right, KeyCode::D);
+    m_keyJump = getKey(KeybindAction::Jump, KeyCode::Space);
+    m_keySneak = getKey(KeybindAction::Sneak, KeyCode::LeftShift);
 }
 
 void Camera::update(float deltaTime) {
