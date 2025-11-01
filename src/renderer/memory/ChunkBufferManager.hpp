@@ -64,6 +64,7 @@ private:
     std::vector<ChunkData> m_chunkDataArray;  // CPU-side copy of chunk data (indexed by draw command)
 
     void fullRebuild();
+    void rebuildDrawCommands();  // Fast rebuild: only updates draw commands, not face/lighting data
 };
 
 } // namespace VoxelEngine

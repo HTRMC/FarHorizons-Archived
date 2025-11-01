@@ -171,8 +171,8 @@ void ChunkBufferManager::removeUnloadedChunks(const ChunkManager& chunkManager) 
         }
         spdlog::debug("Removed {} unloaded chunks from buffer", toRemove.size());
 
-        // Rebuild all buffers to reflect removed chunks
-        fullRebuild();
+        // Fast rebuild: only updates draw commands, leaves face/lighting data fragmented
+        rebuildDrawCommands();
     }
 }
 
@@ -276,6 +276,49 @@ void ChunkBufferManager::fullRebuild() {
 
     spdlog::debug("Buffer compacted: {} chunks, {} faces",
                  m_meshCache.size(), m_currentFaceOffset);
+}
+
+void ChunkBufferManager::rebuildDrawCommands() {
+    // Fast path: only rebuild draw commands and chunk metadata
+    // Face data and lighting data remain in place (potentially fragmented)
+    // This is MUCH faster than fullRebuild() when unloading chunks
+
+    m_drawCommandCount = 0;
+    m_chunkDataArray.clear();
+
+    void* indirectData = m_indirectBuffer.map();
+    void* chunkData = m_chunkDataBuffer.map();
+
+    // Rebuild draw commands for remaining allocations
+    for (auto& [pos, allocation] : m_allocations) {
+        // Create draw command pointing to existing face/lighting data
+        VkDrawIndirectCommand cmd{};
+        cmd.vertexCount = 6;
+        cmd.instanceCount = allocation.faceCount;
+        cmd.firstVertex = 0;
+        cmd.firstInstance = m_drawCommandCount;  // New sequential index
+
+        memcpy(static_cast<uint8_t*>(indirectData) + m_drawCommandCount * sizeof(VkDrawIndirectCommand),
+               &cmd,
+               sizeof(VkDrawIndirectCommand));
+
+        // Create chunk metadata pointing to existing face data
+        ChunkData chunkMetadata = ChunkData::create(pos, allocation.faceOffset);
+        m_chunkDataArray.push_back(chunkMetadata);
+        memcpy(static_cast<uint8_t*>(chunkData) + m_drawCommandCount * sizeof(ChunkData),
+               &chunkMetadata,
+               sizeof(ChunkData));
+
+        // Update allocation with new draw command index
+        allocation.drawCommandIndex = m_drawCommandCount;
+        m_drawCommandCount++;
+    }
+
+    m_indirectBuffer.unmap();
+    m_chunkDataBuffer.unmap();
+
+    spdlog::debug("Rebuilt draw commands: {} chunks (face/lighting data unchanged)",
+                 m_drawCommandCount);
 }
 
 bool ChunkBufferManager::hasAllocation(const ChunkPosition& pos) const {
