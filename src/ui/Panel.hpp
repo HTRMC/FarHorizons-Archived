@@ -88,6 +88,15 @@ public:
         );
     }
 
+    // Helper to create blur-like frosted glass overlay (transparent - blur applied via shader)
+    static Panel createBlurOverlay(uint32_t screenWidth, uint32_t screenHeight) {
+        return Panel(
+            glm::vec2(0, 0),
+            glm::vec2(screenWidth, screenHeight),
+            glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)  // Fully transparent - blur is applied via post-processing
+        );
+    }
+
 private:
     glm::vec2 m_position;
     glm::vec2 m_size;

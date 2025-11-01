@@ -251,6 +251,13 @@ public:
         return allVertices;
     }
 
+    // Generate overlay panel for blur effect
+    std::vector<PanelVertex> generateOverlayPanel() const {
+        // Blur-like frosted glass overlay
+        auto overlay = Panel::createBlurOverlay(m_screenWidth, m_screenHeight);
+        return overlay.generateVertices(m_screenWidth, m_screenHeight);
+    }
+
     // Generate panel vertices for sliders
     std::vector<PanelVertex> generatePanelVertices(uint32_t screenWidth, uint32_t screenHeight) const {
         std::vector<PanelVertex> allVertices;

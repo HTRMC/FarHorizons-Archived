@@ -83,6 +83,13 @@ public:
         return m_lastAction;
     }
 
+    // Generate overlay panel for blur effect
+    std::vector<PanelVertex> generateOverlayPanel() const {
+        // Blur-like frosted glass overlay
+        auto overlay = Panel::createBlurOverlay(m_screenWidth, m_screenHeight);
+        return overlay.generateVertices(m_screenWidth, m_screenHeight);
+    }
+
     // Generate vertices for rendering
     std::vector<TextVertex> generateTextVertices(TextRenderer& textRenderer) const {
         std::vector<TextVertex> allVertices;

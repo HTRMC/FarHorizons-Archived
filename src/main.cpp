@@ -16,6 +16,7 @@
 #include "renderer/memory/ChunkBufferManager.hpp"
 #include "renderer/texture/BindlessTextureManager.hpp"
 #include "renderer/DepthBuffer.hpp"
+#include "renderer/OffscreenTarget.hpp"
 #include "world/ChunkManager.hpp"
 #include "world/ChunkGpuData.hpp"
 #include "world/BlockRegistry.hpp"
@@ -328,6 +329,112 @@ int main() {
                               VMA_MEMORY_USAGE_CPU_TO_GPU,
                               VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
+        // ===== BLUR POST-PROCESSING SETUP =====
+        // Create offscreen render targets for blur effect
+        OffscreenTarget sceneTarget;  // Main scene render target
+        OffscreenTarget blurTarget1;   // Horizontal blur intermediate
+        sceneTarget.init(vulkanContext.getAllocator(), vulkanContext.getDevice().getLogicalDevice(),
+                        window.getWidth(), window.getHeight(), swapchain.getImageFormat(), depthBuffer.getFormat());
+        blurTarget1.init(vulkanContext.getAllocator(), vulkanContext.getDevice().getLogicalDevice(),
+                        window.getWidth(), window.getHeight(), swapchain.getImageFormat(), VK_FORMAT_UNDEFINED);
+
+        // Register scene and blur textures with bindless texture manager for sampling
+        uint32_t sceneTextureIndex = textureManager.registerExternalTexture(sceneTarget.getColorImageView());
+        uint32_t blurTexture1Index = textureManager.registerExternalTexture(blurTarget1.getColorImageView());
+
+        // Initialize offscreen image layouts (UNDEFINED -> COLOR_ATTACHMENT_OPTIMAL)
+        VkCommandPoolCreateInfo initPoolInfo{};
+        initPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        initPoolInfo.queueFamilyIndex = vulkanContext.getDevice().getQueueFamilyIndices().graphicsFamily.value();
+        initPoolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+
+        VkCommandPool initPool;
+        vkCreateCommandPool(vulkanContext.getDevice().getLogicalDevice(), &initPoolInfo, nullptr, &initPool);
+
+        VkCommandBufferAllocateInfo initAllocInfo{};
+        initAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        initAllocInfo.commandPool = initPool;
+        initAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        initAllocInfo.commandBufferCount = 1;
+
+        VkCommandBuffer initCmd;
+        vkAllocateCommandBuffers(vulkanContext.getDevice().getLogicalDevice(), &initAllocInfo, &initCmd);
+
+        VkCommandBufferBeginInfo initBeginInfo{};
+        initBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        initBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        vkBeginCommandBuffer(initCmd, &initBeginInfo);
+
+        VkImageMemoryBarrier initBarriers[2]{};
+        initBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        initBarriers[0].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        initBarriers[0].newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        initBarriers[0].srcAccessMask = 0;
+        initBarriers[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        initBarriers[0].image = sceneTarget.getColorImage();
+        initBarriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        initBarriers[0].subresourceRange.baseMipLevel = 0;
+        initBarriers[0].subresourceRange.levelCount = 1;
+        initBarriers[0].subresourceRange.baseArrayLayer = 0;
+        initBarriers[0].subresourceRange.layerCount = 1;
+
+        initBarriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        initBarriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        initBarriers[1].newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        initBarriers[1].srcAccessMask = 0;
+        initBarriers[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        initBarriers[1].image = blurTarget1.getColorImage();
+        initBarriers[1].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        initBarriers[1].subresourceRange.baseMipLevel = 0;
+        initBarriers[1].subresourceRange.levelCount = 1;
+        initBarriers[1].subresourceRange.baseArrayLayer = 0;
+        initBarriers[1].subresourceRange.layerCount = 1;
+
+        vkCmdPipelineBarrier(initCmd,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            0, 0, nullptr, 0, nullptr, 2, initBarriers);
+
+        vkEndCommandBuffer(initCmd);
+
+        VkSubmitInfo initSubmitInfo{};
+        initSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        initSubmitInfo.commandBufferCount = 1;
+        initSubmitInfo.pCommandBuffers = &initCmd;
+        vkQueueSubmit(vulkanContext.getDevice().getGraphicsQueue(), 1, &initSubmitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(vulkanContext.getDevice().getGraphicsQueue());
+
+        vkDestroyCommandPool(vulkanContext.getDevice().getLogicalDevice(), initPool, nullptr);
+
+        // Load blur shaders
+        Shader blurVertShader, blurFragShader;
+        blurVertShader.loadFromFile(vulkanContext.getDevice().getLogicalDevice(), "assets/minecraft/shaders/blur.vsh.spv");
+        blurFragShader.loadFromFile(vulkanContext.getDevice().getLogicalDevice(), "assets/minecraft/shaders/blur.fsh.spv");
+
+        // Create blur pipeline (fullscreen triangle, no vertex input)
+        GraphicsPipelineConfig blurPipelineConfig;
+        blurPipelineConfig.vertexShader = &blurVertShader;
+        blurPipelineConfig.fragmentShader = &blurFragShader;
+        blurPipelineConfig.colorFormat = swapchain.getImageFormat();
+        blurPipelineConfig.depthFormat = VK_FORMAT_UNDEFINED;  // No depth for blur passes
+        blurPipelineConfig.depthTest = false;
+        blurPipelineConfig.depthWrite = false;
+        blurPipelineConfig.cullMode = VK_CULL_MODE_NONE;
+        blurPipelineConfig.blendEnable = false;
+
+        // Blur uses bindless textures (set 0) and push constants for direction/radius
+        blurPipelineConfig.descriptorSetLayouts.push_back(textureManager.getDescriptorSetLayout());
+
+        // Push constant range for blur parameters
+        VkPushConstantRange blurPushConstantRange{};
+        blurPushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        blurPushConstantRange.offset = 0;
+        blurPushConstantRange.size = 24;  // uint32_t (4) + vec2 (8) + float (4) + padding (8) = 24 bytes
+        blurPipelineConfig.pushConstantRanges.push_back(blurPushConstantRange);
+
+        GraphicsPipeline blurPipeline;
+        blurPipeline.init(vulkanContext.getDevice().getLogicalDevice(), blurPipelineConfig);
+
         Camera camera;
         float aspectRatio = static_cast<float>(window.getWidth()) / static_cast<float>(window.getHeight());
         camera.init(glm::vec3(0.0f, 20.0f, 0.0f), aspectRatio, settings.fov);
@@ -381,12 +488,15 @@ int main() {
         GameState gameState = GameState::MainMenu;
 
         bool framebufferResized = false;
-        window.setResizeCallback([&framebufferResized, &camera, &pauseMenu, &mainMenu, &optionsMenu](uint32_t width, uint32_t height) {
+        window.setResizeCallback([&framebufferResized, &camera, &pauseMenu, &mainMenu, &optionsMenu, &sceneTarget, &blurTarget1](uint32_t width, uint32_t height) {
             framebufferResized = true;
             camera.setAspectRatio(static_cast<float>(width) / static_cast<float>(height));
             pauseMenu.onResize(width, height);
             mainMenu.onResize(width, height);
             optionsMenu.onResize(width, height);
+            // Resize offscreen targets for blur
+            sceneTarget.resize(width, height);
+            blurTarget1.resize(width, height);
         });
 
         auto lastTime = std::chrono::high_resolution_clock::now();
@@ -605,11 +715,18 @@ int main() {
 
             auto cmd = renderer.getCurrentCommandBuffer();
 
+            // Determine if blur is needed (pause menu or options menu, but not main menu)
+            bool needsBlur = (gameState == GameState::Paused || gameState == GameState::Options);
+
+            // Render scene to offscreen target if blur is needed, otherwise render directly to swapchain
+            VkImageView renderTarget = needsBlur ? sceneTarget.getColorImageView() : swapchain.getImageViews()[renderer.getCurrentImageIndex()];
+            VkImageView depthTarget = needsBlur ? sceneTarget.getDepthImageView() : depthBuffer.getImageView();
+
             cmd.beginRendering(
-                swapchain.getImageViews()[renderer.getCurrentImageIndex()],
+                renderTarget,
                 swapchain.getExtent(),
                 glm::vec4(0.1f, 0.1f, 0.1f, 1.0f),
-                depthBuffer.getImageView()
+                depthTarget
             );
 
             VkViewport viewport{};
@@ -683,8 +800,8 @@ int main() {
                                  0, drawCount, sizeof(VkDrawIndirectCommand));
             }
 
-            // Render panels for options menu (before text so text appears on top)
-            if (gameState == GameState::Options || gameState == GameState::OptionsFromMain) {
+            // Render panels for options menu only (sliders) - but NOT when blur is active (will be rendered on top of blur)
+            if ((gameState == GameState::Options || gameState == GameState::OptionsFromMain) && !needsBlur) {
                 std::vector<PanelVertex> allPanelVertices;
                 auto panelVertices = optionsMenu.generatePanelVertices(window.getWidth(), window.getHeight());
                 allPanelVertices.insert(allPanelVertices.end(), panelVertices.begin(), panelVertices.end());
@@ -701,23 +818,20 @@ int main() {
                 }
             }
 
-            // Render text overlay (main menu, HUD, pause menu, or options menu)
+            // Render text overlay - but only render menus WITHOUT blur (HUD and main menu),
+            // blur menus will render text on top of the blurred scene later
             if (fontManager.hasFont("default")) {
                 std::vector<TextVertex> allTextVertices;
 
                 if (gameState == GameState::MainMenu) {
-                    // Render main menu
+                    // Render main menu (no blur)
                     auto menuTextVertices = mainMenu.generateTextVertices(textRenderer);
                     allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
-                } else if (gameState == GameState::Paused) {
-                    // Render pause menu
-                    auto menuTextVertices = pauseMenu.generateTextVertices(textRenderer);
-                    allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
-                } else if (gameState == GameState::Options || gameState == GameState::OptionsFromMain) {
-                    // Render options menu
+                } else if (gameState == GameState::OptionsFromMain) {
+                    // Render options menu from main menu (no blur)
                     auto menuTextVertices = optionsMenu.generateTextVertices(textRenderer);
                     allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
-                } else {
+                } else if (!needsBlur) {
                     // Calculate FPS
                     static float fpsTimer = 0.0f;
                     static int frameCount = 0;
@@ -774,12 +888,155 @@ int main() {
             }
 
             cmd.endRendering();
+
+            // Apply blur post-processing if needed (pause or options menu)
+            if (needsBlur) {
+                // Image barrier: Transition scene color target to SHADER_READ_ONLY
+                VkImageMemoryBarrier sceneBarrier{};
+                sceneBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                sceneBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                sceneBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                sceneBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+                sceneBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                sceneBarrier.image = sceneTarget.getColorImage();
+                sceneBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                sceneBarrier.subresourceRange.baseMipLevel = 0;
+                sceneBarrier.subresourceRange.levelCount = 1;
+                sceneBarrier.subresourceRange.baseArrayLayer = 0;
+                sceneBarrier.subresourceRange.layerCount = 1;
+
+                vkCmdPipelineBarrier(cmd.getBuffer(),
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    0, 0, nullptr, 0, nullptr, 1, &sceneBarrier);
+
+                // PASS 1: Horizontal blur (scene -> blurTarget1)
+                cmd.beginRendering(
+                    blurTarget1.getColorImageView(),
+                    swapchain.getExtent(),
+                    glm::vec4(0.0f, 0.0f, 0.0f, 1.0f),
+                    VK_NULL_HANDLE  // No depth for blur
+                );
+
+                cmd.setViewport(viewport);
+                cmd.setScissor(scissor);
+                cmd.bindPipeline(blurPipeline.getPipeline());
+                cmd.bindDescriptorSets(blurPipeline.getLayout(), 0, 1, &textureDescSet);
+
+                // Push constants for horizontal blur
+                struct BlurPushConstants {
+                    uint32_t textureIndex;
+                    glm::vec2 blurDir;
+                    float radius;
+                    float _pad;
+                } blurPC;
+                blurPC.textureIndex = sceneTextureIndex;
+                blurPC.blurDir = glm::vec2(1.0f, 0.0f);  // Horizontal
+                blurPC.radius = 1.0f;
+                blurPC._pad = 0.0f;
+
+                cmd.pushConstants(blurPipeline.getLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(BlurPushConstants), &blurPC);
+                cmd.draw(3, 1, 0, 0);  // Fullscreen triangle
+                cmd.endRendering();
+
+                // Image barrier: Transition blur target 1 to SHADER_READ_ONLY
+                VkImageMemoryBarrier blur1Barrier{};
+                blur1Barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                blur1Barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                blur1Barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                blur1Barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+                blur1Barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                blur1Barrier.image = blurTarget1.getColorImage();
+                blur1Barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                blur1Barrier.subresourceRange.baseMipLevel = 0;
+                blur1Barrier.subresourceRange.levelCount = 1;
+                blur1Barrier.subresourceRange.baseArrayLayer = 0;
+                blur1Barrier.subresourceRange.layerCount = 1;
+
+                vkCmdPipelineBarrier(cmd.getBuffer(),
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    0, 0, nullptr, 0, nullptr, 1, &blur1Barrier);
+
+                // PASS 2: Vertical blur (blurTarget1 -> swapchain)
+                cmd.beginRendering(
+                    swapchain.getImageViews()[renderer.getCurrentImageIndex()],
+                    swapchain.getExtent(),
+                    glm::vec4(0.0f, 0.0f, 0.0f, 1.0f),
+                    VK_NULL_HANDLE
+                );
+
+                cmd.setViewport(viewport);
+                cmd.setScissor(scissor);
+                cmd.bindPipeline(blurPipeline.getPipeline());
+                cmd.bindDescriptorSets(blurPipeline.getLayout(), 0, 1, &textureDescSet);
+
+                // Push constants for vertical blur
+                blurPC.textureIndex = blurTexture1Index;
+                blurPC.blurDir = glm::vec2(0.0f, 1.0f);  // Vertical
+
+                cmd.pushConstants(blurPipeline.getLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(BlurPushConstants), &blurPC);
+                cmd.draw(3, 1, 0, 0);  // Fullscreen triangle
+
+                // Render UI on top of blurred scene
+                if (fontManager.hasFont("default")) {
+                    std::vector<TextVertex> menuTextVertices;
+                    if (gameState == GameState::Paused) {
+                        menuTextVertices = pauseMenu.generateTextVertices(textRenderer);
+                    } else if (gameState == GameState::Options) {
+                        // Also render slider panels for options
+                        std::vector<PanelVertex> panelVertices = optionsMenu.generatePanelVertices(window.getWidth(), window.getHeight());
+                        if (!panelVertices.empty()) {
+                            void* panelData = panelVertexBuffer.map();
+                            memcpy(panelData, panelVertices.data(), panelVertices.size() * sizeof(PanelVertex));
+                            cmd.bindPipeline(panelPipeline.getPipeline());
+                            cmd.bindVertexBuffer(panelVertexBuffer.getBuffer());
+                            cmd.draw(panelVertices.size(), 1, 0, 0);
+                        }
+                        menuTextVertices = optionsMenu.generateTextVertices(textRenderer);
+                    }
+
+                    if (!menuTextVertices.empty()) {
+                        void* data = textVertexBuffer.map();
+                        memcpy(data, menuTextVertices.data(), menuTextVertices.size() * sizeof(TextVertex));
+                        cmd.bindPipeline(textPipeline.getPipeline());
+                        cmd.bindDescriptorSets(textPipeline.getLayout(), 0, 1, &textureDescSet);
+                        cmd.bindVertexBuffer(textVertexBuffer.getBuffer());
+                        cmd.draw(menuTextVertices.size(), 1, 0, 0);
+                    }
+                }
+
+                cmd.endRendering();
+
+                // Transition images back for next frame
+                sceneBarrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                sceneBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                sceneBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                sceneBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+                blur1Barrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                blur1Barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                blur1Barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                blur1Barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+                VkImageMemoryBarrier barriers[] = {sceneBarrier, blur1Barrier};
+                vkCmdPipelineBarrier(cmd.getBuffer(),
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    0, 0, nullptr, 0, nullptr, 2, barriers);
+            }
+
             renderer.endFrame();
         }
 
         vulkanContext.waitIdle();
 
         // Cleanup resources
+        blurPipeline.cleanup();
+        blurFragShader.cleanup();
+        blurVertShader.cleanup();
+        sceneTarget.cleanup();
+        blurTarget1.cleanup();
         vkDestroyDescriptorPool(vulkanContext.getDevice().getLogicalDevice(), geometryDescriptorPool, nullptr);
         vkDestroyDescriptorSetLayout(vulkanContext.getDevice().getLogicalDevice(), geometrySetLayout, nullptr);
         quadInfoBuffer.cleanup();

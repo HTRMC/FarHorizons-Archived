@@ -123,19 +123,25 @@ void GraphicsPipeline::init(VkDevice device, const GraphicsPipelineConfig& confi
     dynamicState.pDynamicStates = dynamicStates.data();
 
     // Pipeline layout with descriptor sets and push constants
-    // Push constant range for view-projection matrix + camera position (96 bytes)
-    // mat4 viewProj (64) + ivec3 cameraPositionInteger (12) + pad (4) + vec3 cameraPositionFraction (12) + pad (4) = 96
-    VkPushConstantRange pushConstantRange{};
-    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    pushConstantRange.offset = 0;
-    pushConstantRange.size = 96; // mat4 + camera position data
-
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(config.descriptorSetLayouts.size());
     pipelineLayoutInfo.pSetLayouts = config.descriptorSetLayouts.empty() ? nullptr : config.descriptorSetLayouts.data();
-    pipelineLayoutInfo.pushConstantRangeCount = 1;
-    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+
+    // Use push constant ranges from config if provided, otherwise use default for vertex shader
+    std::vector<VkPushConstantRange> pushConstantRanges = config.pushConstantRanges;
+    if (pushConstantRanges.empty()) {
+        // Default push constant range for view-projection matrix + camera position (96 bytes)
+        // mat4 viewProj (64) + ivec3 cameraPositionInteger (12) + pad (4) + vec3 cameraPositionFraction (12) + pad (4) = 96
+        VkPushConstantRange defaultRange{};
+        defaultRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        defaultRange.offset = 0;
+        defaultRange.size = 96;
+        pushConstantRanges.push_back(defaultRange);
+    }
+
+    pipelineLayoutInfo.pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size());
+    pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
 
     VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_layout));
 

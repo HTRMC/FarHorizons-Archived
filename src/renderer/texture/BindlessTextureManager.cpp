@@ -18,9 +18,11 @@ void BindlessTextureManager::init(VkDevice device, VmaAllocator allocator, uint3
 }
 
 void BindlessTextureManager::shutdown() {
-    // Cleanup all textures
+    // Cleanup all textures (skip external textures - they don't own image/allocation)
     for (auto& texture : m_textures) {
-        texture.cleanup(m_device, m_allocator);
+        if (texture.image != VK_NULL_HANDLE && texture.allocation != VK_NULL_HANDLE) {
+            texture.cleanup(m_device, m_allocator);
+        }
     }
     m_textures.clear();
     m_textureIndices.clear();
@@ -175,6 +177,30 @@ uint32_t BindlessTextureManager::loadTexture(const std::string& filepath, VkComm
     updateDescriptor(index, texture.imageView);
 
     spdlog::info("[BindlessTextureManager] Loaded texture: {} (index {})", filepath, index);
+
+    return index;
+}
+
+uint32_t BindlessTextureManager::registerExternalTexture(VkImageView imageView) {
+    // Check if we have space
+    if (m_textures.size() >= m_maxTextures) {
+        throw std::runtime_error("Bindless texture array is full");
+    }
+
+    // Create a placeholder texture entry (we don't own the image/memory, just the view reference)
+    Texture texture{};
+    texture.imageView = imageView;
+    texture.image = VK_NULL_HANDLE;  // External - we don't own it
+    texture.allocation = VK_NULL_HANDLE;  // External - we don't own it
+
+    // Add to array
+    uint32_t index = static_cast<uint32_t>(m_textures.size());
+    m_textures.push_back(texture);
+
+    // Update descriptor
+    updateDescriptor(index, imageView);
+
+    spdlog::info("[BindlessTextureManager] Registered external texture (index {})", index);
 
     return index;
 }
