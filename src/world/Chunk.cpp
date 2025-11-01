@@ -52,7 +52,7 @@ void Chunk::generate() {
 
                 if (worldPos.y >= 0.0f && worldPos.y <= 1.0f) {
                     // Place stone blocks at bottom layers
-                    state = BlockRegistry::STONE->getDefaultState();
+                    state = BlockRegistry::GRASS_BLOCK->getDefaultState();
                 } else {
                     glm::vec3 center(0.0f, 10.0f, 0.0f);
                     float distance = glm::length(worldPos - center);

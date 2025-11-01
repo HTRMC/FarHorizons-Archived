@@ -408,10 +408,25 @@ std::unordered_map<std::string, std::string> BlockModelManager::loadBlockstatesF
                 std::string_view variantKeyStr = variantKey;
                 std::string variantStr(variantKeyStr);
 
-                // Get model name from variant value
+                // Variant value can be either:
+                // 1. A single object: { "model": "..." }
+                // 2. An array of objects: [{ "model": "..." }, { "model": "...", "y": 90 }, ...]
+                // For arrays, we just use the first variant (ignore rotations for now)
+
                 std::string_view modelName;
-                if (!variantValue["model"].get(modelName)) {
-                    variantToModel[variantStr] = std::string(modelName);
+                simdjson::dom::array variantArray;
+
+                if (!variantValue.get(variantArray)) {
+                    // It's an array - use the first element
+                    auto firstElement = variantArray.at(0);
+                    if (!firstElement["model"].get(modelName)) {
+                        variantToModel[variantStr] = std::string(modelName);
+                    }
+                } else {
+                    // It's a single object
+                    if (!variantValue["model"].get(modelName)) {
+                        variantToModel[variantStr] = std::string(modelName);
+                    }
                 }
             }
         }

@@ -3,6 +3,7 @@
 #include "blocks/AirBlock.hpp"
 #include "blocks/SimpleBlock.hpp"
 #include "blocks/SlabBlock.hpp"
+#include "blocks/GrassBlock.hpp"
 #include "BlockModel.hpp"
 #include <unordered_map>
 #include <string>
@@ -16,6 +17,7 @@ public:
     static Block* AIR;
     static Block* STONE;
     static Block* STONE_SLAB;
+    static Block* GRASS_BLOCK;
 
     // Initialize all blocks
     static void init();

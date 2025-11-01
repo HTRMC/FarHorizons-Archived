@@ -2,11 +2,6 @@
 
 namespace VoxelEngine {
 
-// Initialize static property
-Property<SlabType> SlabBlock::TYPE("type", {
-    {"bottom", SlabType::BOTTOM},
-    {"top", SlabType::TOP},
-    {"double", SlabType::DOUBLE}
-});
+// SlabBlock implementation (property is now in Properties.cpp)
 
 } // namespace VoxelEngine

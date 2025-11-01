@@ -1,21 +1,13 @@
 #pragma once
 #include "../Block.hpp"
+#include "../Properties.hpp"
+#include "enums/SlabType.hpp"
 
 namespace VoxelEngine {
-
-// Slab type property values
-enum class SlabType : uint8_t {
-    BOTTOM = 0,
-    TOP = 1,
-    DOUBLE = 2
-};
 
 // SlabBlock - half-height block with directional opacity
 class SlabBlock : public Block {
 public:
-    // Static property definition (shared by all slab instances)
-    static Property<SlabType> TYPE;
-
     SlabBlock(const std::string& name) : Block(name) {}
 
     // Slabs have directional opacity based on type
@@ -51,7 +43,7 @@ public:
 
     // Expose properties for model loading
     std::vector<PropertyBase*> getProperties() const override {
-        return {const_cast<PropertyBase*>(static_cast<const PropertyBase*>(&TYPE))};
+        return {const_cast<PropertyBase*>(static_cast<const PropertyBase*>(&Properties::SLAB_TYPE))};
     }
 
     // Helper to get specific state
@@ -66,12 +58,5 @@ private:
         return static_cast<SlabType>(offset);
     }
 };
-
-// Static property initialization (will be defined in .cpp)
-// Property<SlabType> SlabBlock::TYPE("type", {
-//     {"bottom", SlabType::BOTTOM},
-//     {"top", SlabType::TOP},
-//     {"double", SlabType::DOUBLE}
-// });
 
 } // namespace VoxelEngine

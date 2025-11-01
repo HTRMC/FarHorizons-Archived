@@ -8,6 +8,7 @@ namespace VoxelEngine {
 Block* BlockRegistry::AIR = nullptr;
 Block* BlockRegistry::STONE = nullptr;
 Block* BlockRegistry::STONE_SLAB = nullptr;
+Block* BlockRegistry::GRASS_BLOCK = nullptr;
 
 uint16_t BlockRegistry::m_nextStateId = 0;
 std::unordered_map<std::string, Block*> BlockRegistry::m_blocks;
@@ -19,6 +20,7 @@ void BlockRegistry::init() {
     AIR = registerBlock<AirBlock>("air");
     STONE = registerBlock<SimpleBlock>("stone");
     STONE_SLAB = registerBlock<SlabBlock>("stone_slab");
+    GRASS_BLOCK = registerBlock<GrassBlock>("grass_block");
 
     spdlog::info("Registered {} blocks with {} total states",
                  m_blocks.size(), m_nextStateId);
