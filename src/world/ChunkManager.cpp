@@ -374,9 +374,21 @@ CompactChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk) const {
                         // Get or create QuadInfo for this geometry
                         uint32_t quadIndex = m_quadLibrary.getOrCreateQuad(normal, corners, uvs, faceTextureIndex);
 
-                        // Create packed lighting (uniform bright light for now)
+                        // Create packed lighting with tint support
+                        // Grass tint color: #79C05A (hardcoded for now)
+                        uint8_t lightR = 31, lightG = 31, lightB = 31;  // Default: full bright white
+
+                        if (face.tintindex.has_value()) {
+                            // Apply grass tint color #79C05A
+                            // Convert from 8-bit RGB to 5-bit:
+                            // R: 0x79 (121) -> 15, G: 0xC0 (192) -> 23, B: 0x5A (90) -> 11
+                            lightR = 15;
+                            lightG = 23;
+                            lightB = 11;
+                        }
+
                         uint32_t lightIndex = static_cast<uint32_t>(mesh.lighting.size());
-                        mesh.lighting.push_back(PackedLighting::uniform(31, 31, 31));  // Full bright
+                        mesh.lighting.push_back(PackedLighting::uniform(lightR, lightG, lightB));
 
                         // Create FaceData (texture is now in QuadInfo, not here)
                         FaceData faceData = FaceData::pack(

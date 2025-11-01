@@ -145,12 +145,12 @@ struct CompactChunkMesh {
  */
 struct alignas(16) ChunkData {
     alignas(16) glm::ivec3 position;  // Chunk world position in blocks (chunkX * 16, chunkY * 16, chunkZ * 16)
-    uint32_t faceOffset;               // Offset into FaceData buffer where this chunk's faces start
+    uint32_t faceOffset;               // Offset into both FaceData AND lighting buffers (same index for both)
 
-    static ChunkData create(const ChunkPosition& chunkPos, uint32_t faceBufferOffset) {
-        ChunkData data;
+    static ChunkData create(const ChunkPosition& chunkPos, uint32_t bufferOffset) {
+        ChunkData data{};
         data.position = glm::ivec3(chunkPos.x * CHUNK_SIZE, chunkPos.y * CHUNK_SIZE, chunkPos.z * CHUNK_SIZE);
-        data.faceOffset = faceBufferOffset;
+        data.faceOffset = bufferOffset;
         return data;
     }
 };

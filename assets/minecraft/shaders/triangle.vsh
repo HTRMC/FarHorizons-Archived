@@ -51,7 +51,7 @@ layout(std430, set = 1, binding = 1) readonly buffer LightingBuffer {
 // ChunkData buffer (per-chunk metadata, indexed by gl_BaseInstance)
 struct ChunkData {
     ivec3 position;   // Chunk world position in blocks (chunkX * 16, chunkY * 16, chunkZ * 16)
-    uint faceOffset;  // Offset into FaceData buffer where this chunk's faces start
+    uint faceOffset;  // Offset into FaceData buffer (also used for lighting buffer - same index)
 };
 
 layout(std430, set = 1, binding = 2) readonly buffer ChunkDataBuffer {
@@ -105,8 +105,9 @@ void main() {
     // Get quad geometry (includes texture)
     QuadInfo quad = quadInfos[quadIndex];
 
-    // Get lighting data for this face
-    uvec4 faceLighting = lighting[lightIndex];
+    // Get lighting data for this face (adjust local index to global buffer offset)
+    // faceOffset works for both buffers since they have the same indices
+    uvec4 faceLighting = lighting[chunk.faceOffset + lightIndex];
 
     // Determine which corner based on gl_VertexIndex (0-5 for two triangles)
     // Triangle 1: 0, 1, 2 (counter-clockwise)

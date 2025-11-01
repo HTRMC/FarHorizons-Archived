@@ -25,6 +25,7 @@ struct BlockFace {
     std::string texture;  // Texture variable (e.g., "#side")
     std::optional<FaceDirection> cullface;  // Which face to cull against
     uint32_t textureIndex = 0;  // Cached texture index (set during preloading)
+    std::optional<int> tintindex;  // Tint index for biome coloring (grass, leaves, etc.)
 };
 
 // Represents a cuboid element of a block model

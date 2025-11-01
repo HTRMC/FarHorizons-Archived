@@ -103,6 +103,7 @@ bool ChunkBufferManager::addMeshes(std::vector<CompactChunkMesh>& meshes, size_t
                mesh.lighting.size() * sizeof(PackedLighting));
 
         // Create and store ChunkData (indexed by gl_BaseInstance = drawCommandIndex)
+        // faceOffset == lightingOffset since they're both incremented by the same amount
         ChunkData chunkMetadata = ChunkData::create(mesh.position, m_currentFaceOffset);
         m_chunkDataArray.push_back(chunkMetadata);
         memcpy(static_cast<uint8_t*>(chunkData) + m_drawCommandCount * sizeof(ChunkData),
@@ -214,6 +215,7 @@ void ChunkBufferManager::fullRebuild() {
                mesh.lighting.size() * sizeof(PackedLighting));
 
         // Create and store ChunkData (indexed by gl_BaseInstance = drawCommandIndex)
+        // faceOffset == lightingOffset since they're both incremented by the same amount
         ChunkData chunkMetadata = ChunkData::create(mesh.position, m_currentFaceOffset);
         m_chunkDataArray.push_back(chunkMetadata);
         memcpy(static_cast<uint8_t*>(chunkData) + m_drawCommandCount * sizeof(ChunkData),

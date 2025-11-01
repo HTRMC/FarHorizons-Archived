@@ -287,6 +287,12 @@ std::unique_ptr<BlockModel> BlockModelManager::loadModelFromFile(const std::stri
                                 face.cullface = parseFaceDirection(std::string(cullfaceStr));
                             }
 
+                            // Parse tintindex (optional)
+                            int64_t tintindexValue;
+                            if (!faceValue["tintindex"].get(tintindexValue)) {
+                                face.tintindex = static_cast<int>(tintindexValue);
+                            }
+
                             element.faces[*faceDir] = face;
                         }
                     }
