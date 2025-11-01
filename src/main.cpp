@@ -23,13 +23,16 @@
 #include "text/Text.hpp"
 #include "ui/PauseMenu.hpp"
 #include "ui/MainMenu.hpp"
+#include "ui/OptionsMenu.hpp"
 
 using namespace VoxelEngine;
 
 enum class GameState {
     MainMenu,
     Playing,
-    Paused
+    Paused,
+    Options,
+    OptionsFromMain
 };
 
 int main() {
@@ -272,6 +275,54 @@ int main() {
                              VMA_MEMORY_USAGE_CPU_TO_GPU,
                              VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
+        // Load panel shaders and create panel pipeline
+        Shader panelVertShader, panelFragShader;
+        panelVertShader.loadFromFile(vulkanContext.getDevice().getLogicalDevice(), "assets/minecraft/shaders/panel.vsh.spv");
+        panelFragShader.loadFromFile(vulkanContext.getDevice().getLogicalDevice(), "assets/minecraft/shaders/panel.fsh.spv");
+
+        GraphicsPipelineConfig panelPipelineConfig;
+        panelPipelineConfig.vertexShader = &panelVertShader;
+        panelPipelineConfig.fragmentShader = &panelFragShader;
+        panelPipelineConfig.colorFormat = swapchain.getImageFormat();
+        panelPipelineConfig.depthFormat = depthBuffer.getFormat();
+        panelPipelineConfig.depthTest = false;  // Panels rendered without depth
+        panelPipelineConfig.depthWrite = false;
+        panelPipelineConfig.cullMode = VK_CULL_MODE_NONE;
+        panelPipelineConfig.blendEnable = true;  // Enable alpha blending for panels
+
+        // PanelVertex format
+        VkVertexInputBindingDescription panelBinding{};
+        panelBinding.binding = 0;
+        panelBinding.stride = sizeof(PanelVertex);
+        panelBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        panelPipelineConfig.vertexBindings.push_back(panelBinding);
+
+        VkVertexInputAttributeDescription panelPosAttr{};
+        panelPosAttr.location = 0;
+        panelPosAttr.binding = 0;
+        panelPosAttr.format = VK_FORMAT_R32G32_SFLOAT;
+        panelPosAttr.offset = offsetof(PanelVertex, position);
+        panelPipelineConfig.vertexAttributes.push_back(panelPosAttr);
+
+        VkVertexInputAttributeDescription panelColorAttr{};
+        panelColorAttr.location = 1;
+        panelColorAttr.binding = 0;
+        panelColorAttr.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        panelColorAttr.offset = offsetof(PanelVertex, color);
+        panelPipelineConfig.vertexAttributes.push_back(panelColorAttr);
+
+        // No descriptor sets needed for panels (no textures)
+
+        GraphicsPipeline panelPipeline;
+        panelPipeline.init(vulkanContext.getDevice().getLogicalDevice(), panelPipelineConfig);
+
+        // Create a buffer for panel vertices
+        Buffer panelVertexBuffer;
+        panelVertexBuffer.init(vulkanContext.getAllocator(), 10000 * sizeof(PanelVertex),
+                              VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                              VMA_MEMORY_USAGE_CPU_TO_GPU,
+                              VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+
         Camera camera;
         float aspectRatio = static_cast<float>(window.getWidth()) / static_cast<float>(window.getHeight());
         camera.init(glm::vec3(0.0f, 20.0f, 0.0f), aspectRatio, 70.0f);
@@ -320,14 +371,16 @@ int main() {
         // Initialize menus
         MainMenu mainMenu(window.getWidth(), window.getHeight());
         PauseMenu pauseMenu(window.getWidth(), window.getHeight());
+        OptionsMenu optionsMenu(window.getWidth(), window.getHeight(), &camera, &chunkManager);
         GameState gameState = GameState::MainMenu;
 
         bool framebufferResized = false;
-        window.setResizeCallback([&framebufferResized, &camera, &pauseMenu, &mainMenu](uint32_t width, uint32_t height) {
+        window.setResizeCallback([&framebufferResized, &camera, &pauseMenu, &mainMenu, &optionsMenu](uint32_t width, uint32_t height) {
             framebufferResized = true;
             camera.setAspectRatio(static_cast<float>(width) / static_cast<float>(height));
             pauseMenu.onResize(width, height);
             mainMenu.onResize(width, height);
+            optionsMenu.onResize(width, height);
         });
 
         auto lastTime = std::chrono::high_resolution_clock::now();
@@ -352,8 +405,9 @@ int main() {
                         spdlog::info("Starting singleplayer game");
                         break;
                     case MainMenu::Action::OpenOptions:
-                        // TODO: Open options menu (not implemented yet)
-                        spdlog::info("Options menu not yet implemented");
+                        gameState = GameState::OptionsFromMain;
+                        optionsMenu.reset();
+                        spdlog::info("Opening options menu from main menu");
                         break;
                     case MainMenu::Action::Quit:
                         window.close();
@@ -379,8 +433,9 @@ int main() {
                         gameState = GameState::Playing;
                         break;
                     case PauseMenu::Action::OpenOptions:
-                        // TODO: Open options menu (not implemented yet)
-                        spdlog::info("Options menu not yet implemented");
+                        gameState = GameState::Options;
+                        optionsMenu.reset();
+                        spdlog::info("Opening options menu from pause menu");
                         break;
                     case PauseMenu::Action::Quit:
                         gameState = GameState::MainMenu;
@@ -401,6 +456,20 @@ int main() {
                         break;
                     case PauseMenu::Action::None:
                         break;
+                }
+            } else if (gameState == GameState::Options) {
+                // Update options menu (from pause menu)
+                auto action = optionsMenu.update(deltaTime);
+                if (action == OptionsMenu::Action::Back) {
+                    gameState = GameState::Paused;
+                    spdlog::info("Returning to pause menu");
+                }
+            } else if (gameState == GameState::OptionsFromMain) {
+                // Update options menu (from main menu)
+                auto action = optionsMenu.update(deltaTime);
+                if (action == OptionsMenu::Action::Back) {
+                    gameState = GameState::MainMenu;
+                    spdlog::info("Returning to main menu");
                 }
             }
 
@@ -604,7 +673,25 @@ int main() {
                                  0, drawCount, sizeof(VkDrawIndirectCommand));
             }
 
-            // Render text overlay (main menu, HUD, or pause menu)
+            // Render panels for options menu (before text so text appears on top)
+            if (gameState == GameState::Options || gameState == GameState::OptionsFromMain) {
+                std::vector<PanelVertex> allPanelVertices;
+                auto panelVertices = optionsMenu.generatePanelVertices(window.getWidth(), window.getHeight());
+                allPanelVertices.insert(allPanelVertices.end(), panelVertices.begin(), panelVertices.end());
+
+                if (!allPanelVertices.empty()) {
+                    // Upload panel vertices to buffer
+                    void* panelData = panelVertexBuffer.map();
+                    memcpy(panelData, allPanelVertices.data(), allPanelVertices.size() * sizeof(PanelVertex));
+
+                    // Bind panel pipeline and render
+                    cmd.bindPipeline(panelPipeline.getPipeline());
+                    cmd.bindVertexBuffer(panelVertexBuffer.getBuffer());
+                    cmd.draw(allPanelVertices.size(), 1, 0, 0);
+                }
+            }
+
+            // Render text overlay (main menu, HUD, pause menu, or options menu)
             if (fontManager.hasFont("default")) {
                 std::vector<TextVertex> allTextVertices;
 
@@ -615,6 +702,10 @@ int main() {
                 } else if (gameState == GameState::Paused) {
                     // Render pause menu
                     auto menuTextVertices = pauseMenu.generateTextVertices(textRenderer);
+                    allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
+                } else if (gameState == GameState::Options || gameState == GameState::OptionsFromMain) {
+                    // Render options menu
+                    auto menuTextVertices = optionsMenu.generateTextVertices(textRenderer);
                     allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
                 } else {
                     // Calculate FPS
@@ -683,6 +774,10 @@ int main() {
         vkDestroyDescriptorSetLayout(vulkanContext.getDevice().getLogicalDevice(), geometrySetLayout, nullptr);
         quadInfoBuffer.cleanup();
         bufferManager.cleanup();
+        panelVertexBuffer.cleanup();
+        panelPipeline.cleanup();
+        panelFragShader.cleanup();
+        panelVertShader.cleanup();
         textVertexBuffer.cleanup();
         textPipeline.cleanup();
         textFragShader.cleanup();
