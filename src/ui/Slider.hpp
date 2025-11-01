@@ -19,7 +19,7 @@ namespace VoxelEngine {
 class Slider {
 public:
     Slider(const std::string& label, const glm::vec2& position, float width,
-           float minValue, float maxValue, float currentValue, bool isInteger = false)
+           float minValue, float maxValue, float currentValue, bool isInteger = false, float scale = 1.0f)
         : m_label(label)
         , m_position(position)
         , m_width(width)
@@ -27,14 +27,15 @@ public:
         , m_maxValue(maxValue)
         , m_value(currentValue)
         , m_isInteger(isInteger)
+        , m_scale(scale)
         , m_dragging(false)
         , m_hovered(false) {
 
-        // Slider bar dimensions
-        m_barHeight = 8.0f;
-        m_knobWidth = 12.0f;
-        m_knobHeight = 24.0f;
-        m_totalHeight = 80.0f; // Space for label, slider, and value
+        // Slider bar dimensions (scaled)
+        m_barHeight = 8.0f * scale;
+        m_knobWidth = 12.0f * scale;
+        m_knobHeight = 24.0f * scale;
+        m_totalHeight = 80.0f * scale; // Space for label, slider, and value
 
         updateKnobPosition();
     }
@@ -89,14 +90,15 @@ public:
     std::vector<TextVertex> generateTextVertices(
         TextRenderer& textRenderer,
         uint32_t screenWidth,
-        uint32_t screenHeight
+        uint32_t screenHeight,
+        float guiScale = 1.0f
     ) const {
         std::vector<TextVertex> allVertices;
 
         // Label text
         Style labelStyle = Style::white();
         auto labelText = Text::literal(m_label, labelStyle);
-        float labelScale = 2.0f;
+        float labelScale = 2.0f * guiScale;
 
         auto labelVertices = textRenderer.generateVertices(
             labelText,
@@ -111,7 +113,7 @@ public:
         Style valueStyle = m_hovered || m_dragging ? Style::yellow() : Style::gray();
         std::string valueStr = formatValue(m_value);
         auto valueText = Text::literal(valueStr, valueStyle);
-        float valueScale = 2.0f;
+        float valueScale = 2.0f * guiScale;
 
         float valueWidth = textRenderer.calculateTextWidth(valueText, valueScale);
         glm::vec2 valuePos = m_position + glm::vec2(m_width - valueWidth, 0.0f);
@@ -201,8 +203,8 @@ private:
     }
 
     glm::vec2 getBarPosition() const {
-        // Bar is positioned below the label
-        return m_position + glm::vec2(0.0f, 30.0f);
+        // Bar is positioned below the label (scaled)
+        return m_position + glm::vec2(0.0f, 30.0f * m_scale);
     }
 
     glm::vec2 getKnobPosition() const {
@@ -241,6 +243,7 @@ private:
     float m_maxValue;
     float m_value;
     bool m_isInteger;
+    float m_scale;
 
     // Visual properties
     float m_barHeight;

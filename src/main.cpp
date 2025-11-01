@@ -483,7 +483,7 @@ int main() {
 
         // Initialize menus
         MainMenu mainMenu(window.getWidth(), window.getHeight());
-        PauseMenu pauseMenu(window.getWidth(), window.getHeight());
+        PauseMenu pauseMenu(window.getWidth(), window.getHeight(), &settings);
         OptionsMenu optionsMenu(window.getWidth(), window.getHeight(), &camera, &chunkManager, &settings);
         GameState gameState = GameState::MainMenu;
 

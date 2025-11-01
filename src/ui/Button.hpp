@@ -58,7 +58,8 @@ public:
     std::vector<TextVertex> generateTextVertices(
         TextRenderer& textRenderer,
         uint32_t screenWidth,
-        uint32_t screenHeight
+        uint32_t screenHeight,
+        float guiScale = 1.0f
     ) const {
         // Choose style based on button state (color changes on hover, no bold)
         Style style;
@@ -76,7 +77,7 @@ public:
         auto text = Text::literal(m_label, style);
 
         // Calculate centered position with larger scale
-        float scale = 3.0f;
+        float scale = 3.0f * guiScale;
         float textWidth = textRenderer.calculateTextWidth(text, scale);
         float textHeight = textRenderer.calculateTextHeight(text, scale);
 

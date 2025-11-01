@@ -4,6 +4,7 @@
 #include "Panel.hpp"
 #include "../text/TextRenderer.hpp"
 #include "../core/InputSystem.hpp"
+#include "../core/Settings.hpp"
 #include <memory>
 #include <vector>
 
@@ -22,9 +23,10 @@ public:
         Quit
     };
 
-    PauseMenu(uint32_t screenWidth, uint32_t screenHeight)
+    PauseMenu(uint32_t screenWidth, uint32_t screenHeight, Settings* settings = nullptr)
         : m_screenWidth(screenWidth)
         , m_screenHeight(screenHeight)
+        , m_settings(settings)
         , m_selectedButtonIndex(0)
         , m_lastAction(Action::None) {
         setupButtons();
@@ -94,16 +96,20 @@ public:
     std::vector<TextVertex> generateTextVertices(TextRenderer& textRenderer) const {
         std::vector<TextVertex> allVertices;
 
+        // Calculate effective GUI scale
+        float guiScale = m_settings ? static_cast<float>(m_settings->getEffectiveGuiScale(m_screenHeight)) : 1.0f;
+
         // Add title
         auto titleText = Text::literal("PAUSED", Style::yellow().withBold(true));
-        float titleWidth = textRenderer.calculateTextWidth(titleText, 5.0f);
+        float titleScale = 5.0f * guiScale;
+        float titleWidth = textRenderer.calculateTextWidth(titleText, titleScale);
         float titleX = (m_screenWidth - titleWidth) * 0.5f;
         float titleY = 150.0f;
 
         auto titleVertices = textRenderer.generateVertices(
             titleText,
             glm::vec2(titleX, titleY),
-            5.0f,
+            titleScale,
             m_screenWidth,
             m_screenHeight
         );
@@ -114,7 +120,8 @@ public:
             auto buttonVertices = button->generateTextVertices(
                 textRenderer,
                 m_screenWidth,
-                m_screenHeight
+                m_screenHeight,
+                guiScale
             );
             allVertices.insert(allVertices.end(), buttonVertices.begin(), buttonVertices.end());
         }
@@ -207,6 +214,7 @@ private:
 
     uint32_t m_screenWidth;
     uint32_t m_screenHeight;
+    Settings* m_settings;
     size_t m_selectedButtonIndex;
     Action m_lastAction;
 

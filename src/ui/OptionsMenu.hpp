@@ -213,16 +213,20 @@ public:
     std::vector<TextVertex> generateTextVertices(TextRenderer& textRenderer) const {
         std::vector<TextVertex> allVertices;
 
+        // Calculate effective GUI scale
+        float guiScale = m_settings ? static_cast<float>(m_settings->getEffectiveGuiScale(m_screenHeight)) : 1.0f;
+
         // Add title
         auto titleText = Text::literal("OPTIONS", Style::yellow().withBold(true));
-        float titleWidth = textRenderer.calculateTextWidth(titleText, 4.0f);
+        float titleScale = 4.0f * guiScale;
+        float titleWidth = textRenderer.calculateTextWidth(titleText, titleScale);
         float titleX = (m_screenWidth - titleWidth) * 0.5f;
         float titleY = 80.0f;
 
         auto titleVertices = textRenderer.generateVertices(
             titleText,
             glm::vec2(titleX, titleY),
-            4.0f,
+            titleScale,
             m_screenWidth,
             m_screenHeight
         );
@@ -233,7 +237,8 @@ public:
             auto sliderVertices = slider->generateTextVertices(
                 textRenderer,
                 m_screenWidth,
-                m_screenHeight
+                m_screenHeight,
+                guiScale
             );
             allVertices.insert(allVertices.end(), sliderVertices.begin(), sliderVertices.end());
         }
@@ -243,7 +248,8 @@ public:
             auto buttonVertices = button->generateTextVertices(
                 textRenderer,
                 m_screenWidth,
-                m_screenHeight
+                m_screenHeight,
+                guiScale
             );
             allVertices.insert(allVertices.end(), buttonVertices.begin(), buttonVertices.end());
         }
@@ -296,9 +302,12 @@ private:
         m_sliders.clear();
         m_buttons.clear();
 
-        // Slider dimensions
-        float sliderWidth = 400.0f;
-        float sliderSpacing = 100.0f;
+        // Calculate effective GUI scale for sizing UI elements
+        float guiScale = m_settings ? static_cast<float>(m_settings->getEffectiveGuiScale(m_screenHeight)) : 1.0f;
+
+        // Slider dimensions (scaled)
+        float sliderWidth = 400.0f * guiScale;
+        float sliderSpacing = 100.0f * guiScale;
 
         // Center sliders on screen
         float startX = (m_screenWidth - sliderWidth) * 0.5f;
@@ -311,7 +320,8 @@ private:
             sliderWidth,
             45.0f, 120.0f,
             m_settings ? m_settings->fov : 70.0f,
-            true // Integer values
+            true, // Integer values
+            guiScale // Scale parameter
         );
         fovSlider->setOnChange([this](float value) {
             if (m_camera) {
@@ -331,7 +341,8 @@ private:
             sliderWidth,
             2.0f, 32.0f,
             m_settings ? static_cast<float>(m_settings->renderDistance) : 8.0f,
-            true // Integer values
+            true, // Integer values
+            guiScale // Scale parameter
         );
         renderDistSlider->setOnChange([this](float value) {
             if (m_chunkManager) {
@@ -351,7 +362,8 @@ private:
             sliderWidth,
             0.0f, 10.0f,
             m_settings ? static_cast<float>(m_settings->menuBlurAmount) : 5.0f,
-            true // Integer values
+            true, // Integer values
+            guiScale // Scale parameter
         );
         blurSlider->setOnChange([this](float value) {
             if (m_settings) {
@@ -368,12 +380,15 @@ private:
             sliderWidth,
             0.0f, 6.0f,
             m_settings ? static_cast<float>(m_settings->guiScale) : 0.0f,
-            true // Integer values
+            true, // Integer values
+            guiScale // Scale parameter
         );
         guiScaleSlider->setOnChange([this](float value) {
             if (m_settings) {
                 m_settings->guiScale = static_cast<int32_t>(value);
                 m_settings->save();
+                // Rebuild UI to apply new scale
+                setupUI();
             }
         });
         // Custom formatter to display "Auto" for 0
@@ -386,11 +401,11 @@ private:
         });
         m_sliders.push_back(std::move(guiScaleSlider));
 
-        // Keybind buttons section
+        // Keybind buttons section (scaled)
         float keybindStartY = startY + sliderSpacing * 4.2f;
-        float keybindButtonWidth = 250.0f;
-        float keybindButtonHeight = 35.0f;
-        float keybindSpacing = 45.0f;
+        float keybindButtonWidth = 250.0f * guiScale;
+        float keybindButtonHeight = 35.0f * guiScale;
+        float keybindSpacing = 45.0f * guiScale;
         float keybindX = (m_screenWidth - keybindButtonWidth) * 0.5f;
 
         // Add keybind buttons for movement
@@ -418,9 +433,9 @@ private:
                         glm::vec2(keybindX, keybindStartY + keybindSpacing * 5),
                         glm::vec2(keybindButtonWidth, keybindButtonHeight));
 
-        // Back button
-        float buttonWidth = 300.0f;
-        float buttonHeight = 60.0f;
+        // Back button (scaled)
+        float buttonWidth = 300.0f * guiScale;
+        float buttonHeight = 60.0f * guiScale;
         float buttonX = (m_screenWidth - buttonWidth) * 0.5f;
         float buttonY = keybindStartY + keybindSpacing * 6.5f;
 
