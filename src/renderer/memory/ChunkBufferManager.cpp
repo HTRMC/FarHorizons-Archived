@@ -74,6 +74,7 @@ bool ChunkBufferManager::addMeshes(std::vector<CompactChunkMesh>& meshes, size_t
 
     size_t processCount = std::min(meshes.size(), maxPerFrame);
     size_t actualProcessed = 0;
+    bool needsDrawCommandRebuild = false;
 
     // Map buffers once for all updates
     void* faceData = m_faceBuffer.map();
@@ -83,7 +84,32 @@ bool ChunkBufferManager::addMeshes(std::vector<CompactChunkMesh>& meshes, size_t
 
     for (size_t i = 0; i < processCount; i++) {
         CompactChunkMesh& mesh = meshes[i];
-        if (mesh.faces.empty()) continue;
+
+        // Check if this chunk already has a mesh (update case)
+        auto existingIt = m_allocations.find(mesh.position);
+        bool isUpdate = (existingIt != m_allocations.end());
+
+        // If updating and new mesh is empty, mark old allocation as unused and remove from cache
+        if (isUpdate && mesh.faces.empty()) {
+            m_allocations.erase(existingIt);
+            m_meshCache.erase(mesh.position);
+            actualProcessed++;
+            needsDrawCommandRebuild = true;
+            continue;
+        }
+
+        // Skip if mesh is empty and not updating (new empty chunk)
+        if (mesh.faces.empty()) {
+            actualProcessed++;
+            continue;
+        }
+
+        // If updating, remove old allocation first (we'll add the new one below)
+        if (isUpdate) {
+            m_allocations.erase(existingIt);
+            m_meshCache.erase(mesh.position);
+            needsDrawCommandRebuild = true;
+        }
 
         // Check if we have space
         if (m_currentFaceOffset + mesh.faces.size() > m_maxFaces ||
@@ -150,6 +176,11 @@ bool ChunkBufferManager::addMeshes(std::vector<CompactChunkMesh>& meshes, size_t
     m_chunkDataBuffer.unmap();
     m_faceBuffer.unmap();
     m_indirectBuffer.unmap();
+
+    // Rebuild draw commands if any chunks were removed/updated
+    if (needsDrawCommandRebuild) {
+        rebuildDrawCommands();
+    }
 
     spdlog::trace("Added {} chunks to buffer ({} total)", actualProcessed, m_meshCache.size());
     return true;

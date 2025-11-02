@@ -518,6 +518,7 @@ void ChunkManager::meshWorker() {
 
         // Now generate the mesh
         CompactChunkMesh mesh;
+        mesh.position = pos;  // Always set position so BufferManager knows which chunk this is
         {
             std::lock_guard<std::mutex> lock(m_chunksMutex);
             const Chunk* chunk = getChunk(pos);
@@ -526,7 +527,9 @@ void ChunkManager::meshWorker() {
             }
         }
 
-        if (!mesh.faces.empty()) {
+        // Always push mesh to ready queue, even if empty
+        // This allows BufferManager to remove chunks that became empty after breaking blocks
+        {
             std::lock_guard<std::mutex> lock(m_readyMutex);
             m_readyMeshes.push(std::move(mesh));
         }
