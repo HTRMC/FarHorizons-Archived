@@ -472,6 +472,19 @@ void BlockModelManager::preloadBlockStateModels() {
                     spdlog::trace("Cached model for state {} ({})", stateId, block->m_name);
                 }
             }
+        } else if (!variants.empty() && properties.empty()) {
+            // Block with variants but no properties (like stone with empty "" variant)
+            // Use first variant model for all states
+            if (!variants.empty()) {
+                const BlockModel* model = loadModel(variants.begin()->second);
+                for (size_t i = 0; i < block->getStateCount(); ++i) {
+                    uint16_t stateId = block->m_baseStateId + i;
+                    m_stateToModel[stateId] = model;
+                    if (model) {
+                        spdlog::trace("Cached model for state {} ({} -> {})", stateId, block->m_name, variants.begin()->second);
+                    }
+                }
+            }
         } else if (!variants.empty() && !properties.empty()) {
             // Block with properties - map variants to states
             for (const auto& [variantKey, modelName] : variants) {

@@ -6,18 +6,9 @@
 #include <unordered_map>
 #include <optional>
 #include <memory>
+#include "FaceDirection.hpp"
 
 namespace VoxelEngine {
-
-// Face direction enum for cullface
-enum class FaceDirection {
-    DOWN,
-    UP,
-    NORTH,
-    SOUTH,
-    WEST,
-    EAST
-};
 
 // Represents a single face of a block element
 struct BlockFace {

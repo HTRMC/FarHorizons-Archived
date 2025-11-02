@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <memory>
 #include <cstdint>
+#include "FaceDirection.hpp"
 
 namespace VoxelEngine {
 
@@ -50,20 +51,23 @@ private:
 
 // Cache key for geometric face culling comparisons
 // Uses identity-based hashing like Minecraft's VoxelShapePair
+// IMPORTANT: Must include face direction because culling result depends on which face we're checking
 struct ShapePair {
     const BlockShape* first;   // Our block's shape
     const BlockShape* second;  // Neighbor block's shape
+    FaceDirection face;        // Which face we're checking
 
     bool operator==(const ShapePair& other) const {
-        // Identity comparison (pointer equality)
-        return first == other.first && second == other.second;
+        // Identity comparison (pointer equality) + face direction
+        return first == other.first && second == other.second && face == other.face;
     }
 
     size_t hash() const {
-        // Identity-based hash (like System.identityHashCode in Java)
+        // Identity-based hash (like System.identityHashCode in Java) + face direction
         size_t h1 = first->identityHash();
         size_t h2 = second->identityHash();
-        return h1 * 31 + h2;
+        size_t h3 = static_cast<size_t>(face);
+        return (h1 * 31 + h2) * 31 + h3;
     }
 };
 

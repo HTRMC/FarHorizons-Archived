@@ -555,6 +555,9 @@ int main() {
         bool quadInfoNeedsUpdate = true;  // Flag to track when QuadInfo buffer needs updating
         std::optional<BlockHitResult> crosshairTarget;
 
+        // Current selected block for placing (default to stone)
+        Block* selectedBlock = BlockRegistry::STONE;
+
         while (!window.shouldClose()) {
             auto currentTime = std::chrono::high_resolution_clock::now();
             float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
@@ -588,6 +591,20 @@ int main() {
                 if (InputSystem::isKeyDown(KeyCode::Escape)) {
                     gameState = GameState::Paused;
                     pauseMenu.reset();
+                }
+
+                // Handle block selection with number keys
+                if (InputSystem::isKeyDown(KeyCode::One)) {
+                    selectedBlock = BlockRegistry::STONE;
+                    spdlog::info("Selected: Stone");
+                }
+                if (InputSystem::isKeyDown(KeyCode::Two)) {
+                    selectedBlock = BlockRegistry::STONE_SLAB;
+                    spdlog::info("Selected: Stone Slab");
+                }
+                if (InputSystem::isKeyDown(KeyCode::Three)) {
+                    selectedBlock = BlockRegistry::GRASS_BLOCK;
+                    spdlog::info("Selected: Grass Block");
                 }
 
                 // Update camera and world
@@ -638,7 +655,7 @@ int main() {
                             if (localPos.x >= 0 && localPos.x < CHUNK_SIZE &&
                                 localPos.y >= 0 && localPos.y < CHUNK_SIZE &&
                                 localPos.z >= 0 && localPos.z < CHUNK_SIZE) {
-                                chunk->setBlockState(localPos.x, localPos.y, localPos.z, BlockRegistry::GRASS_BLOCK->getDefaultState());
+                                chunk->setBlockState(localPos.x, localPos.y, localPos.z, selectedBlock->getDefaultState());
                                 chunkManager.queueChunkRemesh(chunkPos);
 
                                 // Remesh neighbor chunks if block is on chunk boundary

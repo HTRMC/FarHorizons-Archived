@@ -17,6 +17,7 @@ void BlockRegistry::init() {
     spdlog::info("Initializing BlockRegistry...");
 
     // Register blocks - name comes from here!
+    // Air gets state ID 0, Stone gets 1, Stone Slab gets 2, Grass Block gets 3
     AIR = registerBlock<AirBlock>("air");
     STONE = registerBlock<SimpleBlock>("stone");
     STONE_SLAB = registerBlock<SlabBlock>("stone_slab");
