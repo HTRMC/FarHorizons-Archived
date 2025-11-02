@@ -336,6 +336,7 @@ int main() {
         outlineFragShader.loadFromFile(vulkanContext.getDevice().getLogicalDevice(), "assets/minecraft/shaders/outline.fsh.spv");
 
         GraphicsPipelineConfig outlinePipelineConfig;
+
         outlinePipelineConfig.vertexShader = &outlineVertShader;
         outlinePipelineConfig.fragmentShader = &outlineFragShader;
         outlinePipelineConfig.colorFormat = swapchain.getImageFormat();
@@ -661,7 +662,7 @@ int main() {
             // Check for compaction
             bufferManager.compactIfNeeded(bufferManager.getMeshCache());
 
-            // Add pending meshes incrementally
+            // Add pending meshes incrementally (but defer updates to avoid mid-frame sync issues)
             if (!pendingMeshes.empty()) {
                 bufferManager.addMeshes(pendingMeshes, 20);
                 // Remove processed meshes (addMeshes processes from the front)
@@ -670,11 +671,35 @@ int main() {
                 quadInfoNeedsUpdate = true;  // Mark QuadInfo for update after adding meshes
             }
 
-            // Update global QuadInfo buffer when needed (BEFORE rendering starts)
-            if (quadInfoNeedsUpdate) {
+            // Handle framebuffer resize FIRST (before any GPU operations)
+            if (framebufferResized) {
+                int width = window.getWidth();
+                int height = window.getHeight();
+
+                while (width == 0 || height == 0) {
+                    window.pollEvents();
+                    width = window.getWidth();
+                    height = window.getHeight();
+                }
+
+                vulkanContext.waitIdle();
+                swapchain.recreate(width, height);
+                depthBuffer.resize(vulkanContext.getAllocator(), vulkanContext.getDevice().getLogicalDevice(),
+                                  width, height);
+
+                framebufferResized = false;
+            }
+
+            // Update global QuadInfo buffer when needed (BEFORE beginFrame())
+            // IMPORTANT: waitIdle() here is safe ONLY because:
+            // 1. Previous frame has been submitted but not waited on yet
+            // 2. We haven't called beginFrame() for current frame
+            // 3. waitIdle() ensures all previous frames are done before we modify shared buffers
+            bool shouldUpdateQuadInfo = quadInfoNeedsUpdate;
+            if (shouldUpdateQuadInfo) {
                 const auto& quadInfos = chunkManager.getQuadInfos();
                 if (!quadInfos.empty()) {
-                    // Wait for GPU to finish using the descriptor set
+                    // Wait for ALL GPU work to complete before updating shared descriptor sets
                     vulkanContext.waitIdle();
 
                     void* quadData = quadInfoBuffer.map();
@@ -741,24 +766,6 @@ int main() {
                     quadInfoNeedsUpdate = false;
                     spdlog::debug("Updated QuadInfo buffer with {} unique quad geometries", quadInfos.size());
                 }
-            }
-
-            if (framebufferResized) {
-                int width = window.getWidth();
-                int height = window.getHeight();
-
-                while (width == 0 || height == 0) {
-                    window.pollEvents();
-                    width = window.getWidth();
-                    height = window.getHeight();
-                }
-
-                vulkanContext.waitIdle();
-                swapchain.recreate(width, height);
-                depthBuffer.resize(vulkanContext.getAllocator(), vulkanContext.getDevice().getLogicalDevice(),
-                                  width, height);
-
-                framebufferResized = false;
             }
 
             if (!renderer.beginFrame()) {
