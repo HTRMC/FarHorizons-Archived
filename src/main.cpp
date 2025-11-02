@@ -596,6 +596,61 @@ int main() {
 
                 // Perform raycast to detect looked-at block
                 crosshairTarget = Raycast::castRay(chunkManager, camera.getPosition(), camera.getForward(), 8.0f);
+
+                // Handle block breaking (left click)
+                if (InputSystem::isMouseButtonDown(MouseButton::Left)) {
+                    if (crosshairTarget.has_value()) {
+                        ChunkPosition chunkPos = chunkManager.worldToChunkPos(glm::vec3(crosshairTarget->blockPos));
+                        Chunk* chunk = chunkManager.getChunk(chunkPos);
+                        if (chunk) {
+                            glm::ivec3 localPos = crosshairTarget->blockPos - glm::ivec3(
+                                chunkPos.x * CHUNK_SIZE,
+                                chunkPos.y * CHUNK_SIZE,
+                                chunkPos.z * CHUNK_SIZE
+                            );
+                            chunk->setBlockState(localPos.x, localPos.y, localPos.z, BlockRegistry::AIR->getDefaultState());
+                            chunkManager.queueChunkRemesh(chunkPos);
+
+                            // Remesh neighbor chunks if block is on chunk boundary
+                            if (localPos.x == 0 || localPos.x == CHUNK_SIZE - 1 ||
+                                localPos.y == 0 || localPos.y == CHUNK_SIZE - 1 ||
+                                localPos.z == 0 || localPos.z == CHUNK_SIZE - 1) {
+                                chunkManager.queueNeighborRemesh(chunkPos);
+                            }
+                        }
+                    }
+                }
+
+                // Handle block placing (right click)
+                if (InputSystem::isMouseButtonDown(MouseButton::Right)) {
+                    if (crosshairTarget.has_value()) {
+                        // Place block adjacent to the hit face
+                        glm::ivec3 placePos = crosshairTarget->blockPos + crosshairTarget->normal;
+                        ChunkPosition chunkPos = chunkManager.worldToChunkPos(glm::vec3(placePos));
+                        Chunk* chunk = chunkManager.getChunk(chunkPos);
+                        if (chunk) {
+                            glm::ivec3 localPos = placePos - glm::ivec3(
+                                chunkPos.x * CHUNK_SIZE,
+                                chunkPos.y * CHUNK_SIZE,
+                                chunkPos.z * CHUNK_SIZE
+                            );
+                            // Check bounds
+                            if (localPos.x >= 0 && localPos.x < CHUNK_SIZE &&
+                                localPos.y >= 0 && localPos.y < CHUNK_SIZE &&
+                                localPos.z >= 0 && localPos.z < CHUNK_SIZE) {
+                                chunk->setBlockState(localPos.x, localPos.y, localPos.z, BlockRegistry::GRASS_BLOCK->getDefaultState());
+                                chunkManager.queueChunkRemesh(chunkPos);
+
+                                // Remesh neighbor chunks if block is on chunk boundary
+                                if (localPos.x == 0 || localPos.x == CHUNK_SIZE - 1 ||
+                                    localPos.y == 0 || localPos.y == CHUNK_SIZE - 1 ||
+                                    localPos.z == 0 || localPos.z == CHUNK_SIZE - 1) {
+                                    chunkManager.queueNeighborRemesh(chunkPos);
+                                }
+                            }
+                        }
+                    }
+                }
             } else if (gameState == GameState::Paused) {
                 // Update pause menu
                 auto action = pauseMenu.update(deltaTime);

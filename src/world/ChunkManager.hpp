@@ -88,6 +88,9 @@ public:
     // Queue a chunk for remeshing (e.g., when blocks change)
     void queueChunkRemesh(const ChunkPosition& pos);
 
+    // Queue neighbor chunks for remeshing (e.g., when blocks change at chunk boundaries)
+    void queueNeighborRemesh(const ChunkPosition& pos);
+
     // Get the global QuadInfo buffer (shared across all chunks)
     const std::vector<QuadInfo>& getQuadInfos() const { return m_quadLibrary.getQuads(); }
 
@@ -114,7 +117,6 @@ private:
     void unloadDistantChunks(const ChunkPosition& centerPos);
     Chunk* loadChunk(const ChunkPosition& pos);
     void meshWorker();
-    void queueNeighborRemesh(const ChunkPosition& pos);
 
     // Helper: Check if all required neighbors are loaded for meshing (Minecraft's ChunkRegion approach)
     bool areNeighborsLoadedForMeshing(const ChunkPosition& pos) const;
