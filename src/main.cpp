@@ -7,6 +7,7 @@
 #include "core/InputSystem.hpp"
 #include "core/Camera.hpp"
 #include "core/Settings.hpp"
+#include "core/Raycast.hpp"
 #include "renderer/core/VulkanContext.hpp"
 #include "renderer/swapchain/Swapchain.hpp"
 #include "renderer/RenderContext.hpp"
@@ -329,6 +330,55 @@ int main() {
                               VMA_MEMORY_USAGE_CPU_TO_GPU,
                               VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
+        // Load outline shaders and create outline pipeline
+        Shader outlineVertShader, outlineFragShader;
+        outlineVertShader.loadFromFile(vulkanContext.getDevice().getLogicalDevice(), "assets/minecraft/shaders/outline.vsh.spv");
+        outlineFragShader.loadFromFile(vulkanContext.getDevice().getLogicalDevice(), "assets/minecraft/shaders/outline.fsh.spv");
+
+        GraphicsPipelineConfig outlinePipelineConfig;
+        outlinePipelineConfig.vertexShader = &outlineVertShader;
+        outlinePipelineConfig.fragmentShader = &outlineFragShader;
+        outlinePipelineConfig.colorFormat = swapchain.getImageFormat();
+        outlinePipelineConfig.depthFormat = depthBuffer.getFormat();
+        outlinePipelineConfig.depthTest = true;
+        outlinePipelineConfig.depthWrite = false;
+        outlinePipelineConfig.cullMode = VK_CULL_MODE_NONE;
+        outlinePipelineConfig.blendEnable = true;
+        outlinePipelineConfig.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+        outlinePipelineConfig.lineWidth = 2.0f;
+
+        // Outline vertex format (just position)
+        VkVertexInputBindingDescription outlineBinding{};
+        outlineBinding.binding = 0;
+        outlineBinding.stride = sizeof(glm::vec3);
+        outlineBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        outlinePipelineConfig.vertexBindings.push_back(outlineBinding);
+
+        VkVertexInputAttributeDescription outlinePosAttr{};
+        outlinePosAttr.location = 0;
+        outlinePosAttr.binding = 0;
+        outlinePosAttr.format = VK_FORMAT_R32G32B32_SFLOAT;
+        outlinePosAttr.offset = 0;
+        outlinePipelineConfig.vertexAttributes.push_back(outlinePosAttr);
+
+        // Push constant range for outline (same as main pipeline)
+        // mat4 viewProj (64) + ivec3 cameraPositionInteger (12) + pad (4) + vec3 cameraPositionFraction (12) + pad (4) = 96
+        VkPushConstantRange outlinePushConstantRange{};
+        outlinePushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        outlinePushConstantRange.offset = 0;
+        outlinePushConstantRange.size = 96;
+        outlinePipelineConfig.pushConstantRanges.push_back(outlinePushConstantRange);
+
+        GraphicsPipeline outlinePipeline;
+        outlinePipeline.init(vulkanContext.getDevice().getLogicalDevice(), outlinePipelineConfig);
+
+        // Create buffer for outline vertices (24 vertices for 12 edges of a cube)
+        Buffer outlineVertexBuffer;
+        outlineVertexBuffer.init(vulkanContext.getAllocator(), 24 * sizeof(glm::vec3),
+                                VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                VMA_MEMORY_USAGE_CPU_TO_GPU,
+                                VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+
         // ===== BLUR POST-PROCESSING SETUP =====
         // Create offscreen render targets for blur effect
         OffscreenTarget sceneTarget;  // Main scene render target
@@ -502,6 +552,7 @@ int main() {
         auto lastTime = std::chrono::high_resolution_clock::now();
         std::vector<CompactChunkMesh> pendingMeshes;
         bool quadInfoNeedsUpdate = true;  // Flag to track when QuadInfo buffer needs updating
+        std::optional<BlockHitResult> crosshairTarget;
 
         while (!window.shouldClose()) {
             auto currentTime = std::chrono::high_resolution_clock::now();
@@ -541,6 +592,9 @@ int main() {
                 // Update camera and world
                 camera.update(deltaTime);
                 chunkManager.update(camera.getPosition());
+
+                // Perform raycast to detect looked-at block
+                crosshairTarget = Raycast::castRay(chunkManager, camera.getPosition(), camera.getForward(), 8.0f);
             } else if (gameState == GameState::Paused) {
                 // Update pause menu
                 auto action = pauseMenu.update(deltaTime);
@@ -800,6 +854,64 @@ int main() {
                                  0, drawCount, sizeof(VkDrawIndirectCommand));
             }
 
+            // Render block outline if looking at a block
+            if (crosshairTarget.has_value() && gameState == GameState::Playing) {
+                const float OUTLINE_OFFSET = 0.002f;
+                glm::vec3 blockPos = glm::vec3(crosshairTarget->blockPos);
+
+                // Generate cube outline vertices (12 edges, 2 vertices each = 24 vertices)
+                glm::vec3 outlineVertices[24] = {
+                    // Bottom face edges
+                    blockPos + glm::vec3(-OUTLINE_OFFSET, -OUTLINE_OFFSET, -OUTLINE_OFFSET),
+                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET, -OUTLINE_OFFSET),
+
+                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET, -OUTLINE_OFFSET),
+                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
+
+                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
+                    blockPos + glm::vec3(-OUTLINE_OFFSET, -OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
+
+                    blockPos + glm::vec3(-OUTLINE_OFFSET, -OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
+                    blockPos + glm::vec3(-OUTLINE_OFFSET, -OUTLINE_OFFSET, -OUTLINE_OFFSET),
+
+                    // Top face edges
+                    blockPos + glm::vec3(-OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET),
+                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET),
+
+                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET),
+                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
+
+                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
+                    blockPos + glm::vec3(-OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
+
+                    blockPos + glm::vec3(-OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
+                    blockPos + glm::vec3(-OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET),
+
+                    // Vertical edges
+                    blockPos + glm::vec3(-OUTLINE_OFFSET, -OUTLINE_OFFSET, -OUTLINE_OFFSET),
+                    blockPos + glm::vec3(-OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET),
+
+                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET, -OUTLINE_OFFSET),
+                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET),
+
+                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
+                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
+
+                    blockPos + glm::vec3(-OUTLINE_OFFSET, -OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
+                    blockPos + glm::vec3(-OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
+                };
+
+                // Upload vertices
+                void* outlineData = outlineVertexBuffer.map();
+                memcpy(outlineData, outlineVertices, sizeof(outlineVertices));
+
+                // Bind outline pipeline and render
+                cmd.bindPipeline(outlinePipeline.getPipeline());
+                cmd.pushConstants(outlinePipeline.getLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
+                cmd.bindVertexBuffer(outlineVertexBuffer.getBuffer());
+                cmd.draw(24, 1, 0, 0);
+            }
+
             // Render panels for options menu only (sliders) - but NOT when blur is active (will be rendered on top of blur)
             if ((gameState == GameState::Options || gameState == GameState::OptionsFromMain) && !needsBlur) {
                 std::vector<PanelVertex> allPanelVertices;
@@ -1040,6 +1152,10 @@ int main() {
         vulkanContext.waitIdle();
 
         // Cleanup resources
+        outlineVertexBuffer.cleanup();
+        outlinePipeline.cleanup();
+        outlineFragShader.cleanup();
+        outlineVertShader.cleanup();
         blurPipeline.cleanup();
         blurFragShader.cleanup();
         blurVertShader.cleanup();

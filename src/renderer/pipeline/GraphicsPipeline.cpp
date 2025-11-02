@@ -57,7 +57,7 @@ void GraphicsPipeline::init(VkDevice device, const GraphicsPipelineConfig& confi
     // Input assembly
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    inputAssembly.topology = config.topology;
     inputAssembly.primitiveRestartEnable = VK_FALSE;
 
     // Viewport and scissor (dynamic)
@@ -72,7 +72,7 @@ void GraphicsPipeline::init(VkDevice device, const GraphicsPipelineConfig& confi
     rasterizer.depthClampEnable = VK_FALSE;
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-    rasterizer.lineWidth = 1.0f;
+    rasterizer.lineWidth = config.lineWidth;
     rasterizer.cullMode = config.cullMode;
     rasterizer.frontFace = config.frontFace;
     rasterizer.depthBiasEnable = VK_FALSE;

@@ -40,6 +40,12 @@ struct GraphicsPipelineConfig {
 
     // Blending (disabled for opaque)
     bool blendEnable = false;
+
+    // Topology (default to triangle list)
+    VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    // Line width (for line primitives)
+    float lineWidth = 1.0f;
 };
 
 // Graphics pipeline wrapper
