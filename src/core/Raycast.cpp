@@ -94,7 +94,8 @@ std::optional<BlockHitResult> Raycast::castRay(
                         blockPos,
                         hitPos,
                         normal,
-                        currentDistance
+                        currentDistance,
+                        state
                     };
                 }
             }

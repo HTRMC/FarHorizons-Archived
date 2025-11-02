@@ -2,6 +2,7 @@
 #include "BlockState.hpp"
 #include "Property.hpp"
 #include "BlockRenderType.hpp"
+#include "BlockShape.hpp"
 #include <string>
 #include <cstdint>
 
@@ -60,6 +61,12 @@ public:
     // Override in blocks with properties
     virtual std::vector<PropertyBase*> getProperties() const {
         return {}; // Simple blocks have no properties
+    }
+
+    // Get the outline shape for rendering the block selection outline
+    // Override in blocks with custom shapes (slabs, stairs, etc.)
+    virtual BlockShape getOutlineShape(BlockState state) const {
+        return BlockShape::fullCube(); // Most blocks are full cubes
     }
 };
 

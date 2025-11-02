@@ -859,46 +859,58 @@ int main() {
                 const float OUTLINE_OFFSET = 0.002f;
                 glm::vec3 blockPos = glm::vec3(crosshairTarget->blockPos);
 
+                // Get the block's outline shape
+                const Block* block = BlockRegistry::getBlock(crosshairTarget->state);
+                BlockShape shape = block->getOutlineShape(crosshairTarget->state);
+
+                // Get bounding box from shape
+                glm::vec3 shapeMin = shape.getMin();
+                glm::vec3 shapeMax = shape.getMax();
+
+                // Calculate outline bounds with offset
+                glm::vec3 minBound = blockPos + shapeMin - glm::vec3(OUTLINE_OFFSET);
+                glm::vec3 maxBound = blockPos + shapeMax + glm::vec3(OUTLINE_OFFSET);
+
                 // Generate cube outline vertices (12 edges, 2 vertices each = 24 vertices)
                 glm::vec3 outlineVertices[24] = {
                     // Bottom face edges
-                    blockPos + glm::vec3(-OUTLINE_OFFSET, -OUTLINE_OFFSET, -OUTLINE_OFFSET),
-                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET, -OUTLINE_OFFSET),
+                    glm::vec3(minBound.x, minBound.y, minBound.z),
+                    glm::vec3(maxBound.x, minBound.y, minBound.z),
 
-                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET, -OUTLINE_OFFSET),
-                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
+                    glm::vec3(maxBound.x, minBound.y, minBound.z),
+                    glm::vec3(maxBound.x, minBound.y, maxBound.z),
 
-                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
-                    blockPos + glm::vec3(-OUTLINE_OFFSET, -OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
+                    glm::vec3(maxBound.x, minBound.y, maxBound.z),
+                    glm::vec3(minBound.x, minBound.y, maxBound.z),
 
-                    blockPos + glm::vec3(-OUTLINE_OFFSET, -OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
-                    blockPos + glm::vec3(-OUTLINE_OFFSET, -OUTLINE_OFFSET, -OUTLINE_OFFSET),
+                    glm::vec3(minBound.x, minBound.y, maxBound.z),
+                    glm::vec3(minBound.x, minBound.y, minBound.z),
 
                     // Top face edges
-                    blockPos + glm::vec3(-OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET),
-                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET),
+                    glm::vec3(minBound.x, maxBound.y, minBound.z),
+                    glm::vec3(maxBound.x, maxBound.y, minBound.z),
 
-                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET),
-                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
+                    glm::vec3(maxBound.x, maxBound.y, minBound.z),
+                    glm::vec3(maxBound.x, maxBound.y, maxBound.z),
 
-                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
-                    blockPos + glm::vec3(-OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
+                    glm::vec3(maxBound.x, maxBound.y, maxBound.z),
+                    glm::vec3(minBound.x, maxBound.y, maxBound.z),
 
-                    blockPos + glm::vec3(-OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
-                    blockPos + glm::vec3(-OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET),
+                    glm::vec3(minBound.x, maxBound.y, maxBound.z),
+                    glm::vec3(minBound.x, maxBound.y, minBound.z),
 
                     // Vertical edges
-                    blockPos + glm::vec3(-OUTLINE_OFFSET, -OUTLINE_OFFSET, -OUTLINE_OFFSET),
-                    blockPos + glm::vec3(-OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET),
+                    glm::vec3(minBound.x, minBound.y, minBound.z),
+                    glm::vec3(minBound.x, maxBound.y, minBound.z),
 
-                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET, -OUTLINE_OFFSET),
-                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET),
+                    glm::vec3(maxBound.x, minBound.y, minBound.z),
+                    glm::vec3(maxBound.x, maxBound.y, minBound.z),
 
-                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, -OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
-                    blockPos + glm::vec3(1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
+                    glm::vec3(maxBound.x, minBound.y, maxBound.z),
+                    glm::vec3(maxBound.x, maxBound.y, maxBound.z),
 
-                    blockPos + glm::vec3(-OUTLINE_OFFSET, -OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
-                    blockPos + glm::vec3(-OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET, 1.0f + OUTLINE_OFFSET),
+                    glm::vec3(minBound.x, minBound.y, maxBound.z),
+                    glm::vec3(minBound.x, maxBound.y, maxBound.z),
                 };
 
                 // Upload vertices

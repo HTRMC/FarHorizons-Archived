@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 #include <optional>
+#include "../world/BlockState.hpp"
 
 namespace VoxelEngine {
 
@@ -12,6 +13,7 @@ struct BlockHitResult {
     glm::vec3 hitPos;
     glm::ivec3 normal;
     float distance;
+    BlockState state;
 };
 
 class Raycast {
