@@ -40,6 +40,9 @@ public:
     // Chat
     bool saveChatDrafts = false;
 
+    // Mouse settings
+    float mouseSensitivity = 0.1f;
+
     // Keybinds (stored as string pairs: action -> key)
     std::unordered_map<std::string, std::string> keybinds = {
         {"key.attack", "key.mouse.left"},
@@ -154,6 +157,7 @@ public:
             parseBool("renderClouds", renderClouds);
             parseInt("cloudRange", cloudRange);
             parseBool("saveChatDrafts", saveChatDrafts);
+            parseFloat("mouseSensitivity", mouseSensitivity);
 
             // Parse keybinds
             size_t keybindsPos = content.find("\"keybinds\"");
@@ -227,6 +231,7 @@ public:
             file << "  \"cloudRange\": " << cloudRange << ",\n";
             file << "  \"soundDevice\": \"" << soundDevice << "\",\n";
             file << "  \"saveChatDrafts\": " << (saveChatDrafts ? "true" : "false") << ",\n";
+            file << "  \"mouseSensitivity\": " << mouseSensitivity << ",\n";
 
             // Resource packs array
             file << "  \"resourcePacks\": [";

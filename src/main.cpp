@@ -60,7 +60,7 @@ int main() {
         spdlog::info("=== Vulkan Voxel Engine - Infinite Chunks ===");
         spdlog::info("Controls:");
         spdlog::info("  WASD - Move camera");
-        spdlog::info("  Arrow Keys - Rotate camera");
+        spdlog::info("  Mouse - Rotate camera");
         spdlog::info("  Space/Shift - Move up/down");
         spdlog::info("  ESC - Pause menu");
         spdlog::info("==========================================");
@@ -490,6 +490,7 @@ int main() {
         float aspectRatio = static_cast<float>(window.getWidth()) / static_cast<float>(window.getHeight());
         camera.init(glm::vec3(0.0f, 20.0f, 0.0f), aspectRatio, settings.fov);
         camera.setKeybinds(settings.keybinds);  // Apply keybinds from settings
+        camera.setMouseSensitivity(settings.mouseSensitivity);  // Apply mouse sensitivity from settings
 
         // Initialize chunk buffer manager (now uses compact format: faces instead of vertices/indices)
         ChunkBufferManager bufferManager;
@@ -689,9 +690,10 @@ int main() {
                         bufferManager.clear();
                         pendingMeshes.clear();
 
-                        // Reset camera to spawn position (preserve FOV and keybinds from settings)
+                        // Reset camera to spawn position (preserve FOV, keybinds, and mouse sensitivity from settings)
                         camera.init(glm::vec3(0.0f, 20.0f, 0.0f), aspectRatio, settings.fov);
                         camera.setKeybinds(settings.keybinds);
+                        camera.setMouseSensitivity(settings.mouseSensitivity);
 
                         // Reset buffer offsets
                         quadInfoNeedsUpdate = true;

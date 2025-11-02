@@ -63,24 +63,12 @@ void Camera::update(float deltaTime) {
         move(glm::normalize(moveDirection), deltaTime);
     }
 
-    // Handle arrow key rotation (use isKeyPressed for held keys)
-    float yawDelta = 0.0f;
-    float pitchDelta = 0.0f;
-
-    if (InputSystem::isKeyPressed(KeyCode::Left)) {
-        yawDelta -= m_rotationSpeed * deltaTime;
-    }
-    if (InputSystem::isKeyPressed(KeyCode::Right)) {
-        yawDelta += m_rotationSpeed * deltaTime;
-    }
-    if (InputSystem::isKeyPressed(KeyCode::Up)) {
-        pitchDelta += m_rotationSpeed * deltaTime;
-    }
-    if (InputSystem::isKeyPressed(KeyCode::Down)) {
-        pitchDelta -= m_rotationSpeed * deltaTime;
-    }
-
-    if (yawDelta != 0.0f || pitchDelta != 0.0f) {
+    // Handle mouse rotation
+    glm::vec2 mouseDelta = InputSystem::getMouseDelta();
+    if (mouseDelta.x != 0.0f || mouseDelta.y != 0.0f) {
+        // Mouse delta is in pixels, apply sensitivity
+        float yawDelta = mouseDelta.x * m_mouseSensitivity;
+        float pitchDelta = -mouseDelta.y * m_mouseSensitivity; // Inverted Y
         rotate(yawDelta, pitchDelta);
     }
 }

@@ -21,6 +21,9 @@ public:
     // Set keybinds (call once at startup or when keybinds change)
     void setKeybinds(const std::unordered_map<std::string, std::string>& keybinds);
 
+    // Set mouse sensitivity
+    void setMouseSensitivity(float sensitivity) { m_mouseSensitivity = sensitivity; }
+
     // Update camera (call each frame with delta time)
     void update(float deltaTime);
 
@@ -80,6 +83,7 @@ private:
     // Movement parameters
     float m_moveSpeed = 5.0f;        // Units per second
     float m_rotationSpeed = 90.0f;   // Degrees per second
+    float m_mouseSensitivity = 0.1f; // Mouse sensitivity multiplier
 
     // Matrices
     glm::mat4 m_viewMatrix = glm::mat4(1.0f);
