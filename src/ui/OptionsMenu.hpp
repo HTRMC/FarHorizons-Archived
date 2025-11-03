@@ -190,7 +190,7 @@ public:
             // Calculate total content height and clamp
             float sliderSpacing = 100.0f * guiScale;
             float keybindSpacing = 45.0f * guiScale;
-            float totalContentHeight = m_screenHeight * 0.35f + sliderSpacing * 4.2f + keybindSpacing * 6.5f + 60.0f * guiScale + 50.0f;
+            float totalContentHeight = m_screenHeight * 0.35f + sliderSpacing * 5.2f + keybindSpacing * 6.5f + 60.0f * guiScale + 50.0f;
             float maxScroll = std::max(0.0f, totalContentHeight - m_screenHeight);
 
             m_scrollOffset = std::clamp(m_scrollOffset, 0.0f, maxScroll);
@@ -428,8 +428,37 @@ private:
         });
         m_sliders.push_back(std::move(guiScaleSlider));
 
+        // Mouse Sensitivity Slider (1% - 100%)
+        // Internal: 0.01 - 1.0, Display: 1 - 100
+        float currentSensitivity = m_settings ? m_settings->mouseSensitivity : 0.1f;
+        int currentSensitivityPercent = static_cast<int>(currentSensitivity / 0.01f);
+
+        auto mouseSensSlider = std::make_unique<Slider>(
+            "Mouse Sensitivity",
+            glm::vec2(startX, startY + sliderSpacing * 4),
+            sliderWidth,
+            1.0f, 100.0f,
+            static_cast<float>(currentSensitivityPercent),
+            true, // Integer values
+            guiScale // Scale parameter
+        );
+        mouseSensSlider->setOnChange([this](float value) {
+            if (m_camera) {
+                float sensitivity = value * 0.01f; // Convert 1-100 to 0.01-1.0
+                m_camera->setMouseSensitivity(sensitivity);
+            }
+            if (m_settings) {
+                m_settings->mouseSensitivity = value * 0.01f;
+                m_settings->save();
+            }
+        });
+        mouseSensSlider->setValueFormatter([](float value) -> std::string {
+            return std::to_string(static_cast<int>(std::round(value))) + "%";
+        });
+        m_sliders.push_back(std::move(mouseSensSlider));
+
         // Keybind buttons section (scaled)
-        float keybindStartY = startY + sliderSpacing * 4.2f;
+        float keybindStartY = startY + sliderSpacing * 5.2f;
         float keybindButtonWidth = 250.0f * guiScale;
         float keybindButtonHeight = 35.0f * guiScale;
         float keybindSpacing = 45.0f * guiScale;
