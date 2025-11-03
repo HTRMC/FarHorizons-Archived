@@ -190,7 +190,7 @@ public:
             // Calculate total content height and clamp
             float sliderSpacing = 100.0f * guiScale;
             float keybindSpacing = 45.0f * guiScale;
-            float totalContentHeight = m_screenHeight * 0.35f + sliderSpacing * 5.2f + keybindSpacing * 6.5f + 60.0f * guiScale + 50.0f;
+            float totalContentHeight = m_screenHeight * 0.35f + sliderSpacing * 6.2f + keybindSpacing * 6.5f + 60.0f * guiScale + 50.0f;
             float maxScroll = std::max(0.0f, totalContentHeight - m_screenHeight);
 
             m_scrollOffset = std::clamp(m_scrollOffset, 0.0f, maxScroll);
@@ -457,8 +457,39 @@ private:
         });
         m_sliders.push_back(std::move(mouseSensSlider));
 
+        // Mipmap Levels Slider (0 - 4)
+        // 0 = OFF (no mipmaps), 1-4 = mipmap levels (Minecraft-style)
+        auto mipmapSlider = std::make_unique<Slider>(
+            "Mipmap Levels",
+            glm::vec2(startX, startY + sliderSpacing * 5),
+            sliderWidth,
+            0.0f, 4.0f,
+            m_settings ? static_cast<float>(m_settings->mipmapLevels) : 4.0f,
+            true, // Integer values
+            guiScale // Scale parameter
+        );
+        mipmapSlider->setOnChange([this](float value) {
+            if (m_settings) {
+                m_settings->mipmapLevels = static_cast<int32_t>(value);
+                m_settings->save();
+            }
+        });
+        // Custom formatter to display quality description
+        mipmapSlider->setValueFormatter([](float value) -> std::string {
+            int intValue = static_cast<int>(std::round(value));
+            switch (intValue) {
+                case 0: return "OFF";
+                case 1: return "1";
+                case 2: return "2";
+                case 3: return "3";
+                case 4: return "4";
+                default: return std::to_string(intValue);
+            }
+        });
+        m_sliders.push_back(std::move(mipmapSlider));
+
         // Keybind buttons section (scaled)
-        float keybindStartY = startY + sliderSpacing * 5.2f;
+        float keybindStartY = startY + sliderSpacing * 6.2f;
         float keybindButtonWidth = 250.0f * guiScale;
         float keybindButtonHeight = 35.0f * guiScale;
         float keybindSpacing = 45.0f * guiScale;

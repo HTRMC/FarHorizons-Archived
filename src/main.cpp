@@ -137,7 +137,9 @@ int main() {
             std::string texturePath = "assets/minecraft/textures/block/" + textureName + ".png";
             spdlog::info("Loading texture: {} -> {}", textureName, texturePath);
 
-            uint32_t textureIndex = textureManager.loadTexture(texturePath, uploadCmd, false);
+            // Enable mipmaps for block textures with user's quality setting
+            bool enableMipmaps = (settings.mipmapLevels > 0);
+            uint32_t textureIndex = textureManager.loadTexture(texturePath, uploadCmd, enableMipmaps, settings.mipmapLevels);
             chunkManager.registerTexture(textureName, textureIndex);
         }
 
