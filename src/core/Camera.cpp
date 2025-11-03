@@ -78,9 +78,15 @@ void Camera::update(float deltaTime) {
     // If cursor is unlocked, mouseDelta remains (0, 0) - no camera rotation
 
     if (mouseDelta.x != 0.0f || mouseDelta.y != 0.0f) {
-        // Mouse delta is in pixels, apply sensitivity
-        float yawDelta = mouseDelta.x * m_mouseSensitivity;
-        float pitchDelta = -mouseDelta.y * m_mouseSensitivity; // Inverted Y
+        // Apply Minecraft's mouse sensitivity formula
+        // sensitivity ranges from 0.0 to 1.0 (our slider is 1-100%, converted to 0.01-1.0)
+        float d = m_mouseSensitivity * 0.6f + 0.2f;  // Map to 0.2-0.8 range
+        float e = d * d * d;  // Cube for non-linear response
+        float f = e * 8.0f;   // Final multiplier
+
+        // Apply multiplier and final scaling (0.15 from Minecraft's Entity.changeLookDirection)
+        float yawDelta = mouseDelta.x * f * 0.15f;
+        float pitchDelta = -mouseDelta.y * f * 0.15f; // Inverted Y
         rotate(yawDelta, pitchDelta);
     }
 

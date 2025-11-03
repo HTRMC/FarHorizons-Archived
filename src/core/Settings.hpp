@@ -40,8 +40,8 @@ public:
     // Chat
     bool saveChatDrafts = false;
 
-    // Mouse settings
-    float mouseSensitivity = 0.1f;
+    // Mouse settings (0.0 - 1.0, default 0.5 = 50% like Minecraft)
+    float mouseSensitivity = 0.5f;
 
     // Keybinds (stored as string pairs: action -> key)
     std::unordered_map<std::string, std::string> keybinds = {
