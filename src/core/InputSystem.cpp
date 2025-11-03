@@ -1,5 +1,4 @@
 #include "InputSystem.hpp"
-#include "MouseCapture.hpp"
 #include <algorithm>
 #include <print>
 

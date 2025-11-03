@@ -1,5 +1,4 @@
 #include "Window.hpp"
-#include "MouseCapture.hpp"
 #include <stdexcept>
 #include <spdlog/spdlog.h>
 

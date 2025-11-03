@@ -4,12 +4,11 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include "InputTypes.hpp"
 #include "KeybindAction.hpp"
+#include "MouseCapture.hpp"
 #include <unordered_map>
 #include <string>
 
 namespace VoxelEngine {
-
-class MouseCapture;
 
 // First-person camera with customizable keybinds
 class Camera {

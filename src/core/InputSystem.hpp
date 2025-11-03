@@ -3,6 +3,7 @@
 #include "InputTypes.hpp"
 #include "InputEvent.hpp"
 #include "InputQueue.hpp"
+#include "MouseCapture.hpp"
 #include <GLFW/glfw3.h>
 #include <array>
 #include <glm/glm.hpp>
@@ -11,8 +12,6 @@
 #include <string>
 
 namespace VoxelEngine {
-
-class MouseCapture;
 
 // Event listener callback type
 using InputEventCallback = std::function<void(const InputEvent&)>;

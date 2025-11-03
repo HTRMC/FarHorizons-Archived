@@ -5,10 +5,9 @@
 #include <functional>
 #include <cstdint>
 #include <memory>
+#include "MouseCapture.hpp"
 
 namespace VoxelEngine {
-
-class MouseCapture;
 
 struct WindowProperties {
     std::string title = "Vulkan Voxel Engine";
