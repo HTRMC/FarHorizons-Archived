@@ -12,6 +12,8 @@
 
 namespace VoxelEngine {
 
+class MouseCapture;
+
 // Event listener callback type
 using InputEventCallback = std::function<void(const InputEvent&)>;
 
@@ -61,6 +63,9 @@ public:
     // Configuration
     static void setAnalogDeadzone(float deadzone) { s_analogDeadzone = deadzone; }
     static float getAnalogDeadzone() { return s_analogDeadzone; }
+
+    // Mouse capture integration
+    static void setMouseCapture(MouseCapture* mouseCapture) { s_mouseCapture = mouseCapture; }
 
     // Convert keybind string to KeyCode (e.g., "key.keyboard.w" -> KeyCode::W)
     static KeyCode stringToKeyCode(const std::string& keybind);
@@ -125,6 +130,9 @@ private:
 
     // Configuration
     static float s_analogDeadzone;
+
+    // Mouse capture system
+    static MouseCapture* s_mouseCapture;
 };
 
 } // namespace VoxelEngine

@@ -6,6 +6,7 @@
 #include "core/Window.hpp"
 #include "core/InputSystem.hpp"
 #include "core/Camera.hpp"
+#include "core/MouseCapture.hpp"
 #include "core/Settings.hpp"
 #include "core/Raycast.hpp"
 #include "renderer/core/VulkanContext.hpp"
@@ -56,6 +57,10 @@ int main() {
 
         Window window(props);
         InputSystem::init(window.getNativeWindow());
+
+        // Initialize mouse capture system
+        auto* mouseCapture = window.getMouseCapture();
+        InputSystem::setMouseCapture(mouseCapture);
 
         spdlog::info("=== Vulkan Voxel Engine - Infinite Chunks ===");
         spdlog::info("Controls:");
@@ -491,6 +496,7 @@ int main() {
         camera.init(glm::vec3(0.0f, 20.0f, 0.0f), aspectRatio, settings.fov);
         camera.setKeybinds(settings.keybinds);  // Apply keybinds from settings
         camera.setMouseSensitivity(settings.mouseSensitivity);  // Apply mouse sensitivity from settings
+        camera.setMouseCapture(mouseCapture);  // Link camera to mouse capture system
 
         // Initialize chunk buffer manager (now uses compact format: faces instead of vertices/indices)
         ChunkBufferManager bufferManager;
@@ -539,6 +545,9 @@ int main() {
         OptionsMenu optionsMenu(window.getWidth(), window.getHeight(), &camera, &chunkManager, &settings);
         GameState gameState = GameState::MainMenu;
 
+        // Cursor starts unlocked in main menu
+        mouseCapture->unlockCursor();
+
         bool framebufferResized = false;
         window.setResizeCallback([&framebufferResized, &camera, &pauseMenu, &mainMenu, &optionsMenu, &sceneTarget, &blurTarget1](uint32_t width, uint32_t height) {
             framebufferResized = true;
@@ -574,6 +583,7 @@ int main() {
                 switch (action) {
                     case MainMenu::Action::Singleplayer:
                         gameState = GameState::Playing;
+                        mouseCapture->lockCursor();  // Lock cursor when entering gameplay
                         spdlog::info("Starting singleplayer game");
                         break;
                     case MainMenu::Action::OpenOptions:
@@ -591,6 +601,7 @@ int main() {
                 // Handle ESC key to toggle pause menu (use isKeyDown for single press)
                 if (InputSystem::isKeyDown(KeyCode::Escape)) {
                     gameState = GameState::Paused;
+                    mouseCapture->unlockCursor();  // Unlock cursor when opening pause menu
                     pauseMenu.reset();
                 }
 
@@ -675,6 +686,7 @@ int main() {
                 switch (action) {
                     case PauseMenu::Action::Resume:
                         gameState = GameState::Playing;
+                        mouseCapture->lockCursor();  // Lock cursor when resuming gameplay
                         break;
                     case PauseMenu::Action::OpenOptions:
                         gameState = GameState::Options;
@@ -683,6 +695,7 @@ int main() {
                         break;
                     case PauseMenu::Action::Quit:
                         gameState = GameState::MainMenu;
+                        mouseCapture->unlockCursor();  // Unlock cursor when returning to main menu
                         mainMenu.reset();
 
                         // Clear world state
@@ -708,6 +721,7 @@ int main() {
                 auto action = optionsMenu.update(deltaTime);
                 if (action == OptionsMenu::Action::Back) {
                     gameState = GameState::Paused;
+                    // Cursor remains unlocked when returning to pause menu
                     spdlog::info("Returning to pause menu");
                 }
                 // Update chunk manager to apply render distance changes immediately (only during gameplay)
@@ -717,6 +731,7 @@ int main() {
                 auto action = optionsMenu.update(deltaTime);
                 if (action == OptionsMenu::Action::Back) {
                     gameState = GameState::MainMenu;
+                    // Cursor remains unlocked when returning to main menu
                     spdlog::info("Returning to main menu");
                 }
                 // Don't update chunk manager - game hasn't started yet!

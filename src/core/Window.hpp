@@ -4,8 +4,11 @@
 #include <string>
 #include <functional>
 #include <cstdint>
+#include <memory>
 
 namespace VoxelEngine {
+
+class MouseCapture;
 
 struct WindowProperties {
     std::string title = "Vulkan Voxel Engine";
@@ -54,9 +57,12 @@ public:
     void minimize();
     void restore();
 
-    // Cursor control
+    // Cursor control (legacy - use MouseCapture instead)
     void setCursorMode(int mode); // GLFW_CURSOR_NORMAL, GLFW_CURSOR_HIDDEN, GLFW_CURSOR_DISABLED
     void setCursorPos(double x, double y);
+
+    // Mouse capture system
+    MouseCapture* getMouseCapture() const { return m_mouseCapture.get(); }
 
     // Callbacks
     void setResizeCallback(ResizeCallback callback) { m_resizeCallback = callback; }
@@ -90,6 +96,9 @@ private:
     ResizeCallback m_resizeCallback;
     CloseCallback m_closeCallback;
     FocusCallback m_focusCallback;
+
+    // Mouse capture system
+    std::unique_ptr<MouseCapture> m_mouseCapture;
 };
 
 } // namespace VoxelEngine

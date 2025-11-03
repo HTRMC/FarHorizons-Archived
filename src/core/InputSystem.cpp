@@ -1,4 +1,5 @@
 #include "InputSystem.hpp"
+#include "MouseCapture.hpp"
 #include <algorithm>
 #include <print>
 
@@ -26,6 +27,7 @@ glm::vec2 InputSystem::s_mouseScroll = glm::vec2(0.0f);
 
 std::array<InputSystem::GamepadState, 4> InputSystem::s_gamepads = {};
 float InputSystem::s_analogDeadzone = 0.15f;
+MouseCapture* InputSystem::s_mouseCapture = nullptr;
 
 void InputSystem::init(GLFWwindow* window) {
     s_window = window;
@@ -297,6 +299,11 @@ void InputSystem::mouseButtonCallback(GLFWwindow* window, int button, int action
 void InputSystem::cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
     double dx = xpos - s_mousePosition.x;
     double dy = ypos - s_mousePosition.y;
+
+    // Forward to mouse capture system if available
+    if (s_mouseCapture) {
+        s_mouseCapture->updateCursorPosition(xpos, ypos);
+    }
 
     MouseMovedEventData eventData(xpos, ypos, dx, dy, glfwGetTime());
     s_eventQueue.push(eventData);

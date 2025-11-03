@@ -9,6 +9,8 @@
 
 namespace VoxelEngine {
 
+class MouseCapture;
+
 // First-person camera with customizable keybinds
 class Camera {
 public:
@@ -23,6 +25,9 @@ public:
 
     // Set mouse sensitivity
     void setMouseSensitivity(float sensitivity) { m_mouseSensitivity = sensitivity; }
+
+    // Set mouse capture system (optional - if not set, uses InputSystem directly)
+    void setMouseCapture(MouseCapture* mouseCapture) { m_mouseCapture = mouseCapture; }
 
     // Update camera (call each frame with delta time)
     void update(float deltaTime);
@@ -96,6 +101,9 @@ private:
     KeyCode m_keyRight = KeyCode::D;
     KeyCode m_keyJump = KeyCode::Space;
     KeyCode m_keySneak = KeyCode::LeftShift;
+
+    // Mouse capture system (optional - if not set, uses InputSystem)
+    MouseCapture* m_mouseCapture = nullptr;
 };
 
 } // namespace VoxelEngine

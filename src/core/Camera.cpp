@@ -1,5 +1,6 @@
 #include "Camera.hpp"
 #include "InputSystem.hpp"
+#include "MouseCapture.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
 #include <iostream>
@@ -64,12 +65,29 @@ void Camera::update(float deltaTime) {
     }
 
     // Handle mouse rotation
-    glm::vec2 mouseDelta = InputSystem::getMouseDelta();
+    // Use MouseCapture if available (respects cursor lock state), otherwise fall back to InputSystem
+    glm::vec2 mouseDelta(0.0f);
+
+    if (m_mouseCapture && m_mouseCapture->isCursorLocked()) {
+        // Use mouse capture deltas (only when cursor is locked)
+        mouseDelta.x = static_cast<float>(m_mouseCapture->getCursorDeltaX());
+        mouseDelta.y = static_cast<float>(m_mouseCapture->getCursorDeltaY());
+    } else if (!m_mouseCapture) {
+        // Fall back to InputSystem for backward compatibility
+        mouseDelta = InputSystem::getMouseDelta();
+    }
+    // If cursor is unlocked, mouseDelta remains (0, 0) - no camera rotation
+
     if (mouseDelta.x != 0.0f || mouseDelta.y != 0.0f) {
         // Mouse delta is in pixels, apply sensitivity
         float yawDelta = mouseDelta.x * m_mouseSensitivity;
         float pitchDelta = -mouseDelta.y * m_mouseSensitivity; // Inverted Y
         rotate(yawDelta, pitchDelta);
+    }
+
+    // Reset mouse capture deltas after processing
+    if (m_mouseCapture) {
+        m_mouseCapture->resetDeltas();
     }
 }
 

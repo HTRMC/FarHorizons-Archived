@@ -1,4 +1,5 @@
 #include "Window.hpp"
+#include "MouseCapture.hpp"
 #include <stdexcept>
 #include <spdlog/spdlog.h>
 
@@ -88,6 +89,9 @@ void Window::init() {
     // Setup callbacks
     setupCallbacks();
 
+    // Initialize mouse capture system
+    m_mouseCapture = std::make_unique<MouseCapture>(m_window);
+
     spdlog::info("Window created: {}x{}", m_properties.width, m_properties.height);
 }
 
@@ -174,6 +178,11 @@ void Window::framebufferSizeCallback(GLFWwindow* window, int width, int height) 
     windowPtr->m_height = static_cast<uint32_t>(height);
     windowPtr->m_minimized = (width == 0 || height == 0);
 
+    // Notify mouse capture system
+    if (windowPtr->m_mouseCapture) {
+        windowPtr->m_mouseCapture->onWindowResized(width, height);
+    }
+
     if (windowPtr->m_resizeCallback && !windowPtr->m_minimized) {
         windowPtr->m_resizeCallback(windowPtr->m_width, windowPtr->m_height);
     }
@@ -189,6 +198,11 @@ void Window::windowCloseCallback(GLFWwindow* window) {
 void Window::windowFocusCallback(GLFWwindow* window, int focused) {
     auto* windowPtr = static_cast<Window*>(glfwGetWindowUserPointer(window));
     windowPtr->m_focused = (focused == GLFW_TRUE);
+
+    // Notify mouse capture system
+    if (windowPtr->m_mouseCapture) {
+        windowPtr->m_mouseCapture->onWindowFocusChanged(windowPtr->m_focused);
+    }
 
     if (windowPtr->m_focusCallback) {
         windowPtr->m_focusCallback(windowPtr->m_focused);
