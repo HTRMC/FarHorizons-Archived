@@ -79,8 +79,24 @@ TextureData TextureLoader::loadPNG(const std::string& filepath) {
     return result;
 }
 
-uint32_t TextureLoader::calculateMipLevels(uint32_t width, uint32_t height) {
-    return static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
+uint32_t TextureLoader::calculateMipLevels(uint32_t width, uint32_t height, uint32_t maxMipLevels) {
+    // Calculate maximum possible mip levels for this texture size
+    uint32_t maxPossible = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
+
+    // Minecraft-style mipmap level limiting:
+    // Setting 0 = OFF (1 level, no mipmaps)
+    // Setting 1 = 2 mip levels
+    // Setting 2 = 3 mip levels
+    // Setting 3 = 4 mip levels
+    // Setting 4 = 5 mip levels (default)
+    // Setting > 4 or 0 = unlimited (use maxPossible)
+    if (maxMipLevels >= 1 && maxMipLevels <= 4) {
+        uint32_t requestedLevels = maxMipLevels + 1;
+        return std::min(requestedLevels, maxPossible);
+    }
+
+    // 0 or > 4 means unlimited - use full mip chain
+    return maxPossible;
 }
 
 void TextureLoader::generateMipmaps(
@@ -146,11 +162,13 @@ void TextureLoader::generateMipmaps(
         blit.dstSubresource.baseArrayLayer = 0;
         blit.dstSubresource.layerCount = 1;
 
+        // Use LINEAR filter for proper averaging when downsampling
+        // This approximates gamma-correct blending on the GPU
         vkCmdBlitImage(cmd,
             image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             1, &blit,
-            VK_FILTER_NEAREST);
+            VK_FILTER_LINEAR);
 
         // Transition current mip level to TRANSFER_SRC for next iteration
         barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -184,7 +202,8 @@ Texture TextureLoader::createTexture(
     VmaAllocator allocator,
     VkCommandBuffer uploadCmd,
     const TextureData& data,
-    bool generateMipmaps
+    bool generateMipmaps,
+    uint32_t maxMipLevels
 ) {
     if (!data.isValid()) {
         throw std::runtime_error("Invalid texture data");
@@ -194,7 +213,7 @@ Texture TextureLoader::createTexture(
     texture.width = data.width;
     texture.height = data.height;
     texture.format = VK_FORMAT_R8G8B8A8_SRGB;
-    texture.mipLevels = generateMipmaps ? calculateMipLevels(data.width, data.height) : 1;
+    texture.mipLevels = generateMipmaps ? calculateMipLevels(data.width, data.height, maxMipLevels) : 1;
 
     // Create staging buffer
     VkBufferCreateInfo stagingBufferInfo{};

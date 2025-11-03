@@ -62,11 +62,13 @@ public:
         VmaAllocator allocator,
         VkCommandBuffer uploadCmd,
         const TextureData& data,
-        bool generateMipmaps = true
+        bool generateMipmaps = true,
+        uint32_t maxMipLevels = 0  // 0 = auto (full chain), 1-4 = limit mip levels
     );
 
     // Calculate mip levels for a texture
-    static uint32_t calculateMipLevels(uint32_t width, uint32_t height);
+    // maxMipLevels: 0 = unlimited (full chain), 1-4 = Minecraft-style limit
+    static uint32_t calculateMipLevels(uint32_t width, uint32_t height, uint32_t maxMipLevels = 0);
 
 private:
     // Generate mipmaps for a texture

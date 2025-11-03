@@ -549,15 +549,13 @@ int main() {
         mouseCapture->unlockCursor();
 
         bool framebufferResized = false;
-        window.setResizeCallback([&framebufferResized, &camera, &pauseMenu, &mainMenu, &optionsMenu, &sceneTarget, &blurTarget1](uint32_t width, uint32_t height) {
+        window.setResizeCallback([&framebufferResized, &camera, &pauseMenu, &mainMenu, &optionsMenu](uint32_t width, uint32_t height) {
             framebufferResized = true;
             camera.setAspectRatio(static_cast<float>(width) / static_cast<float>(height));
             pauseMenu.onResize(width, height);
             mainMenu.onResize(width, height);
             optionsMenu.onResize(width, height);
-            // Resize offscreen targets for blur
-            sceneTarget.resize(width, height);
-            blurTarget1.resize(width, height);
+            // NOTE: Offscreen targets are resized in the main loop after GPU sync
         });
 
         auto lastTime = std::chrono::high_resolution_clock::now();
@@ -775,6 +773,14 @@ int main() {
                 swapchain.recreate(width, height);
                 depthBuffer.resize(vulkanContext.getAllocator(), vulkanContext.getDevice().getLogicalDevice(),
                                   width, height);
+
+                // Resize offscreen targets for blur (after GPU is idle)
+                sceneTarget.resize(width, height);
+                blurTarget1.resize(width, height);
+
+                // Re-register external textures after resize (image views have changed)
+                textureManager.updateExternalTexture(sceneTextureIndex, sceneTarget.getColorImageView());
+                textureManager.updateExternalTexture(blurTexture1Index, blurTarget1.getColorImageView());
 
                 framebufferResized = false;
             }

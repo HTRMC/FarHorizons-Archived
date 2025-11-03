@@ -24,10 +24,13 @@ public:
     void shutdown();
 
     // Load texture from file and return its index in the bindless array
-    uint32_t loadTexture(const std::string& filepath, VkCommandBuffer uploadCmd, bool generateMipmaps = true);
+    uint32_t loadTexture(const std::string& filepath, VkCommandBuffer uploadCmd, bool generateMipmaps = true, uint32_t maxMipLevels = 4);
 
     // Register an external image view (for offscreen render targets) without managing its lifetime
     uint32_t registerExternalTexture(VkImageView imageView);
+
+    // Update an existing external texture with a new image view (for resize handling)
+    void updateExternalTexture(uint32_t index, VkImageView imageView);
 
     // Get descriptor set for binding
     VkDescriptorSet getDescriptorSet() const { return m_descriptorSet; }

@@ -109,8 +109,15 @@ void BindlessTextureManager::createDescriptorSet() {
 void BindlessTextureManager::createSampler() {
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerInfo.magFilter = VK_FILTER_NEAREST; // Minecraft-style nearest filtering
-    samplerInfo.minFilter = VK_FILTER_NEAREST;
+
+    // Minecraft-style filtering:
+    // - NEAREST magnification = sharp pixels when close (keeps pixel art look)
+    // - LINEAR minification = smooth at distance (prevents mosaic patterns)
+    // - LINEAR mipmap mode = trilinear filtering (smooth transitions between mip levels)
+    samplerInfo.magFilter = VK_FILTER_NEAREST;  // GL_NEAREST - sharp up close
+    samplerInfo.minFilter = VK_FILTER_LINEAR;   // Part of GL_LINEAR_MIPMAP_LINEAR
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;  // Trilinear filtering
+
     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -120,10 +127,9 @@ void BindlessTextureManager::createSampler() {
     samplerInfo.unnormalizedCoordinates = VK_FALSE;
     samplerInfo.compareEnable = VK_FALSE;
     samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
     samplerInfo.mipLodBias = 0.0f;
     samplerInfo.minLod = 0.0f;
-    samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
+    samplerInfo.maxLod = VK_LOD_CLAMP_NONE;  // Access all mip levels
 
     if (vkCreateSampler(m_device, &samplerInfo, nullptr, &m_sampler) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create texture sampler");
@@ -148,7 +154,7 @@ void BindlessTextureManager::updateDescriptor(uint32_t index, VkImageView imageV
     vkUpdateDescriptorSets(m_device, 1, &descriptorWrite, 0, nullptr);
 }
 
-uint32_t BindlessTextureManager::loadTexture(const std::string& filepath, VkCommandBuffer uploadCmd, bool generateMipmaps) {
+uint32_t BindlessTextureManager::loadTexture(const std::string& filepath, VkCommandBuffer uploadCmd, bool generateMipmaps, uint32_t maxMipLevels) {
     // Check if texture is already loaded
     auto it = m_textureIndices.find(filepath);
     if (it != m_textureIndices.end()) {
@@ -165,8 +171,8 @@ uint32_t BindlessTextureManager::loadTexture(const std::string& filepath, VkComm
     // Load texture data
     TextureData data = TextureLoader::loadPNG(filepath);
 
-    // Create Vulkan texture
-    Texture texture = TextureLoader::createTexture(m_device, m_allocator, uploadCmd, data, generateMipmaps);
+    // Create Vulkan texture with Minecraft-style mipmap levels
+    Texture texture = TextureLoader::createTexture(m_device, m_allocator, uploadCmd, data, generateMipmaps, maxMipLevels);
 
     // Add to array
     uint32_t index = static_cast<uint32_t>(m_textures.size());
@@ -203,6 +209,21 @@ uint32_t BindlessTextureManager::registerExternalTexture(VkImageView imageView) 
     spdlog::info("[BindlessTextureManager] Registered external texture (index {})", index);
 
     return index;
+}
+
+void BindlessTextureManager::updateExternalTexture(uint32_t index, VkImageView imageView) {
+    // Validate index
+    if (index >= m_textures.size()) {
+        throw std::runtime_error("Invalid texture index for update");
+    }
+
+    // Update the texture entry (note: we don't own the image, just update the view reference)
+    m_textures[index].imageView = imageView;
+
+    // Update descriptor
+    updateDescriptor(index, imageView);
+
+    spdlog::info("[BindlessTextureManager] Updated external texture (index {})", index);
 }
 
 } // namespace VoxelEngine
