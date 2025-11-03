@@ -87,6 +87,7 @@ int main() {
         vertShader.loadFromFile(vulkanContext.getDevice().getLogicalDevice(), "assets/minecraft/shaders/triangle.vsh.spv");
         fragShader.loadFromFile(vulkanContext.getDevice().getLogicalDevice(), "assets/minecraft/shaders/triangle.fsh.spv");
 
+        // Create persistent upload command pool for texture operations (including hot reloading)
         VkCommandPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         poolInfo.queueFamilyIndex = vulkanContext.getDevice().getQueueFamilyIndices().graphicsFamily.value();
@@ -172,7 +173,7 @@ int main() {
         vkQueueSubmit(vulkanContext.getDevice().getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
         vkQueueWaitIdle(vulkanContext.getDevice().getGraphicsQueue());
 
-        vkDestroyCommandPool(vulkanContext.getDevice().getLogicalDevice(), uploadPool, nullptr);
+        // Keep uploadPool and uploadCmd for hot texture reloading (cleaned up at shutdown)
 
         // Create descriptor set layout for QuadInfo, Lighting, and ChunkData buffers (set 1)
         VkDescriptorSetLayoutBinding quadInfoBinding{};
@@ -724,6 +725,42 @@ int main() {
                     // Cursor remains unlocked when returning to pause menu
                     spdlog::info("Returning to pause menu");
                 }
+
+                // Check if textures need reloading (mipmap level changed)
+                if (optionsMenu.needsTextureReload()) {
+                    spdlog::info("Mipmap settings changed - hot reloading all block textures...");
+                    optionsMenu.clearTextureReloadFlag();
+
+                    // Hot reload: Wait for GPU to finish, then reload all block textures
+                    vulkanContext.waitIdle();
+
+                    // Reset and begin command buffer for texture uploads
+                    vkResetCommandBuffer(uploadCmd, 0);
+                    VkCommandBufferBeginInfo reloadBeginInfo{};
+                    reloadBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+                    reloadBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+                    vkBeginCommandBuffer(uploadCmd, &reloadBeginInfo);
+
+                    // Reload all block textures with new mipmap settings
+                    bool enableMipmaps = (settings.mipmapLevels > 0);
+                    for (const auto& textureName : requiredTextures) {
+                        std::string texturePath = "assets/minecraft/textures/block/" + textureName + ".png";
+                        textureManager.reloadTexture(texturePath, uploadCmd, enableMipmaps, settings.mipmapLevels);
+                    }
+
+                    // Submit and wait for texture upload to complete
+                    vkEndCommandBuffer(uploadCmd);
+                    VkSubmitInfo reloadSubmitInfo{};
+                    reloadSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+                    reloadSubmitInfo.commandBufferCount = 1;
+                    reloadSubmitInfo.pCommandBuffers = &uploadCmd;
+                    vkQueueSubmit(vulkanContext.getDevice().getGraphicsQueue(), 1, &reloadSubmitInfo, VK_NULL_HANDLE);
+                    vkQueueWaitIdle(vulkanContext.getDevice().getGraphicsQueue());
+
+                    spdlog::info("Hot reload complete - {} textures reloaded with mipmap level {}",
+                                 requiredTextures.size(), settings.mipmapLevels);
+                }
+
                 // Update chunk manager to apply render distance changes immediately (only during gameplay)
                 chunkManager.update(camera.getPosition());
             } else if (gameState == GameState::OptionsFromMain) {
@@ -734,6 +771,42 @@ int main() {
                     // Cursor remains unlocked when returning to main menu
                     spdlog::info("Returning to main menu");
                 }
+
+                // Check if textures need reloading (mipmap level changed)
+                if (optionsMenu.needsTextureReload()) {
+                    spdlog::info("Mipmap settings changed - hot reloading all block textures...");
+                    optionsMenu.clearTextureReloadFlag();
+
+                    // Hot reload: Wait for GPU to finish, then reload all block textures
+                    vulkanContext.waitIdle();
+
+                    // Reset and begin command buffer for texture uploads
+                    vkResetCommandBuffer(uploadCmd, 0);
+                    VkCommandBufferBeginInfo reloadBeginInfo{};
+                    reloadBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+                    reloadBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+                    vkBeginCommandBuffer(uploadCmd, &reloadBeginInfo);
+
+                    // Reload all block textures with new mipmap settings
+                    bool enableMipmaps = (settings.mipmapLevels > 0);
+                    for (const auto& textureName : requiredTextures) {
+                        std::string texturePath = "assets/minecraft/textures/block/" + textureName + ".png";
+                        textureManager.reloadTexture(texturePath, uploadCmd, enableMipmaps, settings.mipmapLevels);
+                    }
+
+                    // Submit and wait for texture upload to complete
+                    vkEndCommandBuffer(uploadCmd);
+                    VkSubmitInfo reloadSubmitInfo{};
+                    reloadSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+                    reloadSubmitInfo.commandBufferCount = 1;
+                    reloadSubmitInfo.pCommandBuffers = &uploadCmd;
+                    vkQueueSubmit(vulkanContext.getDevice().getGraphicsQueue(), 1, &reloadSubmitInfo, VK_NULL_HANDLE);
+                    vkQueueWaitIdle(vulkanContext.getDevice().getGraphicsQueue());
+
+                    spdlog::info("Hot reload complete - {} textures reloaded with mipmap level {}",
+                                 requiredTextures.size(), settings.mipmapLevels);
+                }
+
                 // Don't update chunk manager - game hasn't started yet!
             }
 
@@ -1266,6 +1339,9 @@ int main() {
         }
 
         vulkanContext.waitIdle();
+
+        // Cleanup upload command pool and buffer
+        vkDestroyCommandPool(vulkanContext.getDevice().getLogicalDevice(), uploadPool, nullptr);
 
         // Cleanup resources
         outlineVertexBuffer.cleanup();

@@ -36,9 +36,14 @@ public:
         , m_selectedButtonIndex(0)
         , m_lastAction(Action::None)
         , m_mouseWasDown(false)
-        , m_scrollOffset(0.0f) {
+        , m_scrollOffset(0.0f)
+        , m_texturesNeedReload(false) {
         setupUI();
     }
+
+    // Check if textures need to be reloaded (e.g., mipmap level changed)
+    bool needsTextureReload() const { return m_texturesNeedReload; }
+    void clearTextureReloadFlag() { m_texturesNeedReload = false; }
 
     // Update menu state with input
     Action update(float deltaTime) {
@@ -470,8 +475,13 @@ private:
         );
         mipmapSlider->setOnChange([this](float value) {
             if (m_settings) {
-                m_settings->mipmapLevels = static_cast<int32_t>(value);
-                m_settings->save();
+                int32_t newValue = static_cast<int32_t>(value);
+                if (newValue != m_settings->mipmapLevels) {
+                    m_settings->mipmapLevels = newValue;
+                    m_settings->save();
+                    m_texturesNeedReload = true;  // Flag that textures need reloading
+                    spdlog::info("Mipmap level changed to {}, textures will be reloaded", newValue);
+                }
             }
         });
         // Custom formatter to display quality description
@@ -608,6 +618,7 @@ private:
     std::optional<KeybindAction> m_listeningForKeybind;  // When set, waiting for key press to rebind
     bool m_lastModifierState[6] = {false, false, false, false, false, false};  // Track modifier key states for edge detection
     float m_scrollOffset;  // Vertical scroll offset for the menu
+    bool m_texturesNeedReload;  // Flag set when mipmap level changes
 
     std::vector<std::unique_ptr<Slider>> m_sliders;
     std::vector<std::unique_ptr<Button>> m_buttons;

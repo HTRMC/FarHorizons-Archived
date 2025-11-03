@@ -187,6 +187,41 @@ uint32_t BindlessTextureManager::loadTexture(const std::string& filepath, VkComm
     return index;
 }
 
+void BindlessTextureManager::reloadTexture(const std::string& filepath, VkCommandBuffer uploadCmd, bool generateMipmaps, uint32_t maxMipLevels) {
+    // Find the texture index
+    auto it = m_textureIndices.find(filepath);
+    if (it == m_textureIndices.end()) {
+        spdlog::warn("[BindlessTextureManager] Cannot reload texture - not found: {}", filepath);
+        return;
+    }
+
+    uint32_t index = it->second;
+    spdlog::info("[BindlessTextureManager] Reloading texture: {} (index {})", filepath, index);
+
+    // Get old texture (to clean up after GPU is done)
+    Texture oldTexture = m_textures[index];
+
+    // Load texture data
+    TextureData data = TextureLoader::loadPNG(filepath);
+
+    // Create new Vulkan texture with new mipmap settings
+    Texture newTexture = TextureLoader::createTexture(m_device, m_allocator, uploadCmd, data, generateMipmaps, maxMipLevels);
+
+    // Replace the texture in the array
+    m_textures[index] = newTexture;
+
+    // Update descriptor with new image view
+    updateDescriptor(index, newTexture.imageView);
+
+    // Clean up old texture (safe because GPU idle was called before this function)
+    if (oldTexture.image != VK_NULL_HANDLE && oldTexture.allocation != VK_NULL_HANDLE) {
+        oldTexture.cleanup(m_device, m_allocator);
+    }
+
+    spdlog::info("[BindlessTextureManager] Reloaded texture: {} (index {}) with {} mip levels",
+                 filepath, index, newTexture.mipLevels);
+}
+
 uint32_t BindlessTextureManager::registerExternalTexture(VkImageView imageView) {
     // Check if we have space
     if (m_textures.size() >= m_maxTextures) {

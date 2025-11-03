@@ -26,6 +26,10 @@ public:
     // Load texture from file and return its index in the bindless array
     uint32_t loadTexture(const std::string& filepath, VkCommandBuffer uploadCmd, bool generateMipmaps = true, uint32_t maxMipLevels = 4);
 
+    // Reload an existing texture with new mipmap settings (hot reload)
+    // IMPORTANT: Waits for GPU idle before replacing texture to ensure safety
+    void reloadTexture(const std::string& filepath, VkCommandBuffer uploadCmd, bool generateMipmaps = true, uint32_t maxMipLevels = 4);
+
     // Register an external image view (for offscreen render targets) without managing its lifetime
     uint32_t registerExternalTexture(VkImageView imageView);
 
