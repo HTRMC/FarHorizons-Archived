@@ -24,8 +24,8 @@ public:
     bool fullscreen = false;
     int32_t guiScale = 0;  // 0 for auto, 1-6 for manual
     int32_t maxFps = 260;
-    int32_t mipmapLevels = 4;
-    int32_t menuBlurAmount = 5;
+    int32_t mipmapLevels = 2;
+    int32_t menuBlurAmount = 1;
 
     // Rendering options
     bool renderClouds = false;
@@ -63,14 +63,25 @@ public:
 
     /**
      * Calculate automatic GUI scale based on screen height.
-     * Minecraft-style scaling: scale 1 = 240px, scale 2 = 480px, scale 3 = 720px, etc.
-     * Returns the largest scale that fits the screen.
+     * More conservative scaling for better readability:
+     * - Scale 1: < 720p (smaller screens)
+     * - Scale 2: 720p - 1080p (most common)
+     * - Scale 3: 1080p - 1440p
+     * - Scale 4: 1440p - 2160p (4K)
+     * - Scale 5: 2160p+ (4K and above)
      */
     static int32_t calculateAutoGuiScale(uint32_t screenHeight) {
-        // Each scale level requires 240 pixels of height
-        int32_t maxScale = static_cast<int32_t>(screenHeight / 240);
-        // Clamp between 1 and 6
-        return std::max(1, std::min(6, maxScale));
+        if (screenHeight < 720) {
+            return 1;
+        } else if (screenHeight < 1080) {
+            return 2;
+        } else if (screenHeight < 1440) {
+            return 3;
+        } else if (screenHeight < 2160) {
+            return 4;
+        } else {
+            return 5;
+        }
     }
 
     /**
