@@ -2,6 +2,7 @@
 
 #include "Button.hpp"
 #include "Slider.hpp"
+#include "CyclingButton.hpp"
 #include "Panel.hpp"
 #include "../text/TextRenderer.hpp"
 #include "../core/InputSystem.hpp"
@@ -221,8 +222,13 @@ public:
             slider->update(screenMousePos, mouseDown, mouseReleased);
         }
 
-        // Update buttons (keybind buttons don't set m_lastAction, they set m_listeningForKeybind)
+        // Update cycling buttons
         bool mouseClicked = InputSystem::isMouseButtonDown(MouseButton::Left);
+        for (auto& cyclingButton : m_cyclingButtons) {
+            cyclingButton->update(screenMousePos, mouseClicked);
+        }
+
+        // Update buttons (keybind buttons don't set m_lastAction, they set m_listeningForKeybind)
         for (size_t i = 0; i < m_buttons.size(); ++i) {
             m_buttons[i]->update(screenMousePos, mouseClicked);
         }
@@ -275,6 +281,17 @@ public:
                 guiScale
             );
             allVertices.insert(allVertices.end(), sliderVertices.begin(), sliderVertices.end());
+        }
+
+        // Add cycling button text
+        for (const auto& cyclingButton : m_cyclingButtons) {
+            auto cyclingButtonVertices = cyclingButton->generateTextVertices(
+                textRenderer,
+                m_screenWidth,
+                m_screenHeight,
+                guiScale
+            );
+            allVertices.insert(allVertices.end(), cyclingButtonVertices.begin(), cyclingButtonVertices.end());
         }
 
         // Add button text
@@ -334,6 +351,7 @@ public:
 private:
     void setupUI() {
         m_sliders.clear();
+        m_cyclingButtons.clear();
         m_buttons.clear();
 
         // Calculate effective GUI scale for sizing UI elements
@@ -493,11 +511,49 @@ private:
         });
         m_sliders.push_back(std::move(volumeSlider));
 
+        // Audio Device Cycling Button
+        if (m_audioManager) {
+            auto availableDevices = m_audioManager->getAvailableDevices();
+            std::string currentDevice = m_settings ? m_settings->soundDevice.getValue() : "";
+
+            // Find current device index
+            size_t currentIndex = 0;
+            if (currentDevice.empty() || currentDevice == "Default") {
+                currentIndex = 0;
+            } else {
+                for (size_t i = 0; i < availableDevices.size(); i++) {
+                    if (availableDevices[i] == currentDevice) {
+                        currentIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            auto audioDeviceButton = std::make_unique<CyclingButton>(
+                "Audio Device",
+                glm::vec2(startX, startY + sliderSpacing * 6),
+                sliderWidth,
+                availableDevices,
+                currentIndex,
+                guiScale
+            );
+            audioDeviceButton->setOnChange([this](const std::string& deviceName) {
+                if (m_audioManager) {
+                    m_audioManager->switchDevice(deviceName);
+                }
+                if (m_settings) {
+                    m_settings->soundDevice = deviceName;
+                    m_settings->save();
+                }
+            });
+            m_cyclingButtons.push_back(std::move(audioDeviceButton));
+        }
+
         // Mipmap Levels Slider (0 - 4)
         // 0 = OFF (no mipmaps), 1-4 = mipmap levels (Minecraft-style)
         auto mipmapSlider = std::make_unique<Slider>(
             "Mipmap Levels",
-            glm::vec2(startX, startY + sliderSpacing * 6),
+            glm::vec2(startX, startY + sliderSpacing * 7),
             sliderWidth,
             0.0f, 4.0f,
             m_settings ? static_cast<float>(m_settings->mipmapLevels) : 4.0f,
@@ -530,7 +586,7 @@ private:
         m_sliders.push_back(std::move(mipmapSlider));
 
         // Keybind buttons section (scaled)
-        float keybindStartY = startY + sliderSpacing * 7.2f;
+        float keybindStartY = startY + sliderSpacing * 8.2f;
         float keybindButtonWidth = 250.0f * guiScale;
         float keybindButtonHeight = 35.0f * guiScale;
         float keybindSpacing = 45.0f * guiScale;
@@ -653,6 +709,7 @@ private:
     bool m_texturesNeedReload;  // Flag set when mipmap level changes
 
     std::vector<std::unique_ptr<Slider>> m_sliders;
+    std::vector<std::unique_ptr<CyclingButton>> m_cyclingButtons;
     std::vector<std::unique_ptr<Button>> m_buttons;
 };
 

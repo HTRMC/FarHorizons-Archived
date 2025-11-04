@@ -205,8 +205,14 @@ public:
     AudioManager(const AudioManager&) = delete;
     AudioManager& operator=(const AudioManager&) = delete;
 
-    bool init() {
-        ma_result result = ma_engine_init(nullptr, &m_engine);
+    bool init(ma_device_id* pDeviceId = nullptr) {
+        ma_engine_config config = ma_engine_config_init();
+
+        if (pDeviceId != nullptr) {
+            config.pPlaybackDeviceID = pDeviceId;
+        }
+
+        ma_result result = ma_engine_init(&config, &m_engine);
         if (result != MA_SUCCESS) {
             spdlog::error("Failed to initialize audio engine (error: {})", result);
             return false;
@@ -387,6 +393,156 @@ public:
     }
 
     bool isInitialized() const { return m_initialized; }
+
+    // Get list of available audio output devices
+    std::vector<std::string> getAvailableDevices() {
+        std::vector<std::string> deviceNames;
+
+        ma_context context;
+        if (ma_context_init(nullptr, 0, nullptr, &context) != MA_SUCCESS) {
+            spdlog::error("Failed to initialize context for device enumeration");
+            return deviceNames;
+        }
+
+        ma_device_info* pPlaybackInfos;
+        ma_uint32 playbackCount;
+
+        if (ma_context_get_devices(&context, &pPlaybackInfos, &playbackCount, nullptr, nullptr) != MA_SUCCESS) {
+            spdlog::error("Failed to get device list");
+            ma_context_uninit(&context);
+            return deviceNames;
+        }
+
+        // Add "Default" as first option
+        deviceNames.push_back("Default");
+
+        // Add all available devices
+        for (ma_uint32 i = 0; i < playbackCount; i++) {
+            deviceNames.push_back(std::string(pPlaybackInfos[i].name));
+        }
+
+        ma_context_uninit(&context);
+        spdlog::info("Found {} audio output devices", deviceNames.size());
+        return deviceNames;
+    }
+
+    // Get current device name
+    std::string getCurrentDeviceName() {
+        if (!m_initialized) {
+            return "Default";
+        }
+
+        ma_device* pDevice = ma_engine_get_device(&m_engine);
+        if (pDevice == nullptr) {
+            return "Default";
+        }
+
+        return std::string(pDevice->playback.name);
+    }
+
+    // Switch to a different audio device (requires reinitialization)
+    bool switchDevice(const std::string& deviceName) {
+        if (!m_initialized) {
+            spdlog::error("Cannot switch device: AudioManager not initialized");
+            return false;
+        }
+
+        spdlog::info("Switching audio device to: {}", deviceName);
+
+        // Store current volume
+        float currentVolume = ma_engine_get_volume(&m_engine);
+
+        // Clean up current engine
+        m_sounds.clear();
+        ma_engine_uninit(&m_engine);
+        m_initialized = false;
+
+        // Reinitialize with new device
+        ma_result result;
+
+        if (deviceName == "Default") {
+            // Use default device
+            result = ma_engine_init(nullptr, &m_engine);
+        } else {
+            // Find and use specific device
+            ma_context context;
+            if (ma_context_init(nullptr, 0, nullptr, &context) != MA_SUCCESS) {
+                spdlog::error("Failed to initialize context for device switching");
+                // Try to recover with default device
+                result = ma_engine_init(nullptr, &m_engine);
+                if (result == MA_SUCCESS) {
+                    m_initialized = true;
+                    ma_engine_set_volume(&m_engine, currentVolume);
+                }
+                return false;
+            }
+
+            ma_device_info* pPlaybackInfos;
+            ma_uint32 playbackCount;
+
+            if (ma_context_get_devices(&context, &pPlaybackInfos, &playbackCount, nullptr, nullptr) != MA_SUCCESS) {
+                spdlog::error("Failed to get device list for switching");
+                ma_context_uninit(&context);
+                // Try to recover with default device
+                result = ma_engine_init(nullptr, &m_engine);
+                if (result == MA_SUCCESS) {
+                    m_initialized = true;
+                    ma_engine_set_volume(&m_engine, currentVolume);
+                }
+                return false;
+            }
+
+            // Find the device ID
+            ma_device_id* pDeviceId = nullptr;
+            for (ma_uint32 i = 0; i < playbackCount; i++) {
+                if (deviceName == std::string(pPlaybackInfos[i].name)) {
+                    pDeviceId = &pPlaybackInfos[i].id;
+                    break;
+                }
+            }
+
+            if (pDeviceId == nullptr) {
+                spdlog::warn("Device '{}' not found, using default", deviceName);
+                ma_context_uninit(&context);
+                result = ma_engine_init(nullptr, &m_engine);
+            } else {
+                // Create engine config with the specific device
+                ma_engine_config engineConfig = ma_engine_config_init();
+                engineConfig.pPlaybackDeviceID = pDeviceId;
+
+                result = ma_engine_init(&engineConfig, &m_engine);
+                ma_context_uninit(&context);
+            }
+        }
+
+        if (result != MA_SUCCESS) {
+            spdlog::error("Failed to reinitialize audio engine (error: {})", result);
+            // Try to recover with default device
+            result = ma_engine_init(nullptr, &m_engine);
+            if (result != MA_SUCCESS) {
+                spdlog::error("Failed to recover audio engine (error: {})", result);
+                return false;
+            }
+        }
+
+        m_initialized = true;
+
+        // Restore volume
+        ma_engine_set_volume(&m_engine, currentVolume);
+
+        // Reload sound events if they were previously loaded
+        if (!m_soundEvents.empty() && !m_soundsBasePath.empty()) {
+            // Store the events temporarily
+            auto tempEvents = m_soundEvents;
+            auto tempBasePath = m_soundsBasePath;
+
+            // Reload (this will repopulate m_soundEvents)
+            loadSoundsFromJson("assets/minecraft/sounds.json", tempBasePath);
+        }
+
+        spdlog::info("Successfully switched to audio device: {}", getCurrentDeviceName());
+        return true;
+    }
 
 private:
     ma_engine m_engine{};
