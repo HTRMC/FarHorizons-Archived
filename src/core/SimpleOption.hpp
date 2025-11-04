@@ -36,8 +36,11 @@ public:
         // Decode JSON to value, returns nullopt on error
         virtual std::optional<T> decode(const std::string& json) const = 0;
 
-        // Decode from simdjson value
+        // Decode from simdjson ondemand value
         virtual std::optional<T> decode(simdjson::ondemand::value& value) const = 0;
+
+        // Decode from simdjson DOM element
+        virtual std::optional<T> decode(simdjson::dom::element& element) const = 0;
     };
 
     /**
@@ -126,9 +129,19 @@ public:
         return false;
     }
 
-    // Deserialize from simdjson value
+    // Deserialize from simdjson ondemand value
     bool deserialize(simdjson::ondemand::value& value) {
         auto result = m_codec->decode(value);
+        if (result.has_value()) {
+            setValue(*result);
+            return true;
+        }
+        return false;
+    }
+
+    // Deserialize from simdjson DOM element
+    bool deserialize(simdjson::dom::element& element) {
+        auto result = m_codec->decode(element);
         if (result.has_value()) {
             setValue(*result);
             return true;
@@ -181,6 +194,16 @@ public:
         return std::nullopt;
     }
 
+    std::optional<int32_t> decode(simdjson::dom::element& element) const override {
+        try {
+            int64_t val = element.get_int64();
+            if (val >= m_min && val <= m_max) {
+                return static_cast<int32_t>(val);
+            }
+        } catch (...) {}
+        return std::nullopt;
+    }
+
 private:
     int32_t m_min, m_max;
 };
@@ -217,6 +240,16 @@ public:
         return std::nullopt;
     }
 
+    std::optional<float> decode(simdjson::dom::element& element) const override {
+        try {
+            double val = element.get_double();
+            if (val >= m_min && val <= m_max) {
+                return static_cast<float>(val);
+            }
+        } catch (...) {}
+        return std::nullopt;
+    }
+
 private:
     float m_min, m_max;
 };
@@ -242,6 +275,13 @@ public:
         } catch (...) {}
         return std::nullopt;
     }
+
+    std::optional<bool> decode(simdjson::dom::element& element) const override {
+        try {
+            return element.get_bool();
+        } catch (...) {}
+        return std::nullopt;
+    }
 };
 
 /**
@@ -264,6 +304,14 @@ public:
     std::optional<std::string> decode(simdjson::ondemand::value& value) const override {
         try {
             return std::string(value.get_string().value());
+        } catch (...) {}
+        return std::nullopt;
+    }
+
+    std::optional<std::string> decode(simdjson::dom::element& element) const override {
+        try {
+            std::string_view sv = element.get_string();
+            return std::string(sv);
         } catch (...) {}
         return std::nullopt;
     }
@@ -293,6 +341,14 @@ public:
         try {
             std::string str(value.get_string().value());
             return magic_enum::enum_cast<E>(str);
+        } catch (...) {}
+        return std::nullopt;
+    }
+
+    std::optional<E> decode(simdjson::dom::element& element) const override {
+        try {
+            std::string_view sv = element.get_string();
+            return magic_enum::enum_cast<E>(std::string(sv));
         } catch (...) {}
         return std::nullopt;
     }

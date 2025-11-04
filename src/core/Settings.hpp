@@ -116,41 +116,65 @@ public:
                                std::istreambuf_iterator<char>());
             file.close();
 
-            simdjson::ondemand::parser parser;
-            simdjson::padded_string json(content);
-            simdjson::ondemand::document doc = parser.iterate(json);
-            simdjson::ondemand::object root = doc.get_object();
+            simdjson::dom::parser parser;
+            simdjson::dom::element doc;
+            auto error = parser.parse(content).get(doc);
+            if (error) {
+                spdlog::warn("Failed to parse settings JSON");
+                return false;
+            }
+
+            // Helper to parse fields without repetitive error checking
+            auto parseField = [&](const char* name, auto& option) {
+                simdjson::dom::element elem;
+                if (!doc[name].get(elem)) {
+                    option.deserialize(elem);
+                }
+            };
 
             // Parse each field (errors are silently ignored, keeping defaults)
-            if (auto v = root.find_field("version"); !v.error()) version.deserialize(v.value());
-            if (auto v = root.find_field("fov"); !v.error()) fov.deserialize(v.value());
-            if (auto v = root.find_field("renderDistance"); !v.error()) renderDistance.deserialize(v.value());
-            if (auto v = root.find_field("enableVsync"); !v.error()) enableVsync.deserialize(v.value());
-            if (auto v = root.find_field("fullscreen"); !v.error()) fullscreen.deserialize(v.value());
-            if (auto v = root.find_field("guiScale"); !v.error()) guiScale.deserialize(v.value());
-            if (auto v = root.find_field("maxFps"); !v.error()) maxFps.deserialize(v.value());
-            if (auto v = root.find_field("mipmapLevels"); !v.error()) mipmapLevels.deserialize(v.value());
-            if (auto v = root.find_field("menuBlurAmount"); !v.error()) menuBlurAmount.deserialize(v.value());
-            if (auto v = root.find_field("renderClouds"); !v.error()) renderClouds.deserialize(v.value());
-            if (auto v = root.find_field("cloudRange"); !v.error()) cloudRange.deserialize(v.value());
-            if (auto v = root.find_field("soundDevice"); !v.error()) soundDevice.deserialize(v.value());
-            if (auto v = root.find_field("saveChatDrafts"); !v.error()) saveChatDrafts.deserialize(v.value());
-            if (auto v = root.find_field("mouseSensitivity"); !v.error()) mouseSensitivity.deserialize(v.value());
+            parseField("version", version);
+            parseField("fov", fov);
+            parseField("renderDistance", renderDistance);
+            parseField("enableVsync", enableVsync);
+            parseField("fullscreen", fullscreen);
+            parseField("guiScale", guiScale);
+            parseField("maxFps", maxFps);
+            parseField("mipmapLevels", mipmapLevels);
+            parseField("menuBlurAmount", menuBlurAmount);
+            parseField("renderClouds", renderClouds);
+            parseField("cloudRange", cloudRange);
+            parseField("soundDevice", soundDevice);
+            parseField("saveChatDrafts", saveChatDrafts);
+            parseField("mouseSensitivity", mouseSensitivity);
 
             // Parse resource packs array
-            if (auto arr = root.find_field("resourcePacks"); !arr.error()) {
-                resourcePacks.clear();
-                for (auto item : arr.get_array()) {
-                    resourcePacks.push_back(std::string(item.get_string().value()));
+            simdjson::dom::element resourcePacksElem;
+            if (!doc["resourcePacks"].get(resourcePacksElem)) {
+                simdjson::dom::array arr;
+                if (!resourcePacksElem.get(arr)) {
+                    resourcePacks.clear();
+                    for (auto item : arr) {
+                        std::string_view str;
+                        if (!item.get(str)) {
+                            resourcePacks.push_back(std::string(str));
+                        }
+                    }
                 }
             }
 
             // Parse keybinds object
-            if (auto kb = root.find_field("keybinds"); !kb.error()) {
-                for (auto field : kb.get_object()) {
-                    std::string key = std::string(field.unescaped_key().value());
-                    std::string value = std::string(field.value().get_string().value());
-                    keybinds[key] = value;
+            simdjson::dom::element keybindsElem;
+            if (!doc["keybinds"].get(keybindsElem)) {
+                simdjson::dom::object obj;
+                if (!keybindsElem.get(obj)) {
+                    for (auto [key, value] : obj) {
+                        std::string_view keyStr = key;
+                        std::string_view valueStr;
+                        if (!value.get(valueStr)) {
+                            keybinds[std::string(keyStr)] = std::string(valueStr);
+                        }
+                    }
                 }
             }
 
