@@ -306,6 +306,9 @@ public:
             return false;
         }
 
+        // Store the base path for later use in playSoundEvent
+        m_soundsBasePath = soundsBasePath;
+
         // Read JSON file
         std::ifstream file(jsonPath);
         if (!file.is_open()) {
@@ -345,13 +348,6 @@ public:
             if (!soundPaths.empty()) {
                 m_soundEvents[eventName] = soundPaths;
                 spdlog::info("Registered sound event '{}' with {} variations", eventName, soundPaths.size());
-
-                // Load all sound variations
-                for (size_t i = 0; i < soundPaths.size(); ++i) {
-                    std::string fullPath = soundsBasePath + soundPaths[i] + ".ogg";
-                    std::string uniqueName = eventName + "_" + std::to_string(i);
-                    loadSound(uniqueName, fullPath);
-                }
             }
         }
 
@@ -360,6 +356,7 @@ public:
     }
 
     // Play a sound event (randomly selects from variations if available)
+    // Uses fire-and-forget playback to allow multiple instances to overlap
     void playSoundEvent(const std::string& eventName) {
         auto it = m_soundEvents.find(eventName);
         if (it == m_soundEvents.end()) {
@@ -376,9 +373,17 @@ public:
         std::uniform_int_distribution<size_t> dist(0, variations.size() - 1);
         size_t index = dist(m_rng);
 
-        // Play the selected variation
-        std::string uniqueName = eventName + "_" + std::to_string(index);
-        playSound(uniqueName);
+        // Build the full path to the sound file
+        std::string soundPath = m_soundsBasePath + variations[index] + ".ogg";
+
+        // Normalize path separators for the platform
+        std::filesystem::path normalizedPath(soundPath);
+        std::filesystem::path absolutePath = std::filesystem::absolute(normalizedPath.make_preferred());
+
+        // Use ma_engine_play_sound for fire-and-forget playback (allows overlapping)
+        if (m_initialized) {
+            ma_engine_play_sound(&m_engine, absolutePath.string().c_str(), nullptr);
+        }
     }
 
     bool isInitialized() const { return m_initialized; }
@@ -388,6 +393,7 @@ private:
     bool m_initialized = false;
     std::unordered_map<std::string, std::unique_ptr<Sound>> m_sounds;
     std::unordered_map<std::string, std::vector<std::string>> m_soundEvents;  // event name -> sound paths
+    std::string m_soundsBasePath;  // Base path for sound files
     std::mt19937 m_rng{std::random_device{}()};  // Random number generator for variation selection
 };
 
