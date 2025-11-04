@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <vector>
 #include <spdlog/spdlog.h>
+#include <simdjson.h>
 
 namespace VoxelEngine {
 
@@ -112,94 +113,41 @@ public:
                                std::istreambuf_iterator<char>());
             file.close();
 
-            // Parse settings (simple key:value parsing)
-            auto parseFloat = [&](const std::string& key, float& value) {
-                size_t pos = content.find("\"" + key + "\"");
-                if (pos != std::string::npos) {
-                    size_t colonPos = content.find(':', pos);
-                    if (colonPos != std::string::npos) {
-                        size_t numStart = content.find_first_of("0123456789.-", colonPos);
-                        if (numStart != std::string::npos) {
-                            value = std::stof(content.substr(numStart));
-                        }
-                    }
+            simdjson::ondemand::parser parser;
+            simdjson::padded_string json(content);
+            simdjson::ondemand::document doc = parser.iterate(json);
+            simdjson::ondemand::object root = doc.get_object();
+
+            // Parse each field (errors are silently ignored, keeping defaults)
+            if (auto v = root.find_field("version"); !v.error()) version = v.get_int64();
+            if (auto v = root.find_field("fov"); !v.error()) fov = v.get_double();
+            if (auto v = root.find_field("renderDistance"); !v.error()) renderDistance = v.get_int64();
+            if (auto v = root.find_field("enableVsync"); !v.error()) enableVsync = v.get_bool();
+            if (auto v = root.find_field("fullscreen"); !v.error()) fullscreen = v.get_bool();
+            if (auto v = root.find_field("guiScale"); !v.error()) guiScale = v.get_int64();
+            if (auto v = root.find_field("maxFps"); !v.error()) maxFps = v.get_int64();
+            if (auto v = root.find_field("mipmapLevels"); !v.error()) mipmapLevels = v.get_int64();
+            if (auto v = root.find_field("menuBlurAmount"); !v.error()) menuBlurAmount = v.get_int64();
+            if (auto v = root.find_field("renderClouds"); !v.error()) renderClouds = v.get_bool();
+            if (auto v = root.find_field("cloudRange"); !v.error()) cloudRange = v.get_int64();
+            if (auto v = root.find_field("soundDevice"); !v.error()) soundDevice = std::string(v.get_string().value());
+            if (auto v = root.find_field("saveChatDrafts"); !v.error()) saveChatDrafts = v.get_bool();
+            if (auto v = root.find_field("mouseSensitivity"); !v.error()) mouseSensitivity = v.get_double();
+
+            // Parse resource packs array
+            if (auto arr = root.find_field("resourcePacks"); !arr.error()) {
+                resourcePacks.clear();
+                for (auto item : arr.get_array()) {
+                    resourcePacks.push_back(std::string(item.get_string().value()));
                 }
-            };
+            }
 
-            auto parseInt = [&](const std::string& key, int32_t& value) {
-                size_t pos = content.find("\"" + key + "\"");
-                if (pos != std::string::npos) {
-                    size_t colonPos = content.find(':', pos);
-                    if (colonPos != std::string::npos) {
-                        size_t numStart = content.find_first_of("0123456789-", colonPos);
-                        if (numStart != std::string::npos) {
-                            value = std::stoi(content.substr(numStart));
-                        }
-                    }
-                }
-            };
-
-            auto parseBool = [&](const std::string& key, bool& value) {
-                size_t pos = content.find("\"" + key + "\"");
-                if (pos != std::string::npos) {
-                    size_t colonPos = content.find(':', pos);
-                    if (colonPos != std::string::npos) {
-                        size_t truePos = content.find("true", colonPos);
-                        size_t falsePos = content.find("false", colonPos);
-                        if (truePos != std::string::npos && (falsePos == std::string::npos || truePos < falsePos)) {
-                            value = true;
-                        } else if (falsePos != std::string::npos) {
-                            value = false;
-                        }
-                    }
-                }
-            };
-
-            // Parse all settings
-            parseInt("version", version);
-            parseFloat("fov", fov);
-            parseInt("renderDistance", renderDistance);
-            parseBool("enableVsync", enableVsync);
-            parseBool("fullscreen", fullscreen);
-            parseInt("guiScale", guiScale);
-            parseInt("maxFps", maxFps);
-            parseInt("mipmapLevels", mipmapLevels);
-            parseInt("menuBlurAmount", menuBlurAmount);
-            parseBool("renderClouds", renderClouds);
-            parseInt("cloudRange", cloudRange);
-            parseBool("saveChatDrafts", saveChatDrafts);
-            parseFloat("mouseSensitivity", mouseSensitivity);
-
-            // Parse keybinds
-            size_t keybindsPos = content.find("\"keybinds\"");
-            if (keybindsPos != std::string::npos) {
-                size_t openBrace = content.find('{', keybindsPos);
-                size_t closeBrace = content.find('}', openBrace);
-                if (openBrace != std::string::npos && closeBrace != std::string::npos) {
-                    std::string keybindsBlock = content.substr(openBrace + 1, closeBrace - openBrace - 1);
-
-                    // Parse each keybind line
-                    size_t pos = 0;
-                    while (pos < keybindsBlock.size()) {
-                        size_t keyStart = keybindsBlock.find('"', pos);
-                        if (keyStart == std::string::npos) break;
-
-                        size_t keyEnd = keybindsBlock.find('"', keyStart + 1);
-                        if (keyEnd == std::string::npos) break;
-
-                        std::string key = keybindsBlock.substr(keyStart + 1, keyEnd - keyStart - 1);
-
-                        size_t valueStart = keybindsBlock.find('"', keyEnd + 1);
-                        if (valueStart == std::string::npos) break;
-
-                        size_t valueEnd = keybindsBlock.find('"', valueStart + 1);
-                        if (valueEnd == std::string::npos) break;
-
-                        std::string value = keybindsBlock.substr(valueStart + 1, valueEnd - valueStart - 1);
-
-                        keybinds[key] = value;
-                        pos = valueEnd + 1;
-                    }
+            // Parse keybinds object
+            if (auto kb = root.find_field("keybinds"); !kb.error()) {
+                for (auto field : kb.get_object()) {
+                    std::string key = std::string(field.unescaped_key().value());
+                    std::string value = std::string(field.value().get_string().value());
+                    keybinds[key] = value;
                 }
             }
 
@@ -228,21 +176,34 @@ public:
                 return false;
             }
 
+            // Helper lambdas for JSON serialization
+            auto writeField = [&](const std::string& key, auto value, bool last = false) {
+                file << "  \"" << key << "\": " << value << (last ? "\n" : ",\n");
+            };
+
+            auto writeBool = [&](const std::string& key, bool value, bool last = false) {
+                file << "  \"" << key << "\": " << (value ? "true" : "false") << (last ? "\n" : ",\n");
+            };
+
+            auto writeString = [&](const std::string& key, const std::string& value, bool last = false) {
+                file << "  \"" << key << "\": \"" << value << "\"" << (last ? "\n" : ",\n");
+            };
+
             file << "{\n";
-            file << "  \"version\": " << version << ",\n";
-            file << "  \"fov\": " << fov << ",\n";
-            file << "  \"renderDistance\": " << renderDistance << ",\n";
-            file << "  \"enableVsync\": " << (enableVsync ? "true" : "false") << ",\n";
-            file << "  \"fullscreen\": " << (fullscreen ? "true" : "false") << ",\n";
-            file << "  \"guiScale\": " << guiScale << ",\n";
-            file << "  \"maxFps\": " << maxFps << ",\n";
-            file << "  \"mipmapLevels\": " << mipmapLevels << ",\n";
-            file << "  \"menuBlurAmount\": " << menuBlurAmount << ",\n";
-            file << "  \"renderClouds\": " << (renderClouds ? "true" : "false") << ",\n";
-            file << "  \"cloudRange\": " << cloudRange << ",\n";
-            file << "  \"soundDevice\": \"" << soundDevice << "\",\n";
-            file << "  \"saveChatDrafts\": " << (saveChatDrafts ? "true" : "false") << ",\n";
-            file << "  \"mouseSensitivity\": " << mouseSensitivity << ",\n";
+            writeField("version", version);
+            writeField("fov", fov);
+            writeField("renderDistance", renderDistance);
+            writeBool("enableVsync", enableVsync);
+            writeBool("fullscreen", fullscreen);
+            writeField("guiScale", guiScale);
+            writeField("maxFps", maxFps);
+            writeField("mipmapLevels", mipmapLevels);
+            writeField("menuBlurAmount", menuBlurAmount);
+            writeBool("renderClouds", renderClouds);
+            writeField("cloudRange", cloudRange);
+            writeString("soundDevice", soundDevice);
+            writeBool("saveChatDrafts", saveChatDrafts);
+            writeField("mouseSensitivity", mouseSensitivity);
 
             // Resource packs array
             file << "  \"resourcePacks\": [";
@@ -261,7 +222,6 @@ public:
                 file << "\n";
             }
             file << "  }\n";
-
             file << "}\n";
 
             file.close();
