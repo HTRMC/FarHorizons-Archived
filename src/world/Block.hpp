@@ -68,6 +68,12 @@ public:
     virtual BlockShape getOutlineShape(BlockState state) const {
         return BlockShape::fullCube(); // Most blocks are full cubes
     }
+
+    // Get the sound type for this block (for audio playback)
+    // Override in subclasses to return different sound types
+    virtual std::string getSoundType() const {
+        return "stone"; // Default to stone sounds
+    }
 };
 
 } // namespace VoxelEngine

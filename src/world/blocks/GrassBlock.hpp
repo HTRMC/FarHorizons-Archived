@@ -14,6 +14,11 @@ public:
     // - Full cube, solid, opaque faces
     // - SNOWY property from Properties class
 
+    // Override sound type for grass blocks
+    std::string getSoundType() const override {
+        return "grass";
+    }
+
     // TODO: Add fertilizable behavior in future (grow grass/flowers on top)
 };
 

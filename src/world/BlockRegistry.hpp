@@ -35,23 +35,24 @@ public:
     static bool isFullCube(BlockState state);
 
     // Get all registered blocks (for iteration)
-    static const std::unordered_map<std::string, Block*>& getAllBlocks();
+    static const std::unordered_map<std::string, std::unique_ptr<Block>>& getAllBlocks();
 
 private:
     static uint16_t m_nextStateId;
-    static std::unordered_map<std::string, Block*> m_blocks;
+    static std::unordered_map<std::string, std::unique_ptr<Block>> m_blocks;
 
     // Register a block and assign state IDs
     template<typename T>
     static Block* registerBlock(const std::string& name) {
-        T* block = new T(name);
+        auto block = std::make_unique<T>(name);
         block->m_baseStateId = m_nextStateId;
 
         // Reserve state IDs for this block
         m_nextStateId += static_cast<uint16_t>(block->getStateCount());
 
-        m_blocks[name] = block;
-        return block;
+        Block* blockPtr = block.get();
+        m_blocks[name] = std::move(block);
+        return blockPtr;
     }
 };
 

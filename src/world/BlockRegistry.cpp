@@ -11,7 +11,7 @@ Block* BlockRegistry::STONE_SLAB = nullptr;
 Block* BlockRegistry::GRASS_BLOCK = nullptr;
 
 uint16_t BlockRegistry::m_nextStateId = 0;
-std::unordered_map<std::string, Block*> BlockRegistry::m_blocks;
+std::unordered_map<std::string, std::unique_ptr<Block>> BlockRegistry::m_blocks;
 
 void BlockRegistry::init() {
     spdlog::info("Initializing BlockRegistry...");
@@ -28,16 +28,13 @@ void BlockRegistry::init() {
 }
 
 void BlockRegistry::cleanup() {
-    for (auto& [name, block] : m_blocks) {
-        delete block;
-    }
     m_blocks.clear();
 }
 
 Block* BlockRegistry::getBlock(BlockState state) {
     for (auto& [name, block] : m_blocks) {
         if (block->hasState(state.id)) {
-            return block;
+            return block.get();
         }
     }
     return nullptr;
@@ -45,7 +42,7 @@ Block* BlockRegistry::getBlock(BlockState state) {
 
 Block* BlockRegistry::getBlock(const std::string& name) {
     auto it = m_blocks.find(name);
-    return (it != m_blocks.end()) ? it->second : nullptr;
+    return (it != m_blocks.end()) ? it->second.get() : nullptr;
 }
 
 bool BlockRegistry::isFaceOpaque(BlockState state, Face face) {
@@ -63,7 +60,7 @@ bool BlockRegistry::isFullCube(BlockState state) {
     return block ? block->isFullCube() : false;
 }
 
-const std::unordered_map<std::string, Block*>& BlockRegistry::getAllBlocks() {
+const std::unordered_map<std::string, std::unique_ptr<Block>>& BlockRegistry::getAllBlocks() {
     return m_blocks;
 }
 

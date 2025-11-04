@@ -28,6 +28,7 @@
 #include "ui/PauseMenu.hpp"
 #include "ui/MainMenu.hpp"
 #include "ui/OptionsMenu.hpp"
+#include "audio/AudioManager.hpp"
 
 using namespace VoxelEngine;
 
@@ -112,6 +113,14 @@ int main() {
         // Initialize block registry before loading models
         BlockRegistry::init();
         spdlog::info("Initialized block registry");
+
+        // Initialize audio manager
+        AudioManager audioManager;
+        audioManager.init();
+
+        // Load sounds from JSON (data-driven)
+        audioManager.loadSoundsFromJson("assets/minecraft/sounds.json");
+        audioManager.setMasterVolume(0.5f);  // Set master volume to 50%
 
         // Initialize block models first to discover required textures
         ChunkManager chunkManager;
@@ -638,8 +647,15 @@ int main() {
                                 chunkPos.y * CHUNK_SIZE,
                                 chunkPos.z * CHUNK_SIZE
                             );
+                            // Get the block being broken for sound
+                            const Block* brokenBlock = BlockRegistry::getBlock(crosshairTarget->state);
+                            std::string soundType = brokenBlock->getSoundType();
+
                             chunk->setBlockState(localPos.x, localPos.y, localPos.z, BlockRegistry::AIR->getDefaultState());
                             chunkManager.queueChunkRemesh(chunkPos);
+
+                            // Play block break sound based on block type
+                            audioManager.playSoundEvent("block." + soundType + ".break");
 
                             // Remesh neighbor chunks if block is on chunk boundary
                             if (localPos.x == 0 || localPos.x == CHUNK_SIZE - 1 ||
@@ -670,6 +686,10 @@ int main() {
                                 localPos.z >= 0 && localPos.z < CHUNK_SIZE) {
                                 chunk->setBlockState(localPos.x, localPos.y, localPos.z, selectedBlock->getDefaultState());
                                 chunkManager.queueChunkRemesh(chunkPos);
+
+                                // Play block place sound based on block type
+                                std::string soundType = selectedBlock->getSoundType();
+                                audioManager.playSoundEvent("block." + soundType + ".place");
 
                                 // Remesh neighbor chunks if block is on chunk boundary
                                 if (localPos.x == 0 || localPos.x == CHUNK_SIZE - 1 ||
@@ -1374,6 +1394,9 @@ int main() {
         swapchain.shutdown();
         vulkanContext.shutdown();
         InputSystem::shutdown();
+
+        // Cleanup audio before spdlog shutdown (AudioManager logs during cleanup)
+        audioManager.cleanup();
 
         spdlog::info("Application shutting down...");
         spdlog::shutdown();
