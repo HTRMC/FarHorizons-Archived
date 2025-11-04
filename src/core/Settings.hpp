@@ -6,43 +6,46 @@
 #include <vector>
 #include <spdlog/spdlog.h>
 #include <simdjson.h>
+#include "SimpleOption.hpp"
 
 namespace VoxelEngine {
 
 /**
- * Manages persistent game settings
+ * Manages persistent game settings using SimpleOption for flexibility
  * Saves to and loads from settings.json with versioning support
  */
 class Settings {
 public:
+    Settings();
+
     // Settings version for compatibility
-    int32_t version = 1;
+    SimpleOption<int32_t> version;
 
     // Video settings
-    float fov = 70.0f;
-    int32_t renderDistance = 8;
-    bool enableVsync = true;
-    bool fullscreen = false;
-    int32_t guiScale = 0;  // 0 for auto, 1-6 for manual
-    int32_t maxFps = 260;
-    int32_t mipmapLevels = 2;
-    int32_t menuBlurAmount = 1;
+    SimpleOption<float> fov;
+    SimpleOption<int32_t> renderDistance;
+    SimpleOption<bool> enableVsync;
+    SimpleOption<bool> fullscreen;
+    SimpleOption<int32_t> guiScale;  // 0 for auto, 1-6 for manual
+    SimpleOption<int32_t> maxFps;
+    SimpleOption<int32_t> mipmapLevels;
+    SimpleOption<int32_t> menuBlurAmount;
 
     // Rendering options
-    bool renderClouds = false;
-    int32_t cloudRange = 128;
+    SimpleOption<bool> renderClouds;
+    SimpleOption<int32_t> cloudRange;
 
     // Audio
-    std::string soundDevice = "";
+    SimpleOption<std::string> soundDevice;
 
     // Resources
     std::vector<std::string> resourcePacks = {"vanilla"};
 
     // Chat
-    bool saveChatDrafts = false;
+    SimpleOption<bool> saveChatDrafts;
 
     // Mouse settings (0.0 - 1.0, default 0.5 = 50% like Minecraft)
-    float mouseSensitivity = 0.5f;
+    SimpleOption<float> mouseSensitivity;
 
     // Keybinds (stored as string pairs: action -> key)
     std::unordered_map<std::string, std::string> keybinds = {
@@ -91,10 +94,10 @@ public:
      * Otherwise returns the manual guiScale setting (1-6).
      */
     int32_t getEffectiveGuiScale(uint32_t screenHeight) const {
-        if (guiScale == 0) {  // 0 = Auto
+        if (guiScale.getValue() == 0) {  // 0 = Auto
             return calculateAutoGuiScale(screenHeight);
         }
-        return std::max(1, std::min(6, guiScale));  // Clamp to valid range
+        return std::max(1, std::min(6, guiScale.getValue()));  // Clamp to valid range
     }
 
     /**
@@ -119,20 +122,20 @@ public:
             simdjson::ondemand::object root = doc.get_object();
 
             // Parse each field (errors are silently ignored, keeping defaults)
-            if (auto v = root.find_field("version"); !v.error()) version = v.get_int64();
-            if (auto v = root.find_field("fov"); !v.error()) fov = v.get_double();
-            if (auto v = root.find_field("renderDistance"); !v.error()) renderDistance = v.get_int64();
-            if (auto v = root.find_field("enableVsync"); !v.error()) enableVsync = v.get_bool();
-            if (auto v = root.find_field("fullscreen"); !v.error()) fullscreen = v.get_bool();
-            if (auto v = root.find_field("guiScale"); !v.error()) guiScale = v.get_int64();
-            if (auto v = root.find_field("maxFps"); !v.error()) maxFps = v.get_int64();
-            if (auto v = root.find_field("mipmapLevels"); !v.error()) mipmapLevels = v.get_int64();
-            if (auto v = root.find_field("menuBlurAmount"); !v.error()) menuBlurAmount = v.get_int64();
-            if (auto v = root.find_field("renderClouds"); !v.error()) renderClouds = v.get_bool();
-            if (auto v = root.find_field("cloudRange"); !v.error()) cloudRange = v.get_int64();
-            if (auto v = root.find_field("soundDevice"); !v.error()) soundDevice = std::string(v.get_string().value());
-            if (auto v = root.find_field("saveChatDrafts"); !v.error()) saveChatDrafts = v.get_bool();
-            if (auto v = root.find_field("mouseSensitivity"); !v.error()) mouseSensitivity = v.get_double();
+            if (auto v = root.find_field("version"); !v.error()) version.deserialize(v.value());
+            if (auto v = root.find_field("fov"); !v.error()) fov.deserialize(v.value());
+            if (auto v = root.find_field("renderDistance"); !v.error()) renderDistance.deserialize(v.value());
+            if (auto v = root.find_field("enableVsync"); !v.error()) enableVsync.deserialize(v.value());
+            if (auto v = root.find_field("fullscreen"); !v.error()) fullscreen.deserialize(v.value());
+            if (auto v = root.find_field("guiScale"); !v.error()) guiScale.deserialize(v.value());
+            if (auto v = root.find_field("maxFps"); !v.error()) maxFps.deserialize(v.value());
+            if (auto v = root.find_field("mipmapLevels"); !v.error()) mipmapLevels.deserialize(v.value());
+            if (auto v = root.find_field("menuBlurAmount"); !v.error()) menuBlurAmount.deserialize(v.value());
+            if (auto v = root.find_field("renderClouds"); !v.error()) renderClouds.deserialize(v.value());
+            if (auto v = root.find_field("cloudRange"); !v.error()) cloudRange.deserialize(v.value());
+            if (auto v = root.find_field("soundDevice"); !v.error()) soundDevice.deserialize(v.value());
+            if (auto v = root.find_field("saveChatDrafts"); !v.error()) saveChatDrafts.deserialize(v.value());
+            if (auto v = root.find_field("mouseSensitivity"); !v.error()) mouseSensitivity.deserialize(v.value());
 
             // Parse resource packs array
             if (auto arr = root.find_field("resourcePacks"); !arr.error()) {
@@ -152,7 +155,7 @@ public:
             }
 
             spdlog::info("Loaded settings (v{}): FOV={}, RenderDistance={}, VSync={}",
-                        version, fov, renderDistance, enableVsync);
+                        version.getValue(), fov.getValue(), renderDistance.getValue(), enableVsync.getValue());
 
             // Always save after loading to add any missing properties with defaults
             save(filepath);
@@ -190,20 +193,20 @@ public:
             };
 
             file << "{\n";
-            writeField("version", version);
-            writeField("fov", fov);
-            writeField("renderDistance", renderDistance);
-            writeBool("enableVsync", enableVsync);
-            writeBool("fullscreen", fullscreen);
-            writeField("guiScale", guiScale);
-            writeField("maxFps", maxFps);
-            writeField("mipmapLevels", mipmapLevels);
-            writeField("menuBlurAmount", menuBlurAmount);
-            writeBool("renderClouds", renderClouds);
-            writeField("cloudRange", cloudRange);
-            writeString("soundDevice", soundDevice);
-            writeBool("saveChatDrafts", saveChatDrafts);
-            writeField("mouseSensitivity", mouseSensitivity);
+            writeField("version", version.getValue());
+            writeField("fov", fov.getValue());
+            writeField("renderDistance", renderDistance.getValue());
+            writeBool("enableVsync", enableVsync.getValue());
+            writeBool("fullscreen", fullscreen.getValue());
+            writeField("guiScale", guiScale.getValue());
+            writeField("maxFps", maxFps.getValue());
+            writeField("mipmapLevels", mipmapLevels.getValue());
+            writeField("menuBlurAmount", menuBlurAmount.getValue());
+            writeBool("renderClouds", renderClouds.getValue());
+            writeField("cloudRange", cloudRange.getValue());
+            writeString("soundDevice", soundDevice.getValue());
+            writeBool("saveChatDrafts", saveChatDrafts.getValue());
+            writeField("mouseSensitivity", mouseSensitivity.getValue());
 
             // Resource packs array
             file << "  \"resourcePacks\": [";
@@ -225,7 +228,7 @@ public:
             file << "}\n";
 
             file.close();
-            spdlog::debug("Saved settings (v{})", version);
+            spdlog::debug("Saved settings (v{})", version.getValue());
             return true;
 
         } catch (const std::exception& e) {
