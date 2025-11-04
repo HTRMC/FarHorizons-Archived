@@ -37,6 +37,7 @@ public:
 
     // Audio
     SimpleOption<std::string> soundDevice;
+    SimpleOption<float> masterVolume;  // 0.0 - 1.0, default 0.5 = 50%
 
     // Resources
     std::vector<std::string> resourcePacks = {"vanilla"};
@@ -145,6 +146,7 @@ public:
             parseField("renderClouds", renderClouds);
             parseField("cloudRange", cloudRange);
             parseField("soundDevice", soundDevice);
+            parseField("masterVolume", masterVolume);
             parseField("saveChatDrafts", saveChatDrafts);
             parseField("mouseSensitivity", mouseSensitivity);
 
@@ -229,6 +231,7 @@ public:
             writeBool("renderClouds", renderClouds.getValue());
             writeField("cloudRange", cloudRange.getValue());
             writeString("soundDevice", soundDevice.getValue());
+            writeField("masterVolume", masterVolume.getValue());
             writeBool("saveChatDrafts", saveChatDrafts.getValue());
             writeField("mouseSensitivity", mouseSensitivity.getValue());
 

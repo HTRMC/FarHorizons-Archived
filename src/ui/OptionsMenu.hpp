@@ -9,6 +9,7 @@
 #include "../core/Settings.hpp"
 #include "../core/KeybindAction.hpp"
 #include "../world/ChunkManager.hpp"
+#include "../audio/AudioManager.hpp"
 #include <memory>
 #include <vector>
 #include <optional>
@@ -27,12 +28,13 @@ public:
         Back
     };
 
-    OptionsMenu(uint32_t screenWidth, uint32_t screenHeight, Camera* camera, ChunkManager* chunkManager, Settings* settings)
+    OptionsMenu(uint32_t screenWidth, uint32_t screenHeight, Camera* camera, ChunkManager* chunkManager, Settings* settings, AudioManager* audioManager = nullptr)
         : m_screenWidth(screenWidth)
         , m_screenHeight(screenHeight)
         , m_camera(camera)
         , m_chunkManager(chunkManager)
         , m_settings(settings)
+        , m_audioManager(audioManager)
         , m_selectedButtonIndex(0)
         , m_lastAction(Action::None)
         , m_mouseWasDown(false)
@@ -195,7 +197,7 @@ public:
             // Calculate total content height and clamp
             float sliderSpacing = 100.0f * guiScale;
             float keybindSpacing = 45.0f * guiScale;
-            float totalContentHeight = m_screenHeight * 0.35f + sliderSpacing * 6.2f + keybindSpacing * 6.5f + 60.0f * guiScale + 50.0f;
+            float totalContentHeight = m_screenHeight * 0.35f + sliderSpacing * 7.2f + keybindSpacing * 6.5f + 60.0f * guiScale + 50.0f;
             float maxScroll = std::max(0.0f, totalContentHeight - m_screenHeight);
 
             m_scrollOffset = std::clamp(m_scrollOffset, 0.0f, maxScroll);
@@ -462,11 +464,40 @@ private:
         });
         m_sliders.push_back(std::move(mouseSensSlider));
 
+        // Master Volume Slider (0% - 100%)
+        // Internal: 0.0 - 1.0, Display: 0 - 100
+        float currentVolume = m_settings ? m_settings->masterVolume : 0.5f;
+        int currentVolumePercent = static_cast<int>(currentVolume * 100.0f);
+
+        auto volumeSlider = std::make_unique<Slider>(
+            "Master Volume",
+            glm::vec2(startX, startY + sliderSpacing * 5),
+            sliderWidth,
+            0.0f, 100.0f,
+            static_cast<float>(currentVolumePercent),
+            true, // Integer values
+            guiScale // Scale parameter
+        );
+        volumeSlider->setOnChange([this](float value) {
+            float volume = value * 0.01f; // Convert 0-100 to 0.0-1.0
+            if (m_audioManager) {
+                m_audioManager->setMasterVolume(volume);
+            }
+            if (m_settings) {
+                m_settings->masterVolume = volume;
+                m_settings->save();
+            }
+        });
+        volumeSlider->setValueFormatter([](float value) -> std::string {
+            return std::to_string(static_cast<int>(std::round(value))) + "%";
+        });
+        m_sliders.push_back(std::move(volumeSlider));
+
         // Mipmap Levels Slider (0 - 4)
         // 0 = OFF (no mipmaps), 1-4 = mipmap levels (Minecraft-style)
         auto mipmapSlider = std::make_unique<Slider>(
             "Mipmap Levels",
-            glm::vec2(startX, startY + sliderSpacing * 5),
+            glm::vec2(startX, startY + sliderSpacing * 6),
             sliderWidth,
             0.0f, 4.0f,
             m_settings ? static_cast<float>(m_settings->mipmapLevels) : 4.0f,
@@ -499,7 +530,7 @@ private:
         m_sliders.push_back(std::move(mipmapSlider));
 
         // Keybind buttons section (scaled)
-        float keybindStartY = startY + sliderSpacing * 6.2f;
+        float keybindStartY = startY + sliderSpacing * 7.2f;
         float keybindButtonWidth = 250.0f * guiScale;
         float keybindButtonHeight = 35.0f * guiScale;
         float keybindSpacing = 45.0f * guiScale;
@@ -612,6 +643,7 @@ private:
     Camera* m_camera;
     ChunkManager* m_chunkManager;
     Settings* m_settings;
+    AudioManager* m_audioManager;
     size_t m_selectedButtonIndex;
     Action m_lastAction;
     bool m_mouseWasDown;

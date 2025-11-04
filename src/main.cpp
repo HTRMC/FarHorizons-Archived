@@ -120,7 +120,9 @@ int main() {
 
         // Load sounds from JSON (data-driven)
         audioManager.loadSoundsFromJson("assets/minecraft/sounds.json");
-        audioManager.setMasterVolume(0.5f);  // Set master volume to 50%
+
+        // Apply master volume from settings
+        audioManager.setMasterVolume(settings.masterVolume.getValue());
 
         // Initialize block models first to discover required textures
         ChunkManager chunkManager;
@@ -554,7 +556,7 @@ int main() {
         // Initialize menus
         MainMenu mainMenu(window.getWidth(), window.getHeight());
         PauseMenu pauseMenu(window.getWidth(), window.getHeight(), &settings);
-        OptionsMenu optionsMenu(window.getWidth(), window.getHeight(), &camera, &chunkManager, &settings);
+        OptionsMenu optionsMenu(window.getWidth(), window.getHeight(), &camera, &chunkManager, &settings, &audioManager);
         GameState gameState = GameState::MainMenu;
 
         // Cursor starts unlocked in main menu

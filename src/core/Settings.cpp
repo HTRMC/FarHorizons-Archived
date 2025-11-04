@@ -15,6 +15,7 @@ Settings::Settings()
     , renderClouds(ofBoolean("renderClouds", false))
     , cloudRange(ofInt("cloudRange", 128, 2, 128))
     , soundDevice(ofString("soundDevice", ""))
+    , masterVolume(ofFloat("masterVolume", 0.5f, 0.0f, 1.0f))
     , saveChatDrafts(ofBoolean("saveChatDrafts", false))
     , mouseSensitivity(ofFloat("mouseSensitivity", 0.5f, 0.0f, 1.0f))
 {
