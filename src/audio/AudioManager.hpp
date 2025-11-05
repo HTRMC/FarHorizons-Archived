@@ -363,7 +363,9 @@ public:
 
     // Play a sound event (randomly selects from variations if available)
     // Uses fire-and-forget playback to allow multiple instances to overlap
-    void playSoundEvent(const std::string& eventName) {
+    // volume: Volume multiplier (default 1.0)
+    // pitch: Pitch multiplier (default 1.0)
+    void playSoundEvent(const std::string& eventName, float volume = 1.0f, float pitch = 1.0f) {
         auto it = m_soundEvents.find(eventName);
         if (it == m_soundEvents.end()) {
             spdlog::warn("Sound event not found: {}", eventName);
@@ -386,9 +388,64 @@ public:
         std::filesystem::path normalizedPath(soundPath);
         std::filesystem::path absolutePath = std::filesystem::absolute(normalizedPath.make_preferred());
 
-        // Use ma_engine_play_sound for fire-and-forget playback (allows overlapping)
+        spdlog::debug("Playing sound event '{}' from: {}", eventName, absolutePath.string());
+
+        // Create a fire-and-forget sound with automatic cleanup
         if (m_initialized) {
-            ma_engine_play_sound(&m_engine, absolutePath.string().c_str(), nullptr);
+            // Clean up finished sounds first
+            cleanupFinishedSounds();
+
+            ma_sound* pSound = new ma_sound();
+
+            // Use DECODE flag to fully decode the sound (allows pitch shifting)
+            // Use NO_SPATIALIZATION since we don't need 3D audio for block sounds
+            // Note: Not using ASYNC flag to ensure sound is ready before playback
+            ma_uint32 flags = MA_SOUND_FLAG_DECODE | MA_SOUND_FLAG_NO_SPATIALIZATION;
+
+            ma_result result = ma_sound_init_from_file(&m_engine, absolutePath.string().c_str(),
+                flags, nullptr, nullptr, pSound);
+
+            if (result == MA_SUCCESS) {
+                spdlog::debug("Sound initialized successfully, setting volume={} pitch={}", volume, pitch);
+
+                // Set volume and pitch
+                ma_sound_set_volume(pSound, volume);
+                ma_sound_set_pitch(pSound, pitch);
+
+                // Start playback
+                result = ma_sound_start(pSound);
+
+                if (result != MA_SUCCESS) {
+                    spdlog::warn("Failed to start sound event '{}': {}", eventName, result);
+                    ma_sound_uninit(pSound);
+                    delete pSound;
+                } else {
+                    spdlog::debug("Sound started successfully");
+                    // Track this sound for later cleanup
+                    m_activeSounds.push_back(pSound);
+                }
+            } else {
+                spdlog::warn("Failed to initialize sound event '{}': {}", eventName, result);
+                delete pSound;
+            }
+        }
+    }
+
+    // Clean up sounds that have finished playing
+    void cleanupFinishedSounds() {
+        auto it = m_activeSounds.begin();
+        while (it != m_activeSounds.end()) {
+            ma_sound* pSound = *it;
+
+            // Check if sound has finished playing
+            if (!ma_sound_is_playing(pSound) && ma_sound_at_end(pSound)) {
+                spdlog::debug("Cleaning up finished sound");
+                ma_sound_uninit(pSound);
+                delete pSound;
+                it = m_activeSounds.erase(it);
+            } else {
+                ++it;
+            }
         }
     }
 
@@ -551,6 +608,7 @@ private:
     std::unordered_map<std::string, std::vector<std::string>> m_soundEvents;  // event name -> sound paths
     std::string m_soundsBasePath;  // Base path for sound files
     std::mt19937 m_rng{std::random_device{}()};  // Random number generator for variation selection
+    std::vector<ma_sound*> m_activeSounds;  // Track active fire-and-forget sounds for cleanup
 };
 
 } // namespace VoxelEngine

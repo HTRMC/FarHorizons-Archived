@@ -5,6 +5,7 @@
 #include "blocks/SlabBlock.hpp"
 #include "blocks/GrassBlock.hpp"
 #include "BlockModel.hpp"
+#include "BlockSoundGroup.hpp"
 #include <unordered_map>
 #include <string>
 #include <memory>
@@ -29,6 +30,9 @@ public:
     static Block* getBlock(BlockState state);
     static Block* getBlock(const std::string& name);
 
+    // Sound system - get sound group for a block state (no virtual call needed!)
+    static const BlockSoundGroup& getSoundGroup(BlockState state);
+
     // Game logic queries (delegates to Block)
     static bool isFaceOpaque(BlockState state, Face face);
     static bool isSolid(BlockState state);
@@ -41,9 +45,12 @@ private:
     static uint16_t m_nextStateId;
     static std::unordered_map<std::string, std::unique_ptr<Block>> m_blocks;
 
+    // Map from block pointer to sound group (compile-time lookup, no virtual calls!)
+    static std::unordered_map<const Block*, const BlockSoundGroup*> m_soundGroups;
+
     // Register a block and assign state IDs
     template<typename T>
-    static Block* registerBlock(const std::string& name) {
+    static Block* registerBlock(const std::string& name, const BlockSoundGroup& soundGroup) {
         auto block = std::make_unique<T>(name);
         block->m_baseStateId = m_nextStateId;
 
@@ -52,6 +59,10 @@ private:
 
         Block* blockPtr = block.get();
         m_blocks[name] = std::move(block);
+
+        // Register sound group (no virtual call needed at runtime!)
+        m_soundGroups[blockPtr] = &soundGroup;
+
         return blockPtr;
     }
 };

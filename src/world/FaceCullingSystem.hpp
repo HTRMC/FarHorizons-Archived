@@ -3,17 +3,14 @@
 #include "BlockShape.hpp"
 #include "BlockState.hpp"
 #include "FaceUtils.hpp"
+#include "BlockModel.hpp"
+#include "Chunk.hpp"
 #include <unordered_map>
 #include <list>
 #include <cstdint>
 #include <optional>
 
 namespace VoxelEngine {
-
-// Forward declarations
-class BlockModel;
-class Chunk;
-struct ChunkPosition;
 
 // LRU cache for geometric face culling comparisons
 // Thread-local to avoid contention (like Minecraft's FACE_CULL_MAP)

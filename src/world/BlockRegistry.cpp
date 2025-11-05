@@ -12,16 +12,17 @@ Block* BlockRegistry::GRASS_BLOCK = nullptr;
 
 uint16_t BlockRegistry::m_nextStateId = 0;
 std::unordered_map<std::string, std::unique_ptr<Block>> BlockRegistry::m_blocks;
+std::unordered_map<const Block*, const BlockSoundGroup*> BlockRegistry::m_soundGroups;
 
 void BlockRegistry::init() {
     spdlog::info("Initializing BlockRegistry...");
 
-    // Register blocks - name comes from here!
+    // Register blocks with their sound groups - compile-time association!
     // Air gets state ID 0, Stone gets 1, Stone Slab gets 2, Grass Block gets 3
-    AIR = registerBlock<AirBlock>("air");
-    STONE = registerBlock<SimpleBlock>("stone");
-    STONE_SLAB = registerBlock<SlabBlock>("stone_slab");
-    GRASS_BLOCK = registerBlock<GrassBlock>("grass_block");
+    AIR = registerBlock<AirBlock>("air", BlockSoundGroup::INTENTIONALLY_EMPTY);
+    STONE = registerBlock<SimpleBlock>("stone", BlockSoundGroup::STONE);
+    STONE_SLAB = registerBlock<SlabBlock>("stone_slab", BlockSoundGroup::STONE);
+    GRASS_BLOCK = registerBlock<GrassBlock>("grass_block", BlockSoundGroup::GRASS);
 
     spdlog::info("Registered {} blocks with {} total states",
                  m_blocks.size(), m_nextStateId);
@@ -29,6 +30,19 @@ void BlockRegistry::init() {
 
 void BlockRegistry::cleanup() {
     m_blocks.clear();
+    m_soundGroups.clear();
+}
+
+const BlockSoundGroup& BlockRegistry::getSoundGroup(BlockState state) {
+    Block* block = getBlock(state);
+    if (block) {
+        auto it = m_soundGroups.find(block);
+        if (it != m_soundGroups.end()) {
+            return *it->second;
+        }
+    }
+    // Fallback to stone if not found
+    return BlockSoundGroup::STONE;
 }
 
 Block* BlockRegistry::getBlock(BlockState state) {

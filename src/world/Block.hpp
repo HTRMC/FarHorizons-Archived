@@ -69,11 +69,8 @@ public:
         return BlockShape::fullCube(); // Most blocks are full cubes
     }
 
-    // Get the sound type for this block (for audio playback)
-    // Override in subclasses to return different sound types
-    virtual std::string getSoundType() const {
-        return "stone"; // Default to stone sounds
-    }
+    // Sound groups are now managed by BlockRegistry (no virtual call!)
+    // See BlockRegistry::getSoundGroup(BlockState) for compile-time lookup
 };
 
 } // namespace VoxelEngine

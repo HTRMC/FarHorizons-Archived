@@ -649,15 +649,14 @@ int main() {
                                 chunkPos.y * CHUNK_SIZE,
                                 chunkPos.z * CHUNK_SIZE
                             );
-                            // Get the block being broken for sound
-                            const Block* brokenBlock = BlockRegistry::getBlock(crosshairTarget->state);
-                            std::string soundType = brokenBlock->getSoundType();
+                            // Get sound group directly from registry (no virtual call!)
+                            const BlockSoundGroup& soundGroup = BlockRegistry::getSoundGroup(crosshairTarget->state);
 
                             chunk->setBlockState(localPos.x, localPos.y, localPos.z, BlockRegistry::AIR->getDefaultState());
                             chunkManager.queueChunkRemesh(chunkPos);
 
-                            // Play block break sound based on block type
-                            audioManager.playSoundEvent("block." + soundType + ".break");
+                            // Play block break sound based on block sound group
+                            audioManager.playSoundEvent(soundGroup.getBreakSound(), soundGroup.getVolume(), soundGroup.getPitch());
 
                             // Remesh neighbor chunks if block is on chunk boundary
                             if (localPos.x == 0 || localPos.x == CHUNK_SIZE - 1 ||
@@ -686,12 +685,13 @@ int main() {
                             if (localPos.x >= 0 && localPos.x < CHUNK_SIZE &&
                                 localPos.y >= 0 && localPos.y < CHUNK_SIZE &&
                                 localPos.z >= 0 && localPos.z < CHUNK_SIZE) {
-                                chunk->setBlockState(localPos.x, localPos.y, localPos.z, selectedBlock->getDefaultState());
+                                BlockState placedState = selectedBlock->getDefaultState();
+                                chunk->setBlockState(localPos.x, localPos.y, localPos.z, placedState);
                                 chunkManager.queueChunkRemesh(chunkPos);
 
-                                // Play block place sound based on block type
-                                std::string soundType = selectedBlock->getSoundType();
-                                audioManager.playSoundEvent("block." + soundType + ".place");
+                                // Play block place sound - get sound group from registry (no virtual call!)
+                                const BlockSoundGroup& soundGroup = BlockRegistry::getSoundGroup(placedState);
+                                audioManager.playSoundEvent(soundGroup.getPlaceSound(), soundGroup.getVolume(), soundGroup.getPitch());
 
                                 // Remesh neighbor chunks if block is on chunk boundary
                                 if (localPos.x == 0 || localPos.x == CHUNK_SIZE - 1 ||

@@ -3,10 +3,9 @@
 #include <glm/glm.hpp>
 #include <optional>
 #include "../world/BlockState.hpp"
+#include "../world/ChunkManager.hpp"
 
 namespace VoxelEngine {
-
-class ChunkManager;
 
 struct BlockHitResult {
     glm::ivec3 blockPos;
