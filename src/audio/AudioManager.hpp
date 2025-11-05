@@ -83,11 +83,9 @@ public:
         }
     }
 
-    // Prevent copying
     Sound(const Sound&) = delete;
     Sound& operator=(const Sound&) = delete;
 
-    // Allow moving
     Sound(Sound&& other) noexcept
         : m_sound(other.m_sound)
         , m_initialized(other.m_initialized) {
@@ -107,11 +105,9 @@ public:
     }
 
     bool init(ma_engine* engine, const std::string& filepath) {
-        // Normalize path separators for the platform
         std::filesystem::path normalizedPath(filepath);
         std::string pathStr = normalizedPath.make_preferred().string();
 
-        // Check if file exists first
         if (!std::filesystem::exists(pathStr)) {
             spdlog::error("Sound file does not exist: {}", pathStr);
             spdlog::error("  Absolute path: {}", std::filesystem::absolute(pathStr).string());
@@ -119,11 +115,9 @@ public:
             return false;
         }
 
-        // Get absolute path for debugging
         std::filesystem::path absolutePath = std::filesystem::absolute(pathStr);
         spdlog::debug("Attempting to load sound from: {}", absolutePath.string());
 
-        // Try to decode manually first to get better error info
         ma_decoder decoder;
         ma_decoder_config decoderConfig = ma_decoder_config_init(ma_format_f32, 2, 48000);
         ma_result decodeResult = ma_decoder_init_file(absolutePath.string().c_str(), &decoderConfig, &decoder);
@@ -131,7 +125,6 @@ public:
             spdlog::error("Failed to initialize decoder for: {} (error: {})", absolutePath.string(), decodeResult);
             spdlog::error("  This likely means the Vorbis decoder is not available or the file format is not supported");
 
-            // Try with NULL config to let miniaudio auto-detect
             decodeResult = ma_decoder_init_file(absolutePath.string().c_str(), nullptr, &decoder);
             if (decodeResult != MA_SUCCESS) {
                 spdlog::error("  Auto-detection also failed (error: {})", decodeResult);
@@ -155,6 +148,15 @@ public:
         return true;
     }
 
+    bool initFromFile(ma_engine* engine, const std::filesystem::path& filepath, ma_uint32 flags) {
+        ma_result result = ma_sound_init_from_file(engine, filepath.string().c_str(), flags, nullptr, nullptr, &m_sound);
+        if (result != MA_SUCCESS) {
+            return false;
+        }
+        m_initialized = true;
+        return true;
+    }
+
     void play() {
         if (m_initialized) {
             ma_sound_start(&m_sound);
@@ -173,6 +175,12 @@ public:
         }
     }
 
+    void setPitch(float pitch) {
+        if (m_initialized) {
+            ma_sound_set_pitch(&m_sound, pitch);
+        }
+    }
+
     void setLooping(bool loop) {
         if (m_initialized) {
             ma_sound_set_looping(&m_sound, loop ? MA_TRUE : MA_FALSE);
@@ -181,6 +189,10 @@ public:
 
     bool isPlaying() const {
         return m_initialized && ma_sound_is_playing(&m_sound);
+    }
+
+    bool atEnd() const {
+        return m_initialized && ma_sound_at_end(&m_sound);
     }
 
     void seekToStart() {
@@ -361,10 +373,6 @@ public:
         return true;
     }
 
-    // Play a sound event (randomly selects from variations if available)
-    // Uses fire-and-forget playback to allow multiple instances to overlap
-    // volume: Volume multiplier (default 1.0)
-    // pitch: Pitch multiplier (default 1.0)
     void playSoundEvent(const std::string& eventName, float volume = 1.0f, float pitch = 1.0f) {
         auto it = m_soundEvents.find(eventName);
         if (it == m_soundEvents.end()) {
@@ -377,71 +385,41 @@ public:
             return;
         }
 
-        // Select random variation
         std::uniform_int_distribution<size_t> dist(0, variations.size() - 1);
         size_t index = dist(m_rng);
 
-        // Build the full path to the sound file
         std::string soundPath = m_soundsBasePath + variations[index] + ".ogg";
-
-        // Normalize path separators for the platform
         std::filesystem::path normalizedPath(soundPath);
         std::filesystem::path absolutePath = std::filesystem::absolute(normalizedPath.make_preferred());
 
         spdlog::debug("Playing sound event '{}' from: {}", eventName, absolutePath.string());
 
-        // Create a fire-and-forget sound with automatic cleanup
         if (m_initialized) {
-            // Clean up finished sounds first
             cleanupFinishedSounds();
 
-            ma_sound* pSound = new ma_sound();
-
-            // Use DECODE flag to fully decode the sound (allows pitch shifting)
-            // Use NO_SPATIALIZATION since we don't need 3D audio for block sounds
-            // Note: Not using ASYNC flag to ensure sound is ready before playback
+            auto sound = std::make_unique<Sound>();
             ma_uint32 flags = MA_SOUND_FLAG_DECODE | MA_SOUND_FLAG_NO_SPATIALIZATION;
 
-            ma_result result = ma_sound_init_from_file(&m_engine, absolutePath.string().c_str(),
-                flags, nullptr, nullptr, pSound);
-
-            if (result == MA_SUCCESS) {
+            if (sound->initFromFile(&m_engine, absolutePath, flags)) {
                 spdlog::debug("Sound initialized successfully, setting volume={} pitch={}", volume, pitch);
 
-                // Set volume and pitch
-                ma_sound_set_volume(pSound, volume);
-                ma_sound_set_pitch(pSound, pitch);
+                sound->setVolume(volume);
+                sound->setPitch(pitch);
+                sound->play();
 
-                // Start playback
-                result = ma_sound_start(pSound);
-
-                if (result != MA_SUCCESS) {
-                    spdlog::warn("Failed to start sound event '{}': {}", eventName, result);
-                    ma_sound_uninit(pSound);
-                    delete pSound;
-                } else {
-                    spdlog::debug("Sound started successfully");
-                    // Track this sound for later cleanup
-                    m_activeSounds.push_back(pSound);
-                }
+                spdlog::debug("Sound started successfully");
+                m_activeSounds.push_back(std::move(sound));
             } else {
-                spdlog::warn("Failed to initialize sound event '{}': {}", eventName, result);
-                delete pSound;
+                spdlog::warn("Failed to initialize sound event '{}'", eventName);
             }
         }
     }
 
-    // Clean up sounds that have finished playing
     void cleanupFinishedSounds() {
         auto it = m_activeSounds.begin();
         while (it != m_activeSounds.end()) {
-            ma_sound* pSound = *it;
-
-            // Check if sound has finished playing
-            if (!ma_sound_is_playing(pSound) && ma_sound_at_end(pSound)) {
+            if (!(*it)->isPlaying() && (*it)->atEnd()) {
                 spdlog::debug("Cleaning up finished sound");
-                ma_sound_uninit(pSound);
-                delete pSound;
                 it = m_activeSounds.erase(it);
             } else {
                 ++it;
@@ -605,10 +583,10 @@ private:
     ma_engine m_engine{};
     bool m_initialized = false;
     std::unordered_map<std::string, std::unique_ptr<Sound>> m_sounds;
-    std::unordered_map<std::string, std::vector<std::string>> m_soundEvents;  // event name -> sound paths
-    std::string m_soundsBasePath;  // Base path for sound files
-    std::mt19937 m_rng{std::random_device{}()};  // Random number generator for variation selection
-    std::vector<ma_sound*> m_activeSounds;  // Track active fire-and-forget sounds for cleanup
+    std::unordered_map<std::string, std::vector<std::string>> m_soundEvents;
+    std::string m_soundsBasePath;
+    std::mt19937 m_rng{std::random_device{}()};
+    std::vector<std::unique_ptr<Sound>> m_activeSounds;
 };
 
 } // namespace VoxelEngine
