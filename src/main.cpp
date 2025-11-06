@@ -132,6 +132,15 @@ int main() {
         // Preload all blockstate models into cache for fast lookup
         chunkManager.preloadBlockStateModels();
 
+        // Initialize world generator
+        auto worldGenerator = std::make_shared<WorldGenerator>(12345);
+        if (worldGenerator->loadFromDirectory("data/minecraft/worldgen")) {
+            chunkManager.setWorldGenerator(worldGenerator);
+            spdlog::info("World generator loaded successfully");
+        } else {
+            spdlog::warn("Failed to load world generator, using fallback generation");
+        }
+
         // Get all textures required by the models
         auto requiredTextures = chunkManager.getRequiredTextures();
         spdlog::info("Found {} unique textures required by block models", requiredTextures.size());

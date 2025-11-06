@@ -102,6 +102,10 @@ ChunkManager::~ChunkManager() {
     }
 }
 
+void ChunkManager::setWorldGenerator(std::shared_ptr<WorldGenerator> generator) {
+    m_worldGenerator = std::move(generator);
+}
+
 void ChunkManager::initializeBlockModels() {
     m_modelManager.initialize();
 }
@@ -244,7 +248,7 @@ void ChunkManager::clearAllChunks() {
 
 Chunk* ChunkManager::loadChunk(const ChunkPosition& pos) {
     auto chunk = std::make_unique<Chunk>(pos);
-    chunk->generate();
+    chunk->generate(m_worldGenerator.get());
 
     Chunk* chunkPtr = chunk.get();
     m_chunks[pos] = std::move(chunk);
@@ -473,8 +477,8 @@ void ChunkManager::meshWorker() {
 
         if (!chunkPtr) {
             auto chunk = std::make_unique<Chunk>(pos);
-            chunk->generate();
-            chunk->markDirty();  // Mark new chunks dirty so they get meshed
+            chunk->generate(m_worldGenerator.get());
+            chunk->markDirty();
 
             std::lock_guard<std::mutex> lock(m_chunksMutex);
             // Double-check it wasn't added by another thread

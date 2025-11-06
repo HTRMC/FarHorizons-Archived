@@ -301,6 +301,19 @@ add_custom_command(
         COMMENT "Copying assets to binary directory"
 )
 
+# Automatically copy assets to the binary directory
+set(DATA_SOURCE_DIR ${CMAKE_SOURCE_DIR}/data)
+set(DATA_BINARY_DIR ${CMAKE_BINARY_DIR}/data)
+
+add_custom_command(
+        TARGET ${CMAKE_PROJECT_NAME}
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${DATA_SOURCE_DIR}
+        ${BIN_DIR}/assets
+        COMMENT "Copying data to binary directory"
+)
+
 # Include directories
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         ${CMAKE_SOURCE_DIR}/src

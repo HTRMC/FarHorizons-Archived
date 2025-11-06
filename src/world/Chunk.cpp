@@ -1,6 +1,7 @@
 #include "Chunk.hpp"
 #include "BlockRegistry.hpp"
 #include "blocks/SlabBlock.hpp"
+#include "gen/WorldGenerator.hpp"
 #include <cstring>
 #include <cmath>
 
@@ -51,16 +52,12 @@ void Chunk::generate() {
                 BlockState state = BlockRegistry::AIR->getDefaultState();
 
                 if (worldPos.y >= 0.0f && worldPos.y <= 1.0f) {
-                    // Place stone blocks at bottom layers
                     state = BlockRegistry::GRASS_BLOCK->getDefaultState();
                 } else {
                     glm::vec3 center(0.0f, 10.0f, 0.0f);
                     float distance = glm::length(worldPos - center);
 
                     if (distance >= 20.0f && distance <= 30.0f) {
-                        // Place slabs in a sphere
-                        // Use "top" variant for upper half of blocks (y % 2 == 1)
-                        // Use "bottom" variant for lower half
                         SlabBlock* slabBlock = static_cast<SlabBlock*>(BlockRegistry::STONE_SLAB);
                         if (static_cast<int>(worldPos.y) % 2 == 1) {
                             state = slabBlock->withType(SlabType::TOP);
@@ -80,6 +77,14 @@ void Chunk::generate() {
 
     if (hasBlocks) {
         m_isEmpty = false;
+    }
+}
+
+void Chunk::generate(WorldGenerator* generator) {
+    if (generator) {
+        generator->generateChunk(*this, m_position);
+    } else {
+        generate();
     }
 }
 

@@ -1,0 +1,6 @@
+{
+  "type": "noise",
+  "noise": "continents",
+  "xzScale": 0.25,
+  "yScale": 0.25
+}

@@ -4,6 +4,7 @@
 #include "BlockModel.hpp"
 #include "FaceCullingSystem.hpp"
 #include "ChunkGpuData.hpp"
+#include "gen/WorldGenerator.hpp"
 #include <glm/glm.hpp>
 #include <unordered_map>
 #include <memory>
@@ -57,6 +58,9 @@ public:
     ChunkManager();
     ~ChunkManager();
 
+    void setWorldGenerator(std::shared_ptr<WorldGenerator> generator);
+    std::shared_ptr<WorldGenerator> getWorldGenerator() const { return m_worldGenerator; }
+
     void initializeBlockModels();
     void preloadBlockStateModels();  // Preload all blockstate models into cache
     void registerTexture(const std::string& textureName, uint32_t textureIndex);
@@ -99,6 +103,8 @@ private:
     int32_t m_renderDistance = 8;
     ChunkPosition m_lastCameraChunkPos = {INT32_MAX, INT32_MAX, INT32_MAX};
     bool m_renderDistanceChanged = false;
+
+    std::shared_ptr<WorldGenerator> m_worldGenerator;
 
     mutable BlockModelManager m_modelManager;
     mutable FaceCullingSystem m_cullingSystem;  // Face culling with Minecraft-style fast paths

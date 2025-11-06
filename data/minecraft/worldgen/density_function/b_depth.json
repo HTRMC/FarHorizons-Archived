@@ -1,0 +1,11 @@
+{
+  "type": "add",
+  "argument1": {
+    "type": "y_clamped_gradient",
+    "fromY": -64,
+    "toY": 320,
+    "fromValue": 1.5,
+    "toValue": -1.5
+  },
+  "argument2": "a_offset"
+}

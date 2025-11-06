@@ -1,0 +1,18 @@
+{
+  "generationShapeConfig": {
+    "minY": -64,
+    "height": 384,
+    "horizontalSize": 1,
+    "verticalSize": 2
+  },
+  "seaLevel": 63,
+  "noiseRouter": {
+    "continents": "0_continents",
+    "erosion": "0_erosion",
+    "ridges": "0_ridges",
+    "temperature": 0.0,
+    "vegetation": 0.0,
+    "depth": "b_depth",
+    "finalDensity": "d_final_density"
+  }
+}

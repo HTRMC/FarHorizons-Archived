@@ -72,6 +72,7 @@ public:
     const uint8_t* getData() const { return m_data.data(); }
 
     void generate();
+    void generate(class WorldGenerator* generator);
 
     bool isEmpty() const { return m_palette.isEmpty(); }
     void markEmpty() { m_isEmpty = true; }

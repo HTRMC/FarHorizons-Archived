@@ -1,0 +1,14 @@
+{
+  "type": "mul",
+  "argument1": {
+    "type": "mul",
+    "argument1": "b_depth",
+    "argument2": "b2_factor"
+  },
+  "argument2": {
+    "type": "noise",
+    "noise": "jagged",
+    "xzScale": 1.5,
+    "yScale": 1.5
+  }
+}
