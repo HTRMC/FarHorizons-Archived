@@ -163,6 +163,13 @@ FetchContent_Declare(
         GIT_TAG        0.11.23
 )
 
+# concurrentqueue (lock-free queue for high-performance multithreading)
+FetchContent_Declare(
+        concurrentqueue
+        GIT_REPOSITORY https://github.com/cameron314/concurrentqueue.git
+        GIT_TAG        v1.0.4
+)
+
 # Temporarily disable install rules for spng
 set(CMAKE_SKIP_INSTALL_RULES ON)
 FetchContent_MakeAvailable(spng)
@@ -175,7 +182,7 @@ set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(tracy)
 
 # Make the rest available
-FetchContent_MakeAvailable(glfw glm simdjson FastNoise2 VMA imgui fmt spdlog magic_enum miniaudio)
+FetchContent_MakeAvailable(glfw glm simdjson FastNoise2 VMA imgui fmt spdlog magic_enum miniaudio concurrentqueue)
 
 # Create ImGui library target (since ImGui doesn't provide CMakeLists)
 add_library(imgui STATIC
@@ -322,6 +329,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         ${glm_SOURCE_DIR}
         ${tracy_SOURCE_DIR}/public
         ${miniaudio_SOURCE_DIR}
+        ${concurrentqueue_SOURCE_DIR}
 )
 
 # Platform-specific libraries

@@ -1,5 +1,27 @@
 {
-  "type": "add",
-  "argument1": "c_sloped_cheese",
-  "argument2": "base_3d_noise"
+  "type": "lerp",
+  "t": {
+    "type": "y_clamped_gradient",
+    "fromY": -64,
+    "toY": -40,
+    "fromValue": 0.0,
+    "toValue": 1.0
+  },
+  "a": 0.1171875,
+  "b": {
+    "type": "lerp",
+    "t": {
+      "type": "y_clamped_gradient",
+      "fromY": 320,
+      "toY": 384,
+      "fromValue": 1.0,
+      "toValue": 0.0
+    },
+    "a": -0.078125,
+    "b": {
+      "type": "add",
+      "argument1": "c_sloped_cheese",
+      "argument2": "base_3d_noise"
+    }
+  }
 }

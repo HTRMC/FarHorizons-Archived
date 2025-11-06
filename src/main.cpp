@@ -75,7 +75,7 @@ int main() {
         vulkanContext.init(window.getNativeWindow(), "Vulkan Voxel Engine");
 
         Swapchain swapchain;
-        swapchain.init(vulkanContext, window.getWidth(), window.getHeight());
+        swapchain.init(vulkanContext, window.getWidth(),  window.getHeight());
 
         RenderContext renderer;
         renderer.init(vulkanContext, swapchain);

@@ -85,21 +85,22 @@ uint32_t QuadInfoLibrary::getOrCreateQuad(const glm::vec3& normal,
 // ===== ChunkManager Implementation =====
 
 ChunkManager::ChunkManager() {
-    unsigned int numThreads = std::max(1u, std::thread::hardware_concurrency() / 2);
-    for (unsigned int i = 0; i < numThreads; i++) {
-        m_workerThreads.emplace_back(&ChunkManager::meshWorker, this);
-    }
-    spdlog::info("ChunkManager initialized with {} mesh worker threads", numThreads);
+    // Create separate thread pools for generation and meshing
+    // Generation: Use 75% of cores (terrain generation is CPU-intensive)
+    // Meshing: Use 25% of cores (meshing is lighter, mostly geometry processing)
+    unsigned int totalCores = std::thread::hardware_concurrency();
+    unsigned int genThreads = std::max(1u, (totalCores * 3) / 4);
+    unsigned int meshThreads = std::max(1u, totalCores / 4);
+
+    m_generationPool = std::make_unique<ThreadPool>(genThreads, "ChunkGeneration");
+    m_meshingPool = std::make_unique<ThreadPool>(meshThreads, "ChunkMeshing");
+
+    spdlog::info("ChunkManager initialized with {} generation threads and {} meshing threads",
+                 genThreads, meshThreads);
 }
 
 ChunkManager::~ChunkManager() {
-    m_running = false;
-    m_queueCV.notify_all();
-    for (auto& thread : m_workerThreads) {
-        if (thread.joinable()) {
-            thread.join();
-        }
-    }
+    // Thread pools will automatically shut down and join their workers
 }
 
 void ChunkManager::setWorldGenerator(std::shared_ptr<WorldGenerator> generator) {
@@ -158,8 +159,8 @@ void ChunkManager::update(const glm::vec3& cameraPosition) {
 }
 
 void ChunkManager::loadChunksAroundPosition(const ChunkPosition& centerPos) {
-    // Collect chunks that need to be loaded
-    std::vector<ChunkPosition> chunksToLoad;
+    // Collect chunks that need to be generated
+    std::vector<ChunkPosition> chunksToGenerate;
 
     {
         std::lock_guard<std::mutex> lock(m_chunksMutex);
@@ -175,7 +176,7 @@ void ChunkManager::loadChunksAroundPosition(const ChunkPosition& centerPos) {
                     float distance = std::sqrt(x*x + y*y + z*z);
                     if (distance <= m_renderDistance) {
                         if (m_chunks.find(pos) == m_chunks.end()) {
-                            chunksToLoad.push_back(pos);
+                            chunksToGenerate.push_back(pos);
                         }
                     }
                 }
@@ -183,14 +184,12 @@ void ChunkManager::loadChunksAroundPosition(const ChunkPosition& centerPos) {
         }
     }
 
-    // Queue chunks for generation on worker threads (don't generate on main thread!)
-    if (!chunksToLoad.empty()) {
-        std::lock_guard<std::mutex> lock(m_queueMutex);
-        for (const auto& pos : chunksToLoad) {
-            m_meshQueue.push(pos);
+    // Queue chunks for generation on dedicated generation thread pool (lock-free!)
+    if (!chunksToGenerate.empty()) {
+        for (const auto& pos : chunksToGenerate) {
+            generateChunkAsync(pos);
         }
-        m_queueCV.notify_all();
-        spdlog::trace("Queued {} chunks for loading", chunksToLoad.size());
+        spdlog::trace("Queued {} chunks for generation", chunksToGenerate.size());
     }
 }
 
@@ -218,6 +217,10 @@ void ChunkManager::unloadDistantChunks(const ChunkPosition& centerPos) {
 }
 
 void ChunkManager::clearAllChunks() {
+    // Wait for pending generation and meshing tasks
+    m_generationPool->waitForCompletion();
+    m_meshingPool->waitForCompletion();
+
     size_t count = 0;
     {
         std::lock_guard<std::mutex> lock(m_chunksMutex);
@@ -225,19 +228,10 @@ void ChunkManager::clearAllChunks() {
         m_chunks.clear();
     }
 
-    // Clear mesh queues
-    {
-        std::lock_guard<std::mutex> lock(m_queueMutex);
-        while (!m_meshQueue.empty()) {
-            m_meshQueue.pop();
-        }
-    }
-
-    {
-        std::lock_guard<std::mutex> lock(m_readyMutex);
-        while (!m_readyMeshes.empty()) {
-            m_readyMeshes.pop();
-        }
+    // Clear ready meshes queue (lock-free)
+    CompactChunkMesh dummy;
+    while (m_readyMeshes.try_dequeue(dummy)) {
+        // Drain the queue
     }
 
     // Reset last camera position to force reload on next update
@@ -246,23 +240,74 @@ void ChunkManager::clearAllChunks() {
     spdlog::info("Cleared all chunks (unloaded {} chunks)", count);
 }
 
-Chunk* ChunkManager::loadChunk(const ChunkPosition& pos) {
-    auto chunk = std::make_unique<Chunk>(pos);
-    chunk->generate(m_worldGenerator.get());
+// Async chunk generation (runs on generation thread pool)
+void ChunkManager::generateChunkAsync(const ChunkPosition& pos) {
+    m_generationPool->enqueue([this, pos]() {
+        // Generate chunk terrain
+        auto chunk = std::make_unique<Chunk>(pos);
+        chunk->generate(m_worldGenerator.get());
+        chunk->markDirty();
 
-    Chunk* chunkPtr = chunk.get();
-    m_chunks[pos] = std::move(chunk);
+        bool wasAdded = false;
+        {
+            std::lock_guard<std::mutex> lock(m_chunksMutex);
+            // Only add if not already present (race condition check)
+            if (m_chunks.find(pos) == m_chunks.end()) {
+                m_chunks[pos] = std::move(chunk);
+                wasAdded = true;
+                spdlog::trace("Generated chunk at ({}, {}, {})", pos.x, pos.y, pos.z);
+            }
+        }
 
-    if (!chunkPtr->isEmpty()) {
-        spdlog::trace("Loaded chunk at ({}, {}, {})", pos.x, pos.y, pos.z);
-        chunkPtr->markDirty();
+        // Queue for meshing if successfully added and neighbors exist
+        if (wasAdded) {
+            meshChunkAsync(pos);
+            queueNeighborRemesh(pos);  // Remesh neighbors too
+        }
+    });
+}
 
-        std::lock_guard<std::mutex> lock(m_queueMutex);
-        m_meshQueue.push(pos);
-        m_queueCV.notify_one();
-    }
+// Async chunk meshing (runs on meshing thread pool)
+void ChunkManager::meshChunkAsync(const ChunkPosition& pos) {
+    m_meshingPool->enqueue([this, pos]() {
+        // Check if all neighbors are loaded (required for face culling)
+        if (!areNeighborsLoadedForMeshing(pos)) {
+            // Re-queue for later when neighbors are ready
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Back off briefly
+            meshChunkAsync(pos);  // Retry
+            return;
+        }
 
-    return chunkPtr;
+        // Check if chunk still exists and needs meshing
+        bool needsMesh = false;
+        {
+            std::lock_guard<std::mutex> lock(m_chunksMutex);
+            auto it = m_chunks.find(pos);
+            if (it != m_chunks.end() && it->second->isDirty()) {
+                it->second->clearDirty();
+                needsMesh = true;
+            }
+        }
+
+        if (!needsMesh) {
+            return;  // Already meshed or chunk was unloaded
+        }
+
+        // Generate the mesh
+        CompactChunkMesh mesh;
+        mesh.position = pos;
+        {
+            std::lock_guard<std::mutex> lock(m_chunksMutex);
+            const Chunk* chunk = getChunk(pos);
+            if (chunk && !chunk->isEmpty()) {
+                mesh = generateChunkMesh(chunk);
+                spdlog::trace("Meshed chunk at ({}, {}, {})", pos.x, pos.y, pos.z);
+            }
+        }
+
+        // Push to ready queue (lock-free!)
+        m_readyMeshes.enqueue(std::move(mesh));
+    });
 }
 
 Chunk* ChunkManager::getChunk(const ChunkPosition& pos) {
@@ -437,178 +482,59 @@ CompactChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk) const {
     return mesh;
 }
 
-void ChunkManager::meshWorker() {
-    while (m_running) {
-        ChunkPosition pos;
-
-        {
-            std::unique_lock<std::mutex> lock(m_queueMutex);
-            m_queueCV.wait(lock, [this] { return !m_meshQueue.empty() || !m_running; });
-
-            if (!m_running) {
-                break;
-            }
-
-            if (m_meshQueue.empty()) {
-                continue;
-            }
-
-            pos = m_meshQueue.front();
-            m_meshQueue.pop();
-        }
-
-        // Check if chunk already exists
-        bool chunkExists = false;
-        {
-            std::lock_guard<std::mutex> lock(m_chunksMutex);
-            chunkExists = (m_chunks.find(pos) != m_chunks.end());
-        }
-
-        // If chunk doesn't exist, generate it first
-        bool wasNewlyCreated = false;
-        Chunk* chunkPtr = nullptr;
-        {
-            std::lock_guard<std::mutex> lock(m_chunksMutex);
-            auto it = m_chunks.find(pos);
-            if (it != m_chunks.end()) {
-                chunkPtr = it->second.get();
-            }
-        }
-
-        if (!chunkPtr) {
-            auto chunk = std::make_unique<Chunk>(pos);
-            chunk->generate(m_worldGenerator.get());
-            chunk->markDirty();
-
-            std::lock_guard<std::mutex> lock(m_chunksMutex);
-            // Double-check it wasn't added by another thread
-            if (m_chunks.find(pos) == m_chunks.end()) {
-                chunkPtr = chunk.get();
-                m_chunks[pos] = std::move(chunk);
-                wasNewlyCreated = true;
-                spdlog::trace("Worker generated chunk at ({}, {}, {})", pos.x, pos.y, pos.z);
-            } else {
-                chunkPtr = m_chunks[pos].get();
-            }
-        }
-
-        // Check if chunk is actually dirty before remeshing
-        bool needsRemesh = false;
-        {
-            std::lock_guard<std::mutex> lock(m_chunksMutex);
-            if (chunkPtr && chunkPtr->isDirty()) {
-                needsRemesh = true;
-            }
-        }
-
-        if (!needsRemesh) {
-            continue;
-        }
-
-        // Wait for all required neighbors to load (Minecraft's ChunkRegion approach)
-        if (!areNeighborsLoadedForMeshing(pos)) {
-            std::lock_guard<std::mutex> lock(m_queueMutex);
-            m_meshQueue.push(pos);  // Re-queue for later
-            continue;
-        }
-
-        // Clear dirty flag before meshing to allow new requests while we're meshing
-        {
-            std::lock_guard<std::mutex> lock(m_chunksMutex);
-            if (chunkPtr) {
-                chunkPtr->clearDirty();
-            }
-        }
-
-        // Now generate the mesh
-        CompactChunkMesh mesh;
-        mesh.position = pos;  // Always set position so BufferManager knows which chunk this is
-        {
-            std::lock_guard<std::mutex> lock(m_chunksMutex);
-            const Chunk* chunk = getChunk(pos);
-            if (chunk && !chunk->isEmpty()) {
-                mesh = generateChunkMesh(chunk);
-            }
-        }
-
-        // Always push mesh to ready queue, even if empty
-        // This allows BufferManager to remove chunks that became empty after breaking blocks
-        {
-            std::lock_guard<std::mutex> lock(m_readyMutex);
-            m_readyMeshes.push(std::move(mesh));
-        }
-
-        // Only queue neighbors for remeshing when this chunk was newly created
-        // Don't queue self - let neighbors queue us back when they're created
-        // This ensures we only remesh after neighbors exist
-        if (wasNewlyCreated) {
-            queueNeighborRemesh(pos);
-        }
-    }
-}
-
 bool ChunkManager::hasReadyMeshes() const {
-    std::lock_guard<std::mutex> lock(m_readyMutex);
-    return !m_readyMeshes.empty();
+    return m_readyMeshes.size_approx() > 0;
 }
 
 std::vector<CompactChunkMesh> ChunkManager::getReadyMeshes() {
     std::vector<CompactChunkMesh> meshes;
 
-    std::lock_guard<std::mutex> lock(m_readyMutex);
-    while (!m_readyMeshes.empty()) {
-        meshes.push_back(std::move(m_readyMeshes.front()));
-        m_readyMeshes.pop();
+    // Dequeue all available meshes (lock-free!)
+    CompactChunkMesh mesh;
+    while (m_readyMeshes.try_dequeue(mesh)) {
+        meshes.push_back(std::move(mesh));
     }
 
     return meshes;
 }
 
 void ChunkManager::queueNeighborRemesh(const ChunkPosition& pos) {
-    std::vector<ChunkPosition> neighborsToQueue;
-
     // Queue the 6 face-adjacent neighbors for remeshing
     for (const auto& offset : ChunkPosition::getFaceNeighborOffsets()) {
         ChunkPosition neighborPos = pos.getNeighbor(offset.x, offset.y, offset.z);
 
         // Check if neighbor chunk exists and mark it dirty
+        bool exists = false;
         {
             std::lock_guard<std::mutex> chunkLock(m_chunksMutex);
             auto it = m_chunks.find(neighborPos);
             if (it != m_chunks.end()) {
-                Chunk* neighborChunk = it->second.get();
-                neighborChunk->markDirty();
-                neighborsToQueue.push_back(neighborPos);
+                it->second->markDirty();
+                exists = true;
             }
         }
-    }
 
-    // Queue all neighbors at once
-    if (!neighborsToQueue.empty()) {
-        std::lock_guard<std::mutex> queueLock(m_queueMutex);
-        for (const auto& neighborPos : neighborsToQueue) {
-            m_meshQueue.push(neighborPos);
+        // Queue for remeshing if it exists
+        if (exists) {
+            meshChunkAsync(neighborPos);
         }
-        m_queueCV.notify_all();
     }
 }
 
 void ChunkManager::queueChunkRemesh(const ChunkPosition& pos) {
-    bool shouldQueue = false;
+    // Mark chunk as dirty and queue for remeshing
+    bool exists = false;
     {
         std::lock_guard<std::mutex> chunkLock(m_chunksMutex);
         auto it = m_chunks.find(pos);
         if (it != m_chunks.end()) {
-            Chunk* chunk = it->second.get();
-            chunk->markDirty();
-            shouldQueue = true;
+            it->second->markDirty();
+            exists = true;
         }
     }
 
-    if (shouldQueue) {
-        std::lock_guard<std::mutex> queueLock(m_queueMutex);
-        m_meshQueue.push(pos);
-        m_queueCV.notify_one();
+    if (exists) {
+        meshChunkAsync(pos);
     }
 }
 

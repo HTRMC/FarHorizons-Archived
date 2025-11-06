@@ -344,6 +344,35 @@ private:
     std::shared_ptr<DensityFunction> m_input;
 };
 
+// Linear interpolation: lerp(t, a, b) = a + t * (b - a)
+class LerpFunction : public DensityFunction {
+public:
+    LerpFunction(std::shared_ptr<DensityFunction> t, std::shared_ptr<DensityFunction> a, std::shared_ptr<DensityFunction> b)
+        : m_t(std::move(t)), m_a(std::move(a)), m_b(std::move(b)) {}
+
+    double compute(const DensityContext& ctx) const override {
+        double t = m_t->compute(ctx);
+        double a = m_a->compute(ctx);
+        double b = m_b->compute(ctx);
+        return a + t * (b - a);
+    }
+
+    double minValue() const override {
+        // For now, conservative estimate
+        return std::min(m_a->minValue(), m_b->minValue());
+    }
+
+    double maxValue() const override {
+        // For now, conservative estimate
+        return std::max(m_a->maxValue(), m_b->maxValue());
+    }
+
+private:
+    std::shared_ptr<DensityFunction> m_t;
+    std::shared_ptr<DensityFunction> m_a;
+    std::shared_ptr<DensityFunction> m_b;
+};
+
 struct SplinePoint {
     float location;
     float value;

@@ -5,15 +5,13 @@
 #include "FaceCullingSystem.hpp"
 #include "ChunkGpuData.hpp"
 #include "gen/WorldGenerator.hpp"
+#include "../util/ThreadPool.hpp"
 #include <glm/glm.hpp>
 #include <unordered_map>
 #include <memory>
 #include <vector>
-#include <thread>
 #include <mutex>
-#include <queue>
-#include <atomic>
-#include <condition_variable>
+#include <concurrentqueue.h>
 
 namespace VoxelEngine {
 
@@ -110,19 +108,21 @@ private:
     mutable FaceCullingSystem m_cullingSystem;  // Face culling with Minecraft-style fast paths
     mutable QuadInfoLibrary m_quadLibrary;  // Shared quad geometry library
 
-    std::vector<std::thread> m_workerThreads;
-    std::queue<ChunkPosition> m_meshQueue;
-    std::queue<CompactChunkMesh> m_readyMeshes;
+    // Separate thread pools for generation and meshing (decoupled for better performance)
+    std::unique_ptr<ThreadPool> m_generationPool;  // Generates chunk terrain
+    std::unique_ptr<ThreadPool> m_meshingPool;     // Meshes generated chunks
+
+    // Lock-free queues
+    moodycamel::ConcurrentQueue<ChunkPosition> m_meshQueue;
+    moodycamel::ConcurrentQueue<CompactChunkMesh> m_readyMeshes;
+
+    // Mutexes (only for chunk map access, queues are lock-free)
     mutable std::mutex m_chunksMutex;
-    std::mutex m_queueMutex;
-    mutable std::mutex m_readyMutex;
-    std::condition_variable m_queueCV;
-    std::atomic<bool> m_running{true};
 
     void loadChunksAroundPosition(const ChunkPosition& centerPos);
     void unloadDistantChunks(const ChunkPosition& centerPos);
-    Chunk* loadChunk(const ChunkPosition& pos);
-    void meshWorker();
+    void generateChunkAsync(const ChunkPosition& pos);
+    void meshChunkAsync(const ChunkPosition& pos);
 
     // Helper: Check if all required neighbors are loaded for meshing (Minecraft's ChunkRegion approach)
     bool areNeighborsLoadedForMeshing(const ChunkPosition& pos) const;

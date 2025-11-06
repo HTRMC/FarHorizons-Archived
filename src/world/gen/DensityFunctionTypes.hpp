@@ -27,6 +27,7 @@ public:
         registerType("abs", parseAbs);
         registerType("square", parseSquare);
         registerType("quarter_negative", parseQuarterNegative);
+        registerType("lerp", parseLerp);
         registerType("spline", parseSpline);
     }
 
@@ -377,6 +378,57 @@ private:
         const Registry<DensityFunction>& densityRegistry
     ) {
         return parseUnaryOp<QuarterNegativeFunction>(json, noiseRegistry, densityRegistry);
+    }
+
+    static DecodeResult<std::shared_ptr<DensityFunction>> parseLerp(
+        simdjson::ondemand::value json,
+        const Registry<INoiseSampler>& noiseRegistry,
+        const Registry<DensityFunction>& densityRegistry
+    ) {
+        simdjson::ondemand::object obj;
+        auto error = json.get_object().get(obj);
+        if (error) {
+            return DecodeResult<std::shared_ptr<DensityFunction>>::failure("Expected object");
+        }
+
+        auto dfCodec = codec(noiseRegistry, densityRegistry);
+
+        simdjson::ondemand::value tVal;
+        error = obj["t"].get(tVal);
+        if (error) {
+            return DecodeResult<std::shared_ptr<DensityFunction>>::failure("Missing 't'");
+        }
+
+        auto t = dfCodec.decode(tVal);
+        if (t.isError()) {
+            return DecodeResult<std::shared_ptr<DensityFunction>>::failure("t: " + t.error);
+        }
+
+        simdjson::ondemand::value aVal;
+        error = obj["a"].get(aVal);
+        if (error) {
+            return DecodeResult<std::shared_ptr<DensityFunction>>::failure("Missing 'a'");
+        }
+
+        auto a = dfCodec.decode(aVal);
+        if (a.isError()) {
+            return DecodeResult<std::shared_ptr<DensityFunction>>::failure("a: " + a.error);
+        }
+
+        simdjson::ondemand::value bVal;
+        error = obj["b"].get(bVal);
+        if (error) {
+            return DecodeResult<std::shared_ptr<DensityFunction>>::failure("Missing 'b'");
+        }
+
+        auto b = dfCodec.decode(bVal);
+        if (b.isError()) {
+            return DecodeResult<std::shared_ptr<DensityFunction>>::failure("b: " + b.error);
+        }
+
+        return DecodeResult<std::shared_ptr<DensityFunction>>::success(
+            std::make_shared<LerpFunction>(t.value.value(), a.value.value(), b.value.value())
+        );
     }
 
     template<typename T>
