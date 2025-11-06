@@ -1194,6 +1194,10 @@ int main() {
                                std::to_string((int)camera.getPosition().y) + ", " +
                                std::to_string((int)camera.getPosition().z), Style::white());
 
+                    auto speedText = Text::literal("Speed: ", Style::gray())
+                        .append(std::to_string((int)camera.getMoveSpeed()), Style::aqua())
+                        .append(" (scroll to adjust)", Style::darkGray());
+
                     // Example of legacy formatting codes
                     auto legacyText = Text::parseLegacy("Styled Text: §aGreen §cRed §eYellow §lBold §rReset");
 
@@ -1204,13 +1208,16 @@ int main() {
                                                                     window.getWidth(), window.getHeight());
                     auto posVertices = textRenderer.generateVertices(posText, glm::vec2(10, 80), 2.0f,
                                                                     window.getWidth(), window.getHeight());
-                    auto legacyVertices = textRenderer.generateVertices(legacyText, glm::vec2(10, 110), 2.0f,
+                    auto speedVertices = textRenderer.generateVertices(speedText, glm::vec2(10, 110), 2.0f,
+                                                                      window.getWidth(), window.getHeight());
+                    auto legacyVertices = textRenderer.generateVertices(legacyText, glm::vec2(10, 140), 2.0f,
                                                                        window.getWidth(), window.getHeight());
 
                     // Combine all vertices
                     allTextVertices.insert(allTextVertices.end(), titleVertices.begin(), titleVertices.end());
                     allTextVertices.insert(allTextVertices.end(), fpsVertices.begin(), fpsVertices.end());
                     allTextVertices.insert(allTextVertices.end(), posVertices.begin(), posVertices.end());
+                    allTextVertices.insert(allTextVertices.end(), speedVertices.begin(), speedVertices.end());
                     allTextVertices.insert(allTextVertices.end(), legacyVertices.begin(), legacyVertices.end());
                 }
 

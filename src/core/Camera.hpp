@@ -61,6 +61,7 @@ public:
     float getYaw() const { return m_yaw; }
     float getPitch() const { return m_pitch; }
     float getFov() const { return m_fov; }
+    float getMoveSpeed() const { return m_moveSpeed; }
 
 private:
     void updateViewMatrix();

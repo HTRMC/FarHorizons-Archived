@@ -94,6 +94,16 @@ void Camera::update(float deltaTime) {
     if (m_mouseCapture) {
         m_mouseCapture->resetDeltas();
     }
+
+    // Handle scroll wheel for movement speed adjustment (only when cursor is locked)
+    if (!m_mouseCapture || m_mouseCapture->isCursorLocked()) {
+        glm::vec2 scroll = InputSystem::getMouseScroll();
+        if (scroll.y != 0.0f) {
+            // Adjust speed by 1 unit per scroll tick, clamped between 1 and 100
+            m_moveSpeed += scroll.y;
+            m_moveSpeed = std::clamp(m_moveSpeed, 1.0f, 100.0f);
+        }
+    }
 }
 
 void Camera::move(const glm::vec3& direction, float deltaTime) {
