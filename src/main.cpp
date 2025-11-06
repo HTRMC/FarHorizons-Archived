@@ -884,6 +884,70 @@ int main() {
                 sceneTarget.resize(width, height);
                 blurTarget1.resize(width, height);
 
+                // Transition resized images from UNDEFINED to COLOR_ATTACHMENT_OPTIMAL
+                VkCommandPoolCreateInfo resizePoolInfo{};
+                resizePoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+                resizePoolInfo.queueFamilyIndex = vulkanContext.getDevice().getQueueFamilyIndices().graphicsFamily.value();
+                resizePoolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+
+                VkCommandPool resizePool;
+                vkCreateCommandPool(vulkanContext.getDevice().getLogicalDevice(), &resizePoolInfo, nullptr, &resizePool);
+
+                VkCommandBufferAllocateInfo resizeAllocInfo{};
+                resizeAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+                resizeAllocInfo.commandPool = resizePool;
+                resizeAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+                resizeAllocInfo.commandBufferCount = 1;
+
+                VkCommandBuffer resizeCmd;
+                vkAllocateCommandBuffers(vulkanContext.getDevice().getLogicalDevice(), &resizeAllocInfo, &resizeCmd);
+
+                VkCommandBufferBeginInfo resizeBeginInfo{};
+                resizeBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+                resizeBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+                vkBeginCommandBuffer(resizeCmd, &resizeBeginInfo);
+
+                VkImageMemoryBarrier resizeBarriers[2]{};
+                resizeBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                resizeBarriers[0].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+                resizeBarriers[0].newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                resizeBarriers[0].srcAccessMask = 0;
+                resizeBarriers[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+                resizeBarriers[0].image = sceneTarget.getColorImage();
+                resizeBarriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                resizeBarriers[0].subresourceRange.baseMipLevel = 0;
+                resizeBarriers[0].subresourceRange.levelCount = 1;
+                resizeBarriers[0].subresourceRange.baseArrayLayer = 0;
+                resizeBarriers[0].subresourceRange.layerCount = 1;
+
+                resizeBarriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                resizeBarriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+                resizeBarriers[1].newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                resizeBarriers[1].srcAccessMask = 0;
+                resizeBarriers[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+                resizeBarriers[1].image = blurTarget1.getColorImage();
+                resizeBarriers[1].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                resizeBarriers[1].subresourceRange.baseMipLevel = 0;
+                resizeBarriers[1].subresourceRange.levelCount = 1;
+                resizeBarriers[1].subresourceRange.baseArrayLayer = 0;
+                resizeBarriers[1].subresourceRange.layerCount = 1;
+
+                vkCmdPipelineBarrier(resizeCmd,
+                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    0, 0, nullptr, 0, nullptr, 2, resizeBarriers);
+
+                vkEndCommandBuffer(resizeCmd);
+
+                VkSubmitInfo resizeSubmitInfo{};
+                resizeSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+                resizeSubmitInfo.commandBufferCount = 1;
+                resizeSubmitInfo.pCommandBuffers = &resizeCmd;
+                vkQueueSubmit(vulkanContext.getDevice().getGraphicsQueue(), 1, &resizeSubmitInfo, VK_NULL_HANDLE);
+                vkQueueWaitIdle(vulkanContext.getDevice().getGraphicsQueue());
+
+                vkDestroyCommandPool(vulkanContext.getDevice().getLogicalDevice(), resizePool, nullptr);
+
                 // Re-register external textures after resize (image views have changed)
                 textureManager.updateExternalTexture(sceneTextureIndex, sceneTarget.getColorImageView());
                 textureManager.updateExternalTexture(blurTexture1Index, blurTarget1.getColorImageView());
