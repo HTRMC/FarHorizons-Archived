@@ -8,7 +8,7 @@
   "argument2": {
     "type": "noise",
     "noise": "jagged",
-    "xzScale": 1.5,
-    "yScale": 1.5
+    "xzScale": 1500.0,
+    "yScale": 0.0
   }
 }

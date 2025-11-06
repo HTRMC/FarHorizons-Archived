@@ -1,6 +1,6 @@
 {
   "type": "noise",
   "noise": "ridges",
-  "xzScale": 1.0,
+  "xzScale": 0.25,
   "yScale": 0.0
 }
