@@ -131,7 +131,7 @@ private:
 
 class NoiseFunction : public DensityFunction {
 public:
-    NoiseFunction(std::shared_ptr<NoiseGenerator> noise, double xzScale, double yScale)
+    NoiseFunction(std::shared_ptr<INoiseSampler> noise, double xzScale, double yScale)
         : m_noise(std::move(noise)), m_xzScale(xzScale), m_yScale(yScale) {}
 
     double compute(const DensityContext& ctx) const override {
@@ -166,7 +166,7 @@ public:
     }
 
 private:
-    std::shared_ptr<NoiseGenerator> m_noise;
+    std::shared_ptr<INoiseSampler> m_noise;
     double m_xzScale;
     double m_yScale;
 };

@@ -10,7 +10,7 @@ class DensityFunctionTypes {
 public:
     using Parser = std::function<DecodeResult<std::shared_ptr<DensityFunction>>(
         simdjson::ondemand::value,
-        const Registry<NoiseGenerator>&,
+        const Registry<INoiseSampler>&,
         const Registry<DensityFunction>&
     )>;
 
@@ -29,7 +29,7 @@ public:
     }
 
     static Codec<std::shared_ptr<DensityFunction>> codec(
-        const Registry<NoiseGenerator>& noiseRegistry,
+        const Registry<INoiseSampler>& noiseRegistry,
         const Registry<DensityFunction>& densityRegistry
     ) {
         return Codec<std::shared_ptr<DensityFunction>>([&noiseRegistry, &densityRegistry](
@@ -102,7 +102,7 @@ private:
 
     static DecodeResult<std::shared_ptr<DensityFunction>> parseConstant(
         simdjson::ondemand::value json,
-        const Registry<NoiseGenerator>&,
+        const Registry<INoiseSampler>&,
         const Registry<DensityFunction>&
     ) {
         simdjson::ondemand::object obj;
@@ -124,7 +124,7 @@ private:
 
     static DecodeResult<std::shared_ptr<DensityFunction>> parseYClampedGradient(
         simdjson::ondemand::value json,
-        const Registry<NoiseGenerator>&,
+        const Registry<INoiseSampler>&,
         const Registry<DensityFunction>&
     ) {
         auto result = YClampedGradientFunction::codec().decode(json);
@@ -138,7 +138,7 @@ private:
 
     static DecodeResult<std::shared_ptr<DensityFunction>> parseNoise(
         simdjson::ondemand::value json,
-        const Registry<NoiseGenerator>& noiseRegistry,
+        const Registry<INoiseSampler>& noiseRegistry,
         const Registry<DensityFunction>&
     ) {
         simdjson::ondemand::object obj;
@@ -180,7 +180,7 @@ private:
 
     static DecodeResult<std::shared_ptr<DensityFunction>> parseAdd(
         simdjson::ondemand::value json,
-        const Registry<NoiseGenerator>& noiseRegistry,
+        const Registry<INoiseSampler>& noiseRegistry,
         const Registry<DensityFunction>& densityRegistry
     ) {
         return parseBinaryOp<AddFunction>(json, noiseRegistry, densityRegistry);
@@ -188,7 +188,7 @@ private:
 
     static DecodeResult<std::shared_ptr<DensityFunction>> parseMul(
         simdjson::ondemand::value json,
-        const Registry<NoiseGenerator>& noiseRegistry,
+        const Registry<INoiseSampler>& noiseRegistry,
         const Registry<DensityFunction>& densityRegistry
     ) {
         return parseBinaryOp<MulFunction>(json, noiseRegistry, densityRegistry);
@@ -196,7 +196,7 @@ private:
 
     static DecodeResult<std::shared_ptr<DensityFunction>> parseMin(
         simdjson::ondemand::value json,
-        const Registry<NoiseGenerator>& noiseRegistry,
+        const Registry<INoiseSampler>& noiseRegistry,
         const Registry<DensityFunction>& densityRegistry
     ) {
         return parseBinaryOp<MinFunction>(json, noiseRegistry, densityRegistry);
@@ -204,7 +204,7 @@ private:
 
     static DecodeResult<std::shared_ptr<DensityFunction>> parseMax(
         simdjson::ondemand::value json,
-        const Registry<NoiseGenerator>& noiseRegistry,
+        const Registry<INoiseSampler>& noiseRegistry,
         const Registry<DensityFunction>& densityRegistry
     ) {
         return parseBinaryOp<MaxFunction>(json, noiseRegistry, densityRegistry);
@@ -213,7 +213,7 @@ private:
     template<typename T>
     static DecodeResult<std::shared_ptr<DensityFunction>> parseBinaryOp(
         simdjson::ondemand::value json,
-        const Registry<NoiseGenerator>& noiseRegistry,
+        const Registry<INoiseSampler>& noiseRegistry,
         const Registry<DensityFunction>& densityRegistry
     ) {
         simdjson::ondemand::object obj;
@@ -253,7 +253,7 @@ private:
 
     static DecodeResult<std::shared_ptr<DensityFunction>> parseClamp(
         simdjson::ondemand::value json,
-        const Registry<NoiseGenerator>& noiseRegistry,
+        const Registry<INoiseSampler>& noiseRegistry,
         const Registry<DensityFunction>& densityRegistry
     ) {
         simdjson::ondemand::object obj;
@@ -292,7 +292,7 @@ private:
 
     static DecodeResult<std::shared_ptr<DensityFunction>> parseAbs(
         simdjson::ondemand::value json,
-        const Registry<NoiseGenerator>& noiseRegistry,
+        const Registry<INoiseSampler>& noiseRegistry,
         const Registry<DensityFunction>& densityRegistry
     ) {
         return parseUnaryOp<AbsFunction>(json, noiseRegistry, densityRegistry);
@@ -300,7 +300,7 @@ private:
 
     static DecodeResult<std::shared_ptr<DensityFunction>> parseSquare(
         simdjson::ondemand::value json,
-        const Registry<NoiseGenerator>& noiseRegistry,
+        const Registry<INoiseSampler>& noiseRegistry,
         const Registry<DensityFunction>& densityRegistry
     ) {
         return parseUnaryOp<SquareFunction>(json, noiseRegistry, densityRegistry);
@@ -309,7 +309,7 @@ private:
     template<typename T>
     static DecodeResult<std::shared_ptr<DensityFunction>> parseUnaryOp(
         simdjson::ondemand::value json,
-        const Registry<NoiseGenerator>& noiseRegistry,
+        const Registry<INoiseSampler>& noiseRegistry,
         const Registry<DensityFunction>& densityRegistry
     ) {
         simdjson::ondemand::object obj;
@@ -331,7 +331,7 @@ private:
 
     static DecodeResult<std::shared_ptr<DensityFunction>> parseSpline(
         simdjson::ondemand::value json,
-        const Registry<NoiseGenerator>& noiseRegistry,
+        const Registry<INoiseSampler>& noiseRegistry,
         const Registry<DensityFunction>& densityRegistry
     ) {
         simdjson::ondemand::object obj;

@@ -73,7 +73,7 @@ public:
         : seaLevel(63) {}
 
     static Codec<ChunkGeneratorSettings> codec(
-        const Registry<NoiseGenerator>& noiseRegistry,
+        const Registry<INoiseSampler>& noiseRegistry,
         const Registry<DensityFunction>& densityRegistry
     ) {
         return Codec<ChunkGeneratorSettings>([&noiseRegistry, &densityRegistry](

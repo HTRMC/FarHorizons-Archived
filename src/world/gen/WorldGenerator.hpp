@@ -101,7 +101,7 @@ public:
 
 private:
     int m_seed;
-    Registry<NoiseGenerator> m_noiseRegistry;
+    Registry<INoiseSampler> m_noiseRegistry;
     Registry<DensityFunction> m_densityFunctionRegistry;
     std::unique_ptr<ChunkGeneratorSettings> m_settings;
 
@@ -131,8 +131,9 @@ private:
                     continue;
                 }
 
-                auto noise = std::make_shared<NoiseGenerator>(
-                    NoiseType::SIMPLEX,
+                // Use DoublePerlinNoiseGenerator for Minecraft-like terrain
+                auto noise = std::make_shared<DoublePerlinNoiseGenerator>(
+                    NoiseType::PERLIN,
                     result.value.value(),
                     m_seed
                 );

@@ -16,7 +16,7 @@ public:
     std::shared_ptr<DensityFunction> finalDensity;
 
     static Codec<NoiseRouter> codec(
-        const Registry<NoiseGenerator>& noiseRegistry,
+        const Registry<INoiseSampler>& noiseRegistry,
         const Registry<DensityFunction>& densityRegistry
     ) {
         return Codec<NoiseRouter>([&noiseRegistry, &densityRegistry](
