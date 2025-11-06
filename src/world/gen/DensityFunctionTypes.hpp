@@ -18,6 +18,7 @@ public:
         registerType("constant", parseConstant);
         registerType("y_clamped_gradient", parseYClampedGradient);
         registerType("noise", parseNoise);
+        registerType("interpolated", parseInterpolated);
         registerType("add", parseAdd);
         registerType("mul", parseMul);
         registerType("min", parseMin);
@@ -175,6 +176,69 @@ private:
 
         return DecodeResult<std::shared_ptr<DensityFunction>>::success(
             std::make_shared<NoiseFunction>(noise, xzScale.value.value(), yScale.value.value())
+        );
+    }
+
+    static DecodeResult<std::shared_ptr<DensityFunction>> parseInterpolated(
+        simdjson::ondemand::value json,
+        const Registry<INoiseSampler>&,
+        const Registry<DensityFunction>&
+    ) {
+        simdjson::ondemand::object obj;
+        auto error = json.get_object().get(obj);
+        if (error) {
+            return DecodeResult<std::shared_ptr<DensityFunction>>::failure("Expected object");
+        }
+
+        auto xzScaleField = field("xzScale", Codecs::DOUBLE());
+        auto yScaleField = field("yScale", Codecs::DOUBLE());
+        auto xzFactorField = field("xzFactor", Codecs::DOUBLE());
+        auto yFactorField = field("yFactor", Codecs::DOUBLE());
+        auto smearField = field("smearScaleMultiplier", Codecs::DOUBLE());
+
+        auto xzScale = xzScaleField.decode(obj);
+        if (xzScale.isError()) {
+            return DecodeResult<std::shared_ptr<DensityFunction>>::failure(xzScale.error);
+        }
+
+        obj.reset();
+        auto yScale = yScaleField.decode(obj);
+        if (yScale.isError()) {
+            return DecodeResult<std::shared_ptr<DensityFunction>>::failure(yScale.error);
+        }
+
+        obj.reset();
+        auto xzFactor = xzFactorField.decode(obj);
+        if (xzFactor.isError()) {
+            return DecodeResult<std::shared_ptr<DensityFunction>>::failure(xzFactor.error);
+        }
+
+        obj.reset();
+        auto yFactor = yFactorField.decode(obj);
+        if (yFactor.isError()) {
+            return DecodeResult<std::shared_ptr<DensityFunction>>::failure(yFactor.error);
+        }
+
+        obj.reset();
+        auto smear = smearField.decode(obj);
+        if (smear.isError()) {
+            return DecodeResult<std::shared_ptr<DensityFunction>>::failure(smear.error);
+        }
+
+        // Create InterpolatedNoiseSampler and wrap it in a NoiseFunction
+        // We use seed=0 since it gets overridden by the world seed anyway
+        auto sampler = std::make_shared<InterpolatedNoiseSampler>(
+            0,
+            xzScale.value.value(),
+            yScale.value.value(),
+            xzFactor.value.value(),
+            yFactor.value.value(),
+            smear.value.value()
+        );
+
+        // Wrap in NoiseFunction with scale 1.0 since InterpolatedNoiseSampler does its own scaling
+        return DecodeResult<std::shared_ptr<DensityFunction>>::success(
+            std::make_shared<NoiseFunction>(sampler, 1.0, 1.0)
         );
     }
 

@@ -280,4 +280,141 @@ private:
     double m_amplitude;
 };
 
+// Minecraft's InterpolatedNoiseSampler (also known as BlendedNoise)
+// Uses three noise samplers to create smooth vertical interpolation
+class InterpolatedNoiseSampler : public INoiseSampler {
+public:
+    InterpolatedNoiseSampler(
+        int seed,
+        double xzScale,
+        double yScale,
+        double xzFactor,
+        double yFactor,
+        double smearScaleMultiplier
+    )
+        : m_xzScale(xzScale),
+          m_yScale(yScale),
+          m_xzFactor(xzFactor),
+          m_yFactor(yFactor),
+          m_smearScaleMultiplier(smearScaleMultiplier),
+          m_scaledXzScale(684.412 * xzScale),
+          m_scaledYScale(684.412 * yScale)
+    {
+        // Create noise parameters for the three samplers
+        // Lower interpolated noise: octaves -15 to 0
+        NoiseParameters lowerParams(-15, {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+                                           1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0});
+        // Upper interpolated noise: octaves -15 to 0
+        NoiseParameters upperParams(-15, {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+                                          1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0});
+        // Interpolation noise: octaves -7 to 0
+        NoiseParameters interpParams(-7, {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0});
+
+        m_lowerNoise = std::make_unique<NoiseGenerator>(NoiseType::PERLIN, lowerParams, seed);
+        m_upperNoise = std::make_unique<NoiseGenerator>(NoiseType::PERLIN, upperParams, seed + 1);
+        m_interpolationNoise = std::make_unique<NoiseGenerator>(NoiseType::PERLIN, interpParams, seed + 2);
+
+        // Calculate max value (simplified - Minecraft has a more complex calculation)
+        m_maxValue = 2.0;
+    }
+
+    double sample(double x, double y, double z) const override {
+        // Scale coordinates
+        double d = x * m_scaledXzScale;
+        double e = y * m_scaledYScale;
+        double f = z * m_scaledXzScale;
+
+        // Factor-adjusted coordinates for interpolation noise
+        double g = d / m_xzFactor;
+        double h = e / m_yFactor;
+        double i = f / m_xzFactor;
+
+        double j = m_scaledYScale * m_smearScaleMultiplier;
+        double k = j / m_yFactor;
+
+        // Sample interpolation noise to determine blend amount
+        double n = 0.0;
+        double octaveAmplitude = 1.0;
+
+        // 8 octaves for interpolation noise
+        for (int p = 0; p < 8; p++) {
+            double sampleX = g * octaveAmplitude;
+            double sampleY = h * octaveAmplitude;
+            double sampleZ = i * octaveAmplitude;
+
+            n += m_interpolationNoise->sample(sampleX, sampleY, sampleZ) / octaveAmplitude;
+            octaveAmplitude /= 2.0;
+        }
+
+        // Convert to blend factor [0, 1]
+        double q = (n / 10.0 + 1.0) / 2.0;
+
+        // Early exit optimizations
+        bool skipLower = q >= 1.0;
+        bool skipUpper = q <= 0.0;
+
+        // Sample lower and upper noise
+        double l = 0.0; // lower
+        double m = 0.0; // upper
+        octaveAmplitude = 1.0;
+
+        // 16 octaves for lower/upper noise
+        for (int r = 0; r < 16; r++) {
+            double sampleX = d * octaveAmplitude;
+            double sampleY = e * octaveAmplitude;
+            double sampleZ = f * octaveAmplitude;
+
+            if (!skipLower) {
+                l += m_lowerNoise->sample(sampleX, sampleY, sampleZ) / octaveAmplitude;
+            }
+
+            if (!skipUpper) {
+                m += m_upperNoise->sample(sampleX, sampleY, sampleZ) / octaveAmplitude;
+            }
+
+            octaveAmplitude /= 2.0;
+        }
+
+        // Blend between lower and upper based on interpolation factor
+        double blended = l / 512.0 * (1.0 - q) + m / 512.0 * q;
+        return blended / 128.0;
+    }
+
+    double sample2D(double x, double z) const override {
+        return sample(x, 0.0, z);
+    }
+
+    void sampleGrid(float* output, int xSize, int ySize, int zSize,
+                   double xStart, double yStart, double zStart,
+                   double xStep, double yStep, double zStep) const override {
+        // For now, use the fallback implementation
+        // TODO: Optimize with SIMD batching
+        int index = 0;
+        for (int iz = 0; iz < zSize; iz++) {
+            double z = zStart + iz * zStep;
+            for (int iy = 0; iy < ySize; iy++) {
+                double y = yStart + iy * yStep;
+                for (int ix = 0; ix < xSize; ix++) {
+                    double x = xStart + ix * xStep;
+                    output[index++] = static_cast<float>(sample(x, y, z));
+                }
+            }
+        }
+    }
+
+private:
+    std::unique_ptr<NoiseGenerator> m_lowerNoise;
+    std::unique_ptr<NoiseGenerator> m_upperNoise;
+    std::unique_ptr<NoiseGenerator> m_interpolationNoise;
+
+    double m_xzScale;
+    double m_yScale;
+    double m_xzFactor;
+    double m_yFactor;
+    double m_smearScaleMultiplier;
+    double m_scaledXzScale;
+    double m_scaledYScale;
+    double m_maxValue;
+};
+
 } // namespace VoxelEngine
