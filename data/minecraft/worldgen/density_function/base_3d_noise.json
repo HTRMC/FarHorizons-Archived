@@ -1,8 +1,8 @@
 {
   "type": "interpolated",
   "xzScale": 0.25,
-  "yScale": 0.25,
+  "yScale": 0.125,
   "xzFactor": 80.0,
   "yFactor": 160.0,
-  "smearScaleMultiplier": 2.0
+  "smearScaleMultiplier": 8.0
 }

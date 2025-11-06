@@ -322,6 +322,28 @@ private:
     std::shared_ptr<DensityFunction> m_input;
 };
 
+// Minecraft's quarterNegative: divides by 4 then negates
+class QuarterNegativeFunction : public DensityFunction {
+public:
+    explicit QuarterNegativeFunction(std::shared_ptr<DensityFunction> input)
+        : m_input(std::move(input)) {}
+
+    double compute(const DensityContext& ctx) const override {
+        return m_input->compute(ctx) * -0.25;
+    }
+
+    double minValue() const override {
+        return m_input->maxValue() * -0.25;
+    }
+
+    double maxValue() const override {
+        return m_input->minValue() * -0.25;
+    }
+
+private:
+    std::shared_ptr<DensityFunction> m_input;
+};
+
 struct SplinePoint {
     float location;
     float value;

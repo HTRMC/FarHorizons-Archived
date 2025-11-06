@@ -26,6 +26,7 @@ public:
         registerType("clamp", parseClamp);
         registerType("abs", parseAbs);
         registerType("square", parseSquare);
+        registerType("quarter_negative", parseQuarterNegative);
         registerType("spline", parseSpline);
     }
 
@@ -368,6 +369,14 @@ private:
         const Registry<DensityFunction>& densityRegistry
     ) {
         return parseUnaryOp<SquareFunction>(json, noiseRegistry, densityRegistry);
+    }
+
+    static DecodeResult<std::shared_ptr<DensityFunction>> parseQuarterNegative(
+        simdjson::ondemand::value json,
+        const Registry<INoiseSampler>& noiseRegistry,
+        const Registry<DensityFunction>& densityRegistry
+    ) {
+        return parseUnaryOp<QuarterNegativeFunction>(json, noiseRegistry, densityRegistry);
     }
 
     template<typename T>
