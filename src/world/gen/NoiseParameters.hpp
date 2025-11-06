@@ -85,22 +85,29 @@ public:
         }
 
         double result = 0.0;
-        double currentFreq = 1.0;
+
+        // Calculate initial frequency from firstOctave using pow instead of bit shift
+        // firstOctave is typically negative (e.g., -9), so 2^(-9) = 0.001953125
+        double frequency = std::pow(2.0, m_params.firstOctave);
+        double amplitude = 1.0;
 
         for (int octave = 0; octave < m_params.getOctaveCount(); octave++) {
             int actualOctave = m_params.firstOctave + octave;
-            double amplitude = m_params.getAmplitude(actualOctave);
+            double octaveAmplitude = m_params.getAmplitude(actualOctave);
 
-            if (amplitude != 0.0) {
-                double freq = currentFreq * (1 << actualOctave);
+            if (octaveAmplitude != 0.0) {
                 float sample = m_generator->GenSingle3D(
-                    static_cast<float>(x * freq),
-                    static_cast<float>(y * freq),
-                    static_cast<float>(z * freq),
+                    static_cast<float>(x * frequency),
+                    static_cast<float>(y * frequency),
+                    static_cast<float>(z * frequency),
                     m_seed + actualOctave
                 );
-                result += sample * amplitude;
+                result += sample * octaveAmplitude * amplitude;
             }
+
+            // Each octave doubles frequency and halves amplitude
+            frequency *= 2.0;
+            amplitude *= 0.5;
         }
 
         return result;
@@ -124,30 +131,37 @@ public:
 
         std::vector<float> tempBuffer(totalSize);
 
+        // Calculate initial frequency from firstOctave using pow instead of bit shift
+        double frequency = std::pow(2.0, m_params.firstOctave);
+        double amplitude = 1.0;
+
         for (int octave = 0; octave < m_params.getOctaveCount(); octave++) {
             int actualOctave = m_params.firstOctave + octave;
-            double amplitude = m_params.getAmplitude(actualOctave);
+            double octaveAmplitude = m_params.getAmplitude(actualOctave);
 
-            if (amplitude != 0.0) {
-                float freq = static_cast<float>(1.0 * (1 << actualOctave));
-
+            if (octaveAmplitude != 0.0) {
                 // GenUniformGrid3D takes integer start positions and a frequency
                 // It generates from (xStart, yStart, zStart) with the given frequency
                 m_generator->GenUniformGrid3D(
                     tempBuffer.data(),
-                    static_cast<int>(xStart * freq),
-                    static_cast<int>(yStart * freq),
-                    static_cast<int>(zStart * freq),
+                    static_cast<int>(xStart * frequency),
+                    static_cast<int>(yStart * frequency),
+                    static_cast<int>(zStart * frequency),
                     xSize, ySize, zSize,
-                    static_cast<float>(xStep * freq),
+                    static_cast<float>(xStep * frequency),
                     m_seed + actualOctave
                 );
 
                 // Accumulate this octave with amplitude
+                float combinedAmplitude = static_cast<float>(octaveAmplitude * amplitude);
                 for (int i = 0; i < totalSize; i++) {
-                    output[i] += tempBuffer[i] * static_cast<float>(amplitude);
+                    output[i] += tempBuffer[i] * combinedAmplitude;
                 }
             }
+
+            // Each octave doubles frequency and halves amplitude
+            frequency *= 2.0;
+            amplitude *= 0.5;
         }
     }
 

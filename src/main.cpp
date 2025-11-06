@@ -523,7 +523,7 @@ int main() {
 
         // Initialize chunk buffer manager (now uses compact format: faces instead of vertices/indices)
         ChunkBufferManager bufferManager;
-        bufferManager.init(vulkanContext.getAllocator(), 10000000, 5000);  // maxFaces, maxDrawCommands
+        bufferManager.init(vulkanContext.getAllocator(), 10000000, 100000);  // maxFaces, maxDrawCommands
 
         // Create global QuadInfo buffer (shared geometry for all chunks)
         // QuadInfo is 120 bytes with std430 layout (verified at compile time)
