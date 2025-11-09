@@ -348,8 +348,8 @@ void ChunkBufferManager::rebuildDrawCommands() {
     m_indirectBuffer.unmap();
     m_chunkDataBuffer.unmap();
 
-    spdlog::debug("Rebuilt draw commands: {} chunks (face/lighting data unchanged)",
-                 m_drawCommandCount);
+    // spdlog::debug("Rebuilt draw commands: {} chunks (face/lighting data unchanged)",
+    //              m_drawCommandCount);
 }
 
 bool ChunkBufferManager::hasAllocation(const ChunkPosition& pos) const {

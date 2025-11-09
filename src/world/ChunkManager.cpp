@@ -4,8 +4,101 @@
 #include <cmath>
 #include <spdlog/spdlog.h>
 #include <functional>
+#include <glm/gtc/matrix_transform.hpp>
 
 namespace VoxelEngine {
+
+// ===== Blockstate Rotation Helper Functions =====
+
+// Apply Y-axis rotation (vertical axis) to a position (in 0-1 space)
+static glm::vec3 applyYRotation(const glm::vec3& pos, int degrees) {
+    if (degrees == 0) return pos;
+
+    // Rotate around center (0.5, 0.5, 0.5)
+    glm::vec3 centered = pos - glm::vec3(0.5f);
+    glm::vec3 rotated;
+
+    float rad = glm::radians(static_cast<float>(degrees));
+    float cosA = std::cos(rad);
+    float sinA = std::sin(rad);
+
+    rotated.x = centered.x * cosA - centered.z * sinA;
+    rotated.y = centered.y;
+    rotated.z = centered.x * sinA + centered.z * cosA;
+
+    return rotated + glm::vec3(0.5f);
+}
+
+// Apply X-axis rotation (horizontal axis) to a position (in 0-1 space)
+static glm::vec3 applyXRotation(const glm::vec3& pos, int degrees) {
+    if (degrees == 0) return pos;
+
+    // Rotate around center (0.5, 0.5, 0.5)
+    glm::vec3 centered = pos - glm::vec3(0.5f);
+    glm::vec3 rotated;
+
+    float rad = glm::radians(static_cast<float>(degrees));
+    float cosA = std::cos(rad);
+    float sinA = std::sin(rad);
+
+    rotated.x = centered.x;
+    rotated.y = centered.y * cosA - centered.z * sinA;
+    rotated.z = centered.y * sinA + centered.z * cosA;
+
+    return rotated + glm::vec3(0.5f);
+}
+
+// Rotate a face direction based on Y rotation
+static FaceDirection rotateYFace(FaceDirection face, int degrees) {
+    if (degrees == 0) return face;
+
+    // Y rotation only affects horizontal faces
+    if (face == FaceDirection::UP || face == FaceDirection::DOWN) {
+        return face;
+    }
+
+    // Map face to index: NORTH=0, EAST=1, SOUTH=2, WEST=3
+    int faceIdx = 0;
+    if (face == FaceDirection::NORTH) faceIdx = 0;
+    else if (face == FaceDirection::EAST) faceIdx = 1;
+    else if (face == FaceDirection::SOUTH) faceIdx = 2;
+    else if (face == FaceDirection::WEST) faceIdx = 3;
+
+    // Rotate by 90-degree increments
+    int steps = degrees / 90;
+    faceIdx = (faceIdx + steps) % 4;
+
+    // Map back to face direction
+    if (faceIdx == 0) return FaceDirection::NORTH;
+    if (faceIdx == 1) return FaceDirection::EAST;
+    if (faceIdx == 2) return FaceDirection::SOUTH;
+    return FaceDirection::WEST;
+}
+
+// Rotate a face direction based on X rotation
+static FaceDirection rotateXFace(FaceDirection face, int degrees) {
+    if (degrees == 0) return face;
+
+    // X rotation affects vertical and Z-axis faces
+    if (degrees == 90) {
+        if (face == FaceDirection::UP) return FaceDirection::NORTH;
+        if (face == FaceDirection::NORTH) return FaceDirection::DOWN;
+        if (face == FaceDirection::DOWN) return FaceDirection::SOUTH;
+        if (face == FaceDirection::SOUTH) return FaceDirection::UP;
+    } else if (degrees == 180) {
+        if (face == FaceDirection::UP) return FaceDirection::DOWN;
+        if (face == FaceDirection::DOWN) return FaceDirection::UP;
+        if (face == FaceDirection::NORTH) return FaceDirection::SOUTH;
+        if (face == FaceDirection::SOUTH) return FaceDirection::NORTH;
+    } else if (degrees == 270) {
+        if (face == FaceDirection::UP) return FaceDirection::SOUTH;
+        if (face == FaceDirection::SOUTH) return FaceDirection::DOWN;
+        if (face == FaceDirection::DOWN) return FaceDirection::NORTH;
+        if (face == FaceDirection::NORTH) return FaceDirection::UP;
+    }
+
+    return face;
+}
 
 // ===== QuadInfoLibrary Implementation =====
 
@@ -304,11 +397,17 @@ CompactChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk) const {
                     continue;
                 }
 
-                // Get the block model from cache (fast O(1) lookup!)
-                const BlockModel* model = m_modelManager.getModelByStateId(state.id);
+                // Get the block variant (model + rotation) from cache (fast O(1) lookup!)
+                const BlockStateVariant* variant = m_modelManager.getVariantByStateId(state.id);
+                const BlockModel* model = variant ? variant->model : m_modelManager.getModelByStateId(state.id);
+
                 if (!model || model->elements.empty()) {
                     continue;  // Skip if no model
                 }
+
+                // Get rotation values (0 if no variant data)
+                int rotationX = variant ? variant->rotationX : 0;
+                int rotationY = variant ? variant->rotationY : 0;
 
                 // Process each element in the model
                 for (const auto& element : model->elements) {
@@ -316,8 +415,30 @@ CompactChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk) const {
                     glm::vec3 elemFrom = element.from / 16.0f;
                     glm::vec3 elemTo = element.to / 16.0f;
 
+                    // Apply rotations to bounding box (Y first, then X)
+                    if (rotationY != 0) {
+                        elemFrom = applyYRotation(elemFrom, rotationY);
+                        elemTo = applyYRotation(elemTo, rotationY);
+                    }
+                    if (rotationX != 0) {
+                        elemFrom = applyXRotation(elemFrom, rotationX);
+                        elemTo = applyXRotation(elemTo, rotationX);
+                    }
+
+                    // Ensure from < to after rotation (rotation may swap min/max)
+                    glm::vec3 finalFrom = glm::min(elemFrom, elemTo);
+                    glm::vec3 finalTo = glm::max(elemFrom, elemTo);
+
                     // Process each face of the element
                     for (const auto& [faceDir, face] : element.faces) {
+                        // Apply rotations to face direction (Y first, then X)
+                        FaceDirection rotatedFaceDir = faceDir;
+                        if (rotationY != 0) {
+                            rotatedFaceDir = rotateYFace(rotatedFaceDir, rotationY);
+                        }
+                        if (rotationX != 0) {
+                            rotatedFaceDir = rotateXFace(rotatedFaceDir, rotationX);
+                        }
                         // Check cullface - should we skip this face?
                         bool shouldRender = true;
 
@@ -368,10 +489,10 @@ CompactChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk) const {
                             continue;
                         }
 
-                        // Generate quad geometry
+                        // Generate quad geometry (use rotated face direction and rotated bounding box)
                         glm::vec3 corners[4];
-                        FaceUtils::getFaceVertices(faceDir, elemFrom, elemTo, corners);
-                        int faceIndex = FaceUtils::toIndex(faceDir);
+                        FaceUtils::getFaceVertices(rotatedFaceDir, finalFrom, finalTo, corners);
+                        int faceIndex = FaceUtils::toIndex(rotatedFaceDir);
 
                         // Convert UVs from Blockbench format to Vulkan format
                         glm::vec2 uvs[4];
@@ -380,8 +501,8 @@ CompactChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk) const {
                         // Use cached texture index (no string operations!)
                         uint32_t faceTextureIndex = face.textureIndex;
 
-                        // Get face normal
-                        glm::vec3 normal = FaceUtils::getFaceNormal(faceDir);
+                        // Get face normal (use rotated face direction)
+                        glm::vec3 normal = FaceUtils::getFaceNormal(rotatedFaceDir);
 
                         // Get or create QuadInfo for this geometry
                         uint32_t quadIndex = m_quadLibrary.getOrCreateQuad(normal, corners, uvs, faceTextureIndex);

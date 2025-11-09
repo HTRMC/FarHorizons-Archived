@@ -730,11 +730,156 @@ int main() {
                                         halfReason = "vertical_face";
                                     }
 
-                                    placedState = stairBlock->withFacingAndHalf(facing, half);
+                                    // Calculate stair shape based on neighbors
+                                    StairShape shape = StairShape::STRAIGHT;
+
+                                    // Helper lambda to get direction offset based on stair facing
+                                    auto getLeftOffset = [](StairFacing f) -> glm::ivec3 {
+                                        switch (f) {
+                                            case StairFacing::NORTH: return glm::ivec3(-1, 0, 0);  // West
+                                            case StairFacing::SOUTH: return glm::ivec3(1, 0, 0);   // East
+                                            case StairFacing::WEST: return glm::ivec3(0, 0, 1);    // South
+                                            case StairFacing::EAST: return glm::ivec3(0, 0, -1);   // North
+                                        }
+                                        return glm::ivec3(0, 0, 0);
+                                    };
+
+                                    auto getRightOffset = [](StairFacing f) -> glm::ivec3 {
+                                        switch (f) {
+                                            case StairFacing::NORTH: return glm::ivec3(1, 0, 0);   // East
+                                            case StairFacing::SOUTH: return glm::ivec3(-1, 0, 0);  // West
+                                            case StairFacing::WEST: return glm::ivec3(0, 0, -1);   // North
+                                            case StairFacing::EAST: return glm::ivec3(0, 0, 1);    // South
+                                        }
+                                        return glm::ivec3(0, 0, 0);
+                                    };
+
+                                    auto getFrontOffset = [](StairFacing f) -> glm::ivec3 {
+                                        switch (f) {
+                                            case StairFacing::NORTH: return glm::ivec3(0, 0, -1);
+                                            case StairFacing::SOUTH: return glm::ivec3(0, 0, 1);
+                                            case StairFacing::WEST: return glm::ivec3(-1, 0, 0);
+                                            case StairFacing::EAST: return glm::ivec3(1, 0, 0);
+                                        }
+                                        return glm::ivec3(0, 0, 0);
+                                    };
+
+                                    auto getBackOffset = [](StairFacing f) -> glm::ivec3 {
+                                        switch (f) {
+                                            case StairFacing::NORTH: return glm::ivec3(0, 0, 1);
+                                            case StairFacing::SOUTH: return glm::ivec3(0, 0, -1);
+                                            case StairFacing::WEST: return glm::ivec3(1, 0, 0);
+                                            case StairFacing::EAST: return glm::ivec3(-1, 0, 0);
+                                        }
+                                        return glm::ivec3(0, 0, 0);
+                                    };
+
+                                    // Check left neighbor
+                                    glm::ivec3 leftOffset = getLeftOffset(facing);
+                                    glm::ivec3 leftPos = glm::ivec3(placePos) + leftOffset;
+                                    Chunk* leftChunk = chunk;
+                                    glm::ivec3 leftLocalPos = localPos + leftOffset;
+
+                                    if (leftLocalPos.x < 0 || leftLocalPos.x >= CHUNK_SIZE ||
+                                        leftLocalPos.y < 0 || leftLocalPos.y >= CHUNK_SIZE ||
+                                        leftLocalPos.z < 0 || leftLocalPos.z >= CHUNK_SIZE) {
+                                        ChunkPosition leftChunkPos = chunkManager.worldToChunkPos(glm::vec3(leftPos));
+                                        leftChunk = chunkManager.getChunk(leftChunkPos);
+                                        if (leftChunk) {
+                                            leftLocalPos = glm::ivec3(
+                                                leftPos.x - leftChunkPos.x * CHUNK_SIZE,
+                                                leftPos.y - leftChunkPos.y * CHUNK_SIZE,
+                                                leftPos.z - leftChunkPos.z * CHUNK_SIZE
+                                            );
+                                        }
+                                    }
+
+                                    if (leftChunk && leftLocalPos.x >= 0 && leftLocalPos.x < CHUNK_SIZE &&
+                                        leftLocalPos.y >= 0 && leftLocalPos.y < CHUNK_SIZE &&
+                                        leftLocalPos.z >= 0 && leftLocalPos.z < CHUNK_SIZE) {
+                                        BlockState leftState = leftChunk->getBlockState(leftLocalPos.x, leftLocalPos.y, leftLocalPos.z);
+                                        Block* leftBlock = BlockRegistry::getBlock(leftState);
+
+                                        if (dynamic_cast<StairBlock*>(leftBlock)) {
+                                            StairBlock* leftStair = static_cast<StairBlock*>(leftBlock);
+                                            // Decode properties from state ID
+                                            int offset = leftState.id - leftStair->m_baseStateId;
+                                            StairFacing leftFacing = static_cast<StairFacing>(offset % 4);
+                                            BlockHalf leftHalf = static_cast<BlockHalf>((offset / 4) % 2);
+
+                                            // Only connect if same half
+                                            if (leftHalf == half) {
+                                                // Check if left stair is facing towards us (outer corner)
+                                                glm::ivec3 leftFront = getFrontOffset(leftFacing);
+                                                glm::ivec3 ourRight = getRightOffset(facing);
+                                                if (leftFront == ourRight) {
+                                                    shape = StairShape::OUTER_LEFT;
+                                                }
+                                                // Check if left stair is facing away (inner corner)
+                                                glm::ivec3 leftBack = getBackOffset(leftFacing);
+                                                if (leftBack == ourRight) {
+                                                    shape = StairShape::INNER_LEFT;
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Check right neighbor
+                                    glm::ivec3 rightOffset = getRightOffset(facing);
+                                    glm::ivec3 rightPos = glm::ivec3(placePos) + rightOffset;
+                                    Chunk* rightChunk = chunk;
+                                    glm::ivec3 rightLocalPos = localPos + rightOffset;
+
+                                    if (rightLocalPos.x < 0 || rightLocalPos.x >= CHUNK_SIZE ||
+                                        rightLocalPos.y < 0 || rightLocalPos.y >= CHUNK_SIZE ||
+                                        rightLocalPos.z < 0 || rightLocalPos.z >= CHUNK_SIZE) {
+                                        ChunkPosition rightChunkPos = chunkManager.worldToChunkPos(glm::vec3(rightPos));
+                                        rightChunk = chunkManager.getChunk(rightChunkPos);
+                                        if (rightChunk) {
+                                            rightLocalPos = glm::ivec3(
+                                                rightPos.x - rightChunkPos.x * CHUNK_SIZE,
+                                                rightPos.y - rightChunkPos.y * CHUNK_SIZE,
+                                                rightPos.z - rightChunkPos.z * CHUNK_SIZE
+                                            );
+                                        }
+                                    }
+
+                                    if (rightChunk && rightLocalPos.x >= 0 && rightLocalPos.x < CHUNK_SIZE &&
+                                        rightLocalPos.y >= 0 && rightLocalPos.y < CHUNK_SIZE &&
+                                        rightLocalPos.z >= 0 && rightLocalPos.z < CHUNK_SIZE) {
+                                        BlockState rightState = rightChunk->getBlockState(rightLocalPos.x, rightLocalPos.y, rightLocalPos.z);
+                                        Block* rightBlock = BlockRegistry::getBlock(rightState);
+
+                                        if (dynamic_cast<StairBlock*>(rightBlock)) {
+                                            StairBlock* rightStair = static_cast<StairBlock*>(rightBlock);
+                                            // Decode properties from state ID
+                                            int offset = rightState.id - rightStair->m_baseStateId;
+                                            StairFacing rightFacing = static_cast<StairFacing>(offset % 4);
+                                            BlockHalf rightHalf = static_cast<BlockHalf>((offset / 4) % 2);
+
+                                            // Only connect if same half
+                                            if (rightHalf == half) {
+                                                // Check if right stair is facing towards us (outer corner)
+                                                glm::ivec3 rightFront = getFrontOffset(rightFacing);
+                                                glm::ivec3 ourLeft = getLeftOffset(facing);
+                                                if (rightFront == ourLeft) {
+                                                    shape = StairShape::OUTER_RIGHT;
+                                                }
+                                                // Check if right stair is facing away (inner corner)
+                                                glm::ivec3 rightBack = getBackOffset(rightFacing);
+                                                if (rightBack == ourLeft) {
+                                                    shape = StairShape::INNER_RIGHT;
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    placedState = stairBlock->withFacingHalfAndShape(facing, half, shape);
 
                                     // Debug log
-                                    spdlog::debug("Placing stairs: facing={}, half={}, hitPos=({:.2f}, {:.2f}, {:.2f}), normal=({}, {}, {}), fractY={:.2f}, reason={}",
-                                                 (int)facing, (int)half,
+                                    spdlog::debug("Placing stairs: facing={}, half={}, shape={}, forward=({:.2f}, {:.2f}, {:.2f}), hitPos=({:.2f}, {:.2f}, {:.2f}), normal=({}, {}, {}), fractY={:.2f}, reason={}",
+                                                 (int)facing, (int)half, (int)shape,
+                                                 forward.x, forward.y, forward.z,
                                                  crosshairTarget->hitPos.x, crosshairTarget->hitPos.y, crosshairTarget->hitPos.z,
                                                  crosshairTarget->normal.x, crosshairTarget->normal.y, crosshairTarget->normal.z,
                                                  fractionalY, halfReason);

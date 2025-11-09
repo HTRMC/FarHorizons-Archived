@@ -393,7 +393,7 @@ public:
         std::filesystem::path normalizedPath(soundPath);
         std::filesystem::path absolutePath = std::filesystem::absolute(normalizedPath.make_preferred());
 
-        spdlog::debug("Playing sound event '{}' from: {}", eventName, absolutePath.string());
+        // spdlog::debug("Playing sound event '{}' from: {}", eventName, absolutePath.string());
 
         if (m_initialized) {
             cleanupFinishedSounds();
@@ -402,7 +402,7 @@ public:
             ma_uint32 flags = MA_SOUND_FLAG_DECODE | MA_SOUND_FLAG_NO_SPATIALIZATION;
 
             if (sound->initFromFile(&m_engine, absolutePath, flags)) {
-                spdlog::debug("Sound initialized successfully, setting volume={} pitch={}", volume, pitch);
+                // spdlog::debug("Sound initialized successfully, setting volume={} pitch={}", volume, pitch);
 
                 sound->setVolume(volume);
                 sound->setPitch(pitch);
@@ -420,7 +420,7 @@ public:
         auto it = m_activeSounds.begin();
         while (it != m_activeSounds.end()) {
             if (!(*it)->isPlaying() && (*it)->atEnd()) {
-                spdlog::debug("Cleaning up finished sound");
+                // spdlog::debug("Cleaning up finished sound");
                 it = m_activeSounds.erase(it);
             } else {
                 ++it;

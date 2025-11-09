@@ -373,8 +373,8 @@ std::vector<std::string> BlockModelManager::getAllTextureNames() const {
     return std::vector<std::string>(uniqueTextures.begin(), uniqueTextures.end());
 }
 
-std::unordered_map<std::string, std::string> BlockModelManager::loadBlockstatesFile(const std::string& blockName) {
-    std::unordered_map<std::string, std::string> variantToModel;
+std::unordered_map<std::string, BlockModelManager::VariantData> BlockModelManager::loadBlockstatesFile(const std::string& blockName) {
+    std::unordered_map<std::string, VariantData> variantToData;
 
     // Construct path: assets/minecraft/blockstates/{blockName}.json
     std::string blockstatesPath = m_assetsPath + "/minecraft/blockstates/" + blockName + ".json";
@@ -382,14 +382,14 @@ std::unordered_map<std::string, std::string> BlockModelManager::loadBlockstatesF
     // Check if file exists
     if (!std::filesystem::exists(blockstatesPath)) {
         spdlog::debug("Blockstates file not found: {} (block has no properties)", blockstatesPath);
-        return variantToModel;
+        return variantToData;
     }
 
     // Read file
     std::ifstream file(blockstatesPath);
     if (!file.is_open()) {
         spdlog::error("Failed to open blockstates file: {}", blockstatesPath);
-        return variantToModel;
+        return variantToData;
     }
 
     std::string jsonContent((std::istreambuf_iterator<char>(file)),
@@ -402,7 +402,7 @@ std::unordered_map<std::string, std::string> BlockModelManager::loadBlockstatesF
     auto error = parser.parse(jsonContent).get(doc);
     if (error) {
         spdlog::error("Failed to parse blockstates JSON: {}", blockstatesPath);
-        return variantToModel;
+        return variantToData;
     }
 
     // Parse variants
@@ -415,31 +415,56 @@ std::unordered_map<std::string, std::string> BlockModelManager::loadBlockstatesF
                 std::string variantStr(variantKeyStr);
 
                 // Variant value can be either:
-                // 1. A single object: { "model": "..." }
+                // 1. A single object: { "model": "...", "x": 90, "y": 180, "uvlock": true }
                 // 2. An array of objects: [{ "model": "..." }, { "model": "...", "y": 90 }, ...]
-                // For arrays, we just use the first variant (ignore rotations for now)
+                // For arrays, we use the first element
 
-                std::string_view modelName;
+                VariantData data;
                 simdjson::dom::array variantArray;
+                simdjson::dom::element variantObj;
 
                 if (!variantValue.get(variantArray)) {
                     // It's an array - use the first element
-                    auto firstElement = variantArray.at(0);
-                    if (!firstElement["model"].get(modelName)) {
-                        variantToModel[variantStr] = std::string(modelName);
-                    }
+                    variantObj = variantArray.at(0);
                 } else {
                     // It's a single object
-                    if (!variantValue["model"].get(modelName)) {
-                        variantToModel[variantStr] = std::string(modelName);
-                    }
+                    variantObj = variantValue;
                 }
+
+                // Parse model name (required)
+                std::string_view modelName;
+                if (!variantObj["model"].get(modelName)) {
+                    data.modelName = std::string(modelName);
+                } else {
+                    spdlog::warn("Variant {} missing 'model' field", variantStr);
+                    continue;
+                }
+
+                // Parse x rotation (optional)
+                int64_t xRot;
+                if (!variantObj["x"].get(xRot)) {
+                    data.rotationX = static_cast<int>(xRot);
+                }
+
+                // Parse y rotation (optional)
+                int64_t yRot;
+                if (!variantObj["y"].get(yRot)) {
+                    data.rotationY = static_cast<int>(yRot);
+                }
+
+                // Parse uvlock (optional)
+                bool uvlockVal;
+                if (!variantObj["uvlock"].get(uvlockVal)) {
+                    data.uvlock = uvlockVal;
+                }
+
+                variantToData[variantStr] = data;
             }
         }
     }
 
-    spdlog::debug("Loaded {} variants from blockstates/{}.json", variantToModel.size(), blockName);
-    return variantToModel;
+    spdlog::debug("Loaded {} variants from blockstates/{}.json", variantToData.size(), blockName);
+    return variantToData;
 }
 
 void BlockModelManager::preloadBlockStateModels() {
@@ -476,18 +501,18 @@ void BlockModelManager::preloadBlockStateModels() {
             // Block with variants but no properties (like stone with empty "" variant)
             // Use first variant model for all states
             if (!variants.empty()) {
-                const BlockModel* model = loadModel(variants.begin()->second);
+                const BlockModel* model = loadModel(variants.begin()->second.modelName);
                 for (size_t i = 0; i < block->getStateCount(); ++i) {
                     uint16_t stateId = block->m_baseStateId + i;
                     m_stateToModel[stateId] = model;
                     if (model) {
-                        spdlog::trace("Cached model for state {} ({} -> {})", stateId, block->m_name, variants.begin()->second);
+                        spdlog::trace("Cached model for state {} ({} -> {})", stateId, block->m_name, variants.begin()->second.modelName);
                     }
                 }
             }
         } else if (!variants.empty() && !properties.empty()) {
             // Block with properties - map variants to states
-            for (const auto& [variantKey, modelName] : variants) {
+            for (const auto& [variantKey, variantData] : variants) {
                 // Parse variant key like "facing=east,half=top,shape=straight" into property values
                 // Split by comma to get individual property=value pairs
                 std::unordered_map<std::string, std::string> propValues;
@@ -544,19 +569,39 @@ void BlockModelManager::preloadBlockStateModels() {
 
                 uint16_t stateId = block->m_baseStateId + stateIndex;
 
-                // Load and cache the model
-                const BlockModel* model = loadModel(modelName);
+                // Load and cache the model with rotation data
+                const BlockModel* model = loadModel(variantData.modelName);
                 m_stateToModel[stateId] = model;
+
+                // Store variant data with rotation info
+                BlockStateVariant variant;
+                variant.model = model;
+                variant.rotationX = variantData.rotationX;
+                variant.rotationY = variantData.rotationY;
+                variant.uvlock = variantData.uvlock;
+                m_stateToVariant[stateId] = variant;
+
                 if (model) {
-                    spdlog::trace("Cached model for state {} ({} -> {})", stateId, variantKey, modelName);
+                    spdlog::trace("Cached model for state {} ({} -> {} with rot x={} y={})",
+                                  stateId, variantKey, variantData.modelName, variantData.rotationX, variantData.rotationY);
                 } else {
-                    spdlog::warn("Failed to load model for state {} ({})", stateId, modelName);
+                    spdlog::warn("Failed to load model for state {} ({})", stateId, variantData.modelName);
                 }
             }
         }
     }
 
     spdlog::info("Preloaded {} blockstate models", m_stateToModel.size());
+}
+
+const BlockStateVariant* BlockModelManager::getVariantByStateId(uint16_t stateId) const {
+    auto it = m_stateToVariant.find(stateId);
+    if (it != m_stateToVariant.end()) {
+        return &(it->second);
+    }
+
+    // Not in variant cache - this block may not have rotation data
+    return nullptr;
 }
 
 const BlockModel* BlockModelManager::getModelByStateId(uint16_t stateId) const {

@@ -50,6 +50,14 @@ public:
     std::string resolveTexture(const std::string& textureRef) const;
 };
 
+// Holds a model with rotation information from blockstate variants
+struct BlockStateVariant {
+    const BlockModel* model = nullptr;
+    int rotationX = 0;  // Rotation around X axis (0, 90, 180, 270)
+    int rotationY = 0;  // Rotation around Y axis (0, 90, 180, 270)
+    bool uvlock = false; // Whether to lock UVs during rotation
+};
+
 // Manages loading and caching of block models
 class BlockModelManager {
 public:
@@ -76,8 +84,16 @@ public:
     // Cache texture indices in all loaded models (call after texture registration)
     void cacheTextureIndices();
 
-    // Get a model by blockstate ID (fast cached lookup)
+    // Get a model variant by blockstate ID (fast cached lookup)
+    const BlockStateVariant* getVariantByStateId(uint16_t stateId) const;
+
+    // Legacy method - returns just the model without rotation (for BlockShape caching)
     const BlockModel* getModelByStateId(uint16_t stateId) const;
+
+    // Get the complete state-to-variant mapping
+    const std::unordered_map<uint16_t, BlockStateVariant>& getStateToVariantMap() const {
+        return m_stateToVariant;
+    }
 
     // Get the complete state-to-model mapping (for pre-caching BlockShapes)
     const std::unordered_map<uint16_t, const BlockModel*>& getStateToModelMap() const {
@@ -85,16 +101,25 @@ public:
     }
 
 private:
+    // Variant data parsed from blockstate JSON
+    struct VariantData {
+        std::string modelName;
+        int rotationX = 0;
+        int rotationY = 0;
+        bool uvlock = false;
+    };
+
     std::string m_assetsPath;  // Base assets path (e.g., "assets")
     std::unordered_map<std::string, std::unique_ptr<BlockModel>> m_models;
     std::unordered_map<std::string, uint32_t> m_textureMap;
-    std::unordered_map<uint16_t, const BlockModel*> m_stateToModel;  // Blockstate ID -> Model cache
+    std::unordered_map<uint16_t, const BlockModel*> m_stateToModel;  // Blockstate ID -> Model cache (for legacy code)
+    std::unordered_map<uint16_t, BlockStateVariant> m_stateToVariant;  // Blockstate ID -> Variant (model + rotation) cache
 
     // Load model from JSON file
     std::unique_ptr<BlockModel> loadModelFromFile(const std::string& modelPath);
 
-    // Load blockstates JSON file and return variant -> model name mapping
-    std::unordered_map<std::string, std::string> loadBlockstatesFile(const std::string& blockName);
+    // Load blockstates JSON file and return variant -> variant data mapping
+    std::unordered_map<std::string, VariantData> loadBlockstatesFile(const std::string& blockName);
 
     // Resolve parent hierarchy for a model
     void resolveModel(BlockModel* model);
