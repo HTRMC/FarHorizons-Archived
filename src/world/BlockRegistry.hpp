@@ -3,6 +3,7 @@
 #include "blocks/AirBlock.hpp"
 #include "blocks/SimpleBlock.hpp"
 #include "blocks/SlabBlock.hpp"
+#include "blocks/StairBlock.hpp"
 #include "blocks/GrassBlock.hpp"
 #include "BlockModel.hpp"
 #include "BlockSoundGroup.hpp"
@@ -18,6 +19,7 @@ public:
     static Block* AIR;
     static Block* STONE;
     static Block* STONE_SLAB;
+    static Block* OAK_STAIRS;
     static Block* GRASS_BLOCK;
 
     // Initialize all blocks

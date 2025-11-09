@@ -22,6 +22,9 @@
 #include "world/ChunkManager.hpp"
 #include "world/ChunkGpuData.hpp"
 #include "world/BlockRegistry.hpp"
+#include "world/blocks/StairBlock.hpp"
+#include "world/blocks/enums/BlockHalf.hpp"
+#include "world/blocks/enums/StairFacing.hpp"
 #include "text/FontManager.hpp"
 #include "text/TextRenderer.hpp"
 #include "text/Text.hpp"
@@ -631,6 +634,11 @@ int main() {
                     spdlog::info("Selected: Grass Block");
                 }
 
+                if (InputSystem::isKeyDown(KeyCode::Four)) {
+                    selectedBlock = BlockRegistry::OAK_STAIRS;
+                    spdlog::info("Selected: Oak Stairs");
+                }
+
                 // Update camera and world
                 camera.update(deltaTime);
                 chunkManager.update(camera.getPosition());
@@ -686,6 +694,52 @@ int main() {
                                 localPos.y >= 0 && localPos.y < CHUNK_SIZE &&
                                 localPos.z >= 0 && localPos.z < CHUNK_SIZE) {
                                 BlockState placedState = selectedBlock->getDefaultState();
+
+                                // Special placement logic for stairs
+                                if (dynamic_cast<StairBlock*>(selectedBlock)) {
+                                    StairBlock* stairBlock = static_cast<StairBlock*>(selectedBlock);
+
+                                    // Determine facing from player's horizontal direction
+                                    glm::vec3 forward = camera.getForward();
+                                    StairFacing facing;
+
+                                    // Get horizontal direction (ignore Y component)
+                                    if (abs(forward.x) > abs(forward.z)) {
+                                        facing = (forward.x > 0) ? StairFacing::EAST : StairFacing::WEST;
+                                    } else {
+                                        facing = (forward.z > 0) ? StairFacing::SOUTH : StairFacing::NORTH;
+                                    }
+
+                                    // Determine half based on where on the block was clicked
+                                    BlockHalf half = BlockHalf::BOTTOM;
+                                    float fractionalY = 0.0f;
+                                    std::string halfReason = "";
+
+                                    if (crosshairTarget->normal.y == 1) {
+                                        // Clicked top face - place as bottom half
+                                        half = BlockHalf::BOTTOM;
+                                        halfReason = "top_face";
+                                    } else if (crosshairTarget->normal.y == -1) {
+                                        // Clicked bottom face - place as top half
+                                        half = BlockHalf::TOP;
+                                        halfReason = "bottom_face";
+                                    } else {
+                                        // Clicked on a vertical face - check Y position
+                                        fractionalY = crosshairTarget->hitPos.y - floor(crosshairTarget->hitPos.y);
+                                        half = (fractionalY > 0.5f) ? BlockHalf::TOP : BlockHalf::BOTTOM;
+                                        halfReason = "vertical_face";
+                                    }
+
+                                    placedState = stairBlock->withFacingAndHalf(facing, half);
+
+                                    // Debug log
+                                    spdlog::debug("Placing stairs: facing={}, half={}, hitPos=({:.2f}, {:.2f}, {:.2f}), normal=({}, {}, {}), fractY={:.2f}, reason={}",
+                                                 (int)facing, (int)half,
+                                                 crosshairTarget->hitPos.x, crosshairTarget->hitPos.y, crosshairTarget->hitPos.z,
+                                                 crosshairTarget->normal.x, crosshairTarget->normal.y, crosshairTarget->normal.z,
+                                                 fractionalY, halfReason);
+                                }
+
                                 chunk->setBlockState(localPos.x, localPos.y, localPos.z, placedState);
                                 chunkManager.queueChunkRemesh(chunkPos);
 
@@ -956,7 +1010,7 @@ int main() {
                     vkUpdateDescriptorSets(vulkanContext.getDevice().getLogicalDevice(), 4, descriptorWrites, 0, nullptr);
 
                     quadInfoNeedsUpdate = false;
-                    spdlog::debug("Updated QuadInfo buffer with {} unique quad geometries", quadInfos.size());
+                    // spdlog::debug("Updated QuadInfo buffer with {} unique quad geometries", quadInfos.size());
                 }
             }
 

@@ -8,6 +8,7 @@ namespace VoxelEngine {
 Block* BlockRegistry::AIR = nullptr;
 Block* BlockRegistry::STONE = nullptr;
 Block* BlockRegistry::STONE_SLAB = nullptr;
+Block* BlockRegistry::OAK_STAIRS = nullptr;
 Block* BlockRegistry::GRASS_BLOCK = nullptr;
 
 uint16_t BlockRegistry::m_nextStateId = 0;
@@ -18,10 +19,10 @@ void BlockRegistry::init() {
     spdlog::info("Initializing BlockRegistry...");
 
     // Register blocks with their sound groups - compile-time association!
-    // Air gets state ID 0, Stone gets 1, Stone Slab gets 2, Grass Block gets 3
     AIR = registerBlock<AirBlock>("air", BlockSoundGroup::INTENTIONALLY_EMPTY);
     STONE = registerBlock<SimpleBlock>("stone", BlockSoundGroup::STONE);
     STONE_SLAB = registerBlock<SlabBlock>("stone_slab", BlockSoundGroup::STONE);
+    OAK_STAIRS = registerBlock<StairBlock>("oak_stairs", BlockSoundGroup::WOOD);
     GRASS_BLOCK = registerBlock<GrassBlock>("grass_block", BlockSoundGroup::GRASS);
 
     spdlog::info("Registered {} blocks with {} total states",

@@ -488,39 +488,60 @@ void BlockModelManager::preloadBlockStateModels() {
         } else if (!variants.empty() && !properties.empty()) {
             // Block with properties - map variants to states
             for (const auto& [variantKey, modelName] : variants) {
-                // Parse variant key like "type=bottom" into property values
-                // For single property blocks, the variant key is "property=value"
-                size_t eqPos = variantKey.find('=');
-                if (eqPos == std::string::npos) {
-                    spdlog::warn("Invalid variant key '{}' in blockstates/{}.json", variantKey, block->m_name);
-                    continue;
+                // Parse variant key like "facing=east,half=top,shape=straight" into property values
+                // Split by comma to get individual property=value pairs
+                std::unordered_map<std::string, std::string> propValues;
+
+                size_t start = 0;
+                size_t comma = variantKey.find(',');
+                while (true) {
+                    std::string pair = (comma == std::string::npos)
+                        ? variantKey.substr(start)
+                        : variantKey.substr(start, comma - start);
+
+                    size_t eqPos = pair.find('=');
+                    if (eqPos != std::string::npos) {
+                        std::string propName = pair.substr(0, eqPos);
+                        std::string valueName = pair.substr(eqPos + 1);
+                        propValues[propName] = valueName;
+                    }
+
+                    if (comma == std::string::npos) break;
+                    start = comma + 1;
+                    comma = variantKey.find(',', start);
                 }
 
-                std::string propName = variantKey.substr(0, eqPos);
-                std::string valueName = variantKey.substr(eqPos + 1);
+                // Calculate state index from property values
+                // State index is calculated as: value0 + value1 * size0 + value2 * size0 * size1 + ...
+                size_t stateIndex = 0;
+                size_t multiplier = 1;
+                bool allPropertiesFound = true;
 
-                // Find the property
-                PropertyBase* prop = nullptr;
-                for (PropertyBase* p : properties) {
-                    if (p->name == propName) {
-                        prop = p;
+                for (PropertyBase* prop : properties) {
+                    auto it = propValues.find(prop->name);
+                    if (it == propValues.end()) {
+                        spdlog::warn("Property '{}' not found in variant key '{}' for block {}",
+                                     prop->name, variantKey, block->m_name);
+                        allPropertiesFound = false;
                         break;
                     }
+
+                    auto valueIndexOpt = prop->getValueIndexByName(it->second);
+                    if (!valueIndexOpt) {
+                        spdlog::warn("Value '{}' not found in property '{}' for block {}",
+                                     it->second, prop->name, block->m_name);
+                        allPropertiesFound = false;
+                        break;
+                    }
+
+                    stateIndex += (*valueIndexOpt) * multiplier;
+                    multiplier *= prop->getNumValues();
                 }
 
-                if (!prop) {
-                    spdlog::warn("Property '{}' not found in block {}", propName, block->m_name);
+                if (!allPropertiesFound) {
                     continue;
                 }
 
-                // Get state index from property value
-                auto stateIndexOpt = prop->getValueIndexByName(valueName);
-                if (!stateIndexOpt) {
-                    spdlog::warn("Value '{}' not found in property '{}'", valueName, propName);
-                    continue;
-                }
-
-                size_t stateIndex = *stateIndexOpt;
                 uint16_t stateId = block->m_baseStateId + stateIndex;
 
                 // Load and cache the model

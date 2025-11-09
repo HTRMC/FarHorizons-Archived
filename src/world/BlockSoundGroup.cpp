@@ -32,4 +32,14 @@ const BlockSoundGroup BlockSoundGroup::STONE = BlockSoundGroup(
     "block.stone.fall"
 );
 
+const BlockSoundGroup BlockSoundGroup::WOOD = BlockSoundGroup(
+    1.0f,
+    1.0f,
+    "block.wood.break",
+    "block.wood.step",
+    "block.wood.place",
+    "block.wood.hit",
+    "block.wood.fall"
+);
+
 } // namespace VoxelEngine

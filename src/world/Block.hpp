@@ -52,9 +52,20 @@ public:
     // Override to define properties (called during registration)
     virtual void defineProperties() {}
 
-    // Override to return number of states this block has
+    // Calculate number of states dynamically from properties
+    // Override only if you need custom state counting logic
     virtual size_t getStateCount() const {
-        return 1; // Simple blocks have 1 state
+        auto props = getProperties();
+        if (props.empty()) {
+            return 1; // Simple blocks have 1 state
+        }
+
+        // Multiply all property value counts
+        size_t count = 1;
+        for (PropertyBase* prop : props) {
+            count *= prop->getNumValues();
+        }
+        return count;
     }
 
     // Get all properties for this block (for model loading)

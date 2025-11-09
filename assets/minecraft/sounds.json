@@ -34,5 +34,23 @@
       "dig/stone4"
     ],
     "subtitle": "subtitles.block.generic.place"
+  },
+  "block.wood.break": {
+    "sounds": [
+      "dig/wood1",
+      "dig/wood2",
+      "dig/wood3",
+      "dig/wood4"
+    ],
+    "subtitle": "subtitles.block.generic.break"
+  },
+  "block.wood.place": {
+    "sounds": [
+      "dig/wood1",
+      "dig/wood2",
+      "dig/wood3",
+      "dig/wood4"
+    ],
+    "subtitle": "subtitles.block.generic.place"
   }
 }
