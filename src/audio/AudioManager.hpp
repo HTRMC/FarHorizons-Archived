@@ -237,6 +237,7 @@ public:
     void cleanup() {
         if (m_initialized) {
             m_sounds.clear();
+            m_activeSounds.clear();
             ma_engine_uninit(&m_engine);
             m_initialized = false;
             spdlog::info("AudioManager cleaned up");
@@ -489,6 +490,7 @@ public:
 
         // Clean up current engine
         m_sounds.clear();
+        m_activeSounds.clear();
         ma_engine_uninit(&m_engine);
         m_initialized = false;
 
