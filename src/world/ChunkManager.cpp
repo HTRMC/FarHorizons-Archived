@@ -262,6 +262,7 @@ Chunk* ChunkManager::loadChunk(const ChunkPosition& pos) {
 }
 
 Chunk* ChunkManager::getChunk(const ChunkPosition& pos) {
+    std::lock_guard<std::mutex> lock(m_chunksMutex);
     auto it = m_chunks.find(pos);
     if (it != m_chunks.end()) {
         return it->second.get();
@@ -270,6 +271,7 @@ Chunk* ChunkManager::getChunk(const ChunkPosition& pos) {
 }
 
 const Chunk* ChunkManager::getChunk(const ChunkPosition& pos) const {
+    std::lock_guard<std::mutex> lock(m_chunksMutex);
     auto it = m_chunks.find(pos);
     if (it != m_chunks.end()) {
         return it->second.get();
@@ -333,10 +335,12 @@ CompactChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk) const {
                                 int nz = bz + FaceUtils::FACE_DIRS[faceIndex][2];
 
                                 // Safe neighbor access with chunk boundary checking
+                                // Note: m_chunksMutex is already held by caller (meshWorker)
                                 BlockState neighborState = m_cullingSystem.getNeighborBlockState(
                                     chunk, chunkPos, nx, ny, nz,
                                     [this](const ChunkPosition& pos) -> const Chunk* {
-                                        return this->getChunk(pos);
+                                        auto it = m_chunks.find(pos);
+                                        return (it != m_chunks.end()) ? it->second.get() : nullptr;
                                     }
                                 );
 
@@ -521,9 +525,9 @@ void ChunkManager::meshWorker() {
         mesh.position = pos;  // Always set position so BufferManager knows which chunk this is
         {
             std::lock_guard<std::mutex> lock(m_chunksMutex);
-            const Chunk* chunk = getChunk(pos);
-            if (chunk && !chunk->isEmpty()) {
-                mesh = generateChunkMesh(chunk);
+            auto it = m_chunks.find(pos);
+            if (it != m_chunks.end() && !it->second->isEmpty()) {
+                mesh = generateChunkMesh(it->second.get());
             }
         }
 
