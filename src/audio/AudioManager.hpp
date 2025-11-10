@@ -5,17 +5,8 @@
 #define NOMINMAX
 #endif
 
-// Step 1: Include stb_vorbis HEADER before miniaudio
-#define STB_VORBIS_HEADER_ONLY
-#include "extras/stb_vorbis.c"
-
-// Step 2: Define miniaudio implementation
-#define MINIAUDIO_IMPLEMENTATION
+// Include miniaudio header only (implementation is in AudioManager.cpp)
 #include "miniaudio.h"
-
-// Step 3: Include stb_vorbis IMPLEMENTATION after miniaudio
-#undef STB_VORBIS_HEADER_ONLY
-#include "extras/stb_vorbis.c"
 
 #include <string>
 #include <unordered_map>
@@ -40,36 +31,6 @@ template <>
 struct magic_enum::customize::enum_range<ma_format> {
     static constexpr int min = 0;
     static constexpr int max = ma_format_count;
-};
-
-// fmt formatter for ma_result
-template <>
-struct fmt::formatter<ma_result> {
-    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
-
-    template <typename FormatContext>
-    auto format(const ma_result& result, FormatContext& ctx) const {
-        auto name = magic_enum::enum_name(result);
-        if (!name.empty()) {
-            return fmt::format_to(ctx.out(), "{}", name);
-        }
-        return fmt::format_to(ctx.out(), "UNKNOWN({})", static_cast<int>(result));
-    }
-};
-
-// fmt formatter for ma_format
-template <>
-struct fmt::formatter<ma_format> {
-    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
-
-    template <typename FormatContext>
-    auto format(const ma_format& format, FormatContext& ctx) const {
-        auto name = magic_enum::enum_name(format);
-        if (!name.empty()) {
-            return fmt::format_to(ctx.out(), "{}", name);
-        }
-        return fmt::format_to(ctx.out(), "UNKNOWN({})", static_cast<int>(format));
-    }
 };
 
 namespace VoxelEngine {
@@ -122,16 +83,16 @@ public:
         ma_decoder_config decoderConfig = ma_decoder_config_init(ma_format_f32, 2, 48000);
         ma_result decodeResult = ma_decoder_init_file(absolutePath.string().c_str(), &decoderConfig, &decoder);
         if (decodeResult != MA_SUCCESS) {
-            spdlog::error("Failed to initialize decoder for: {} (error: {})", absolutePath.string(), decodeResult);
+            spdlog::error("Failed to initialize decoder for: {} (error: {})", absolutePath.string(), magic_enum::enum_name(decodeResult));
             spdlog::error("  This likely means the Vorbis decoder is not available or the file format is not supported");
 
             decodeResult = ma_decoder_init_file(absolutePath.string().c_str(), nullptr, &decoder);
             if (decodeResult != MA_SUCCESS) {
-                spdlog::error("  Auto-detection also failed (error: {})", decodeResult);
+                spdlog::error("  Auto-detection also failed (error: {})", magic_enum::enum_name(decodeResult));
                 return false;
             }
             spdlog::info("  Auto-detection succeeded! Format: {}, channels: {}, sample rate: {}",
-                         decoder.outputFormat, decoder.outputChannels, decoder.outputSampleRate);
+                         magic_enum::enum_name(decoder.outputFormat), decoder.outputChannels, decoder.outputSampleRate);
             ma_decoder_uninit(&decoder);
         } else {
             spdlog::debug("Decoder test successful");
@@ -140,7 +101,7 @@ public:
 
         ma_result result = ma_sound_init_from_file(engine, absolutePath.string().c_str(), 0, nullptr, nullptr, &m_sound);
         if (result != MA_SUCCESS) {
-            spdlog::error("Failed to load sound: {} (error: {})", absolutePath.string(), result);
+            spdlog::error("Failed to load sound: {} (error: {})", absolutePath.string(), magic_enum::enum_name(result));
             return false;
         }
         m_initialized = true;
@@ -226,7 +187,7 @@ public:
 
         ma_result result = ma_engine_init(&config, &m_engine);
         if (result != MA_SUCCESS) {
-            spdlog::error("Failed to initialize audio engine (error: {})", result);
+            spdlog::error("Failed to initialize audio engine (error: {})", magic_enum::enum_name(result));
             return false;
         }
         m_initialized = true;
@@ -553,11 +514,11 @@ public:
         }
 
         if (result != MA_SUCCESS) {
-            spdlog::error("Failed to reinitialize audio engine (error: {})", result);
+            spdlog::error("Failed to reinitialize audio engine (error: {})", magic_enum::enum_name(result));
             // Try to recover with default device
             result = ma_engine_init(nullptr, &m_engine);
             if (result != MA_SUCCESS) {
-                spdlog::error("Failed to recover audio engine (error: {})", result);
+                spdlog::error("Failed to recover audio engine (error: {})", magic_enum::enum_name(result));
                 return false;
             }
         }
