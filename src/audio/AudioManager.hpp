@@ -33,6 +33,36 @@ struct magic_enum::customize::enum_range<ma_format> {
     static constexpr int max = ma_format_count;
 };
 
+// fmt formatter for ma_result
+template <>
+struct fmt::formatter<ma_result> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template <typename FormatContext>
+    auto format(const ma_result& result, FormatContext& ctx) const {
+        auto name = magic_enum::enum_name(result);
+        if (!name.empty()) {
+            return fmt::format_to(ctx.out(), "{}", name);
+        }
+        return fmt::format_to(ctx.out(), "UNKNOWN({})", static_cast<int>(result));
+    }
+};
+
+// fmt formatter for ma_format
+template <>
+struct fmt::formatter<ma_format> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template <typename FormatContext>
+    auto format(const ma_format& format, FormatContext& ctx) const {
+        auto name = magic_enum::enum_name(format);
+        if (!name.empty()) {
+            return fmt::format_to(ctx.out(), "{}", name);
+        }
+        return fmt::format_to(ctx.out(), "UNKNOWN({})", static_cast<int>(format));
+    }
+};
+
 namespace VoxelEngine {
 
 class Sound {
