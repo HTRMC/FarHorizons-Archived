@@ -437,6 +437,12 @@ void RenderManager::waitIdle() {
     vulkanContext->waitIdle();
 }
 
+void RenderManager::clearChunkBuffers() {
+    waitIdle();
+    bufferManager->clear();
+    quadInfoNeedsUpdate = true;
+}
+
 void RenderManager::onResize(uint32_t width, uint32_t height, TextureManager& textureManager) {
     waitIdle();
     swapchain->recreate(width, height);

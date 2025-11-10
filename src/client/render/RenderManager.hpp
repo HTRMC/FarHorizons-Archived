@@ -98,6 +98,11 @@ public:
     void markQuadInfoForUpdate() { quadInfoNeedsUpdate = true; }
 
     /**
+     * Clear all chunk mesh data from GPU buffers
+     */
+    void clearChunkBuffers();
+
+    /**
      * Get window dimensions
      */
     uint32_t getWidth() const { return swapchain->getExtent().width; }

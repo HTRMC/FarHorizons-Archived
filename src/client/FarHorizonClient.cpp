@@ -9,7 +9,8 @@ namespace FarHorizon {
 
 FarHorizonClient::FarHorizonClient()
     : running(false)
-    , framebufferResized(false) {
+    , framebufferResized(false)
+    , previousState(GameStateManager::State::MainMenu) {
 }
 
 FarHorizonClient::~FarHorizonClient() = default;
@@ -170,6 +171,18 @@ void FarHorizonClient::tick(float deltaTime) {
         running = false;
         return;
     }
+
+    // Detect world reset (transition to MainMenu from any gameplay state)
+    auto currentState = gameStateManager->getState();
+    if ((previousState == GameStateManager::State::Playing ||
+         previousState == GameStateManager::State::Paused ||
+         previousState == GameStateManager::State::Options) &&
+        currentState == GameStateManager::State::MainMenu) {
+        spdlog::info("World reset detected, clearing GPU buffers and pending meshes");
+        renderManager->clearChunkBuffers();
+        pendingMeshes.clear();
+    }
+    previousState = currentState;
 
     // Update world and camera when playing
     if (gameStateManager->isPlaying()) {

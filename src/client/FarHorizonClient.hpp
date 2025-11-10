@@ -82,6 +82,9 @@ private:
 
     // Chunk mesh management
     std::vector<CompactChunkMesh> pendingMeshes;
+
+    // State tracking for world reset detection
+    GameStateManager::State previousState;
 };
 
 } // namespace FarHorizon
