@@ -184,6 +184,53 @@ void FarHorizonClient::tick(float deltaTime) {
     }
     previousState = currentState;
 
+    // Handle texture reloading when mipmap settings change
+    if (gameStateManager->needsTextureReload()) {
+        spdlog::info("Mipmap settings changed - hot reloading all block textures...");
+        gameStateManager->clearTextureReloadFlag();
+
+        renderManager->waitIdle();
+
+        VkCommandPoolCreateInfo reloadPoolInfo{};
+        reloadPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        reloadPoolInfo.queueFamilyIndex = renderManager->getQueueFamilyIndices().graphicsFamily.value();
+        reloadPoolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+
+        VkCommandPool reloadPool;
+        vkCreateCommandPool(renderManager->getDevice(), &reloadPoolInfo, nullptr, &reloadPool);
+
+        VkCommandBufferAllocateInfo reloadAllocInfo{};
+        reloadAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        reloadAllocInfo.commandPool = reloadPool;
+        reloadAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        reloadAllocInfo.commandBufferCount = 1;
+
+        VkCommandBuffer reloadCmd;
+        vkAllocateCommandBuffers(renderManager->getDevice(), &reloadAllocInfo, &reloadCmd);
+
+        VkCommandBufferBeginInfo reloadBeginInfo{};
+        reloadBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        reloadBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        vkBeginCommandBuffer(reloadCmd, &reloadBeginInfo);
+
+        auto requiredTextures = chunkManager->getRequiredTextures();
+        std::set<std::string> textureSet(requiredTextures.begin(), requiredTextures.end());
+        textureManager->reloadTextures(textureSet, *settings, reloadCmd);
+
+        vkEndCommandBuffer(reloadCmd);
+
+        VkSubmitInfo reloadSubmitInfo{};
+        reloadSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        reloadSubmitInfo.commandBufferCount = 1;
+        reloadSubmitInfo.pCommandBuffers = &reloadCmd;
+        vkQueueSubmit(renderManager->getGraphicsQueue(), 1, &reloadSubmitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(renderManager->getGraphicsQueue());
+
+        vkDestroyCommandPool(renderManager->getDevice(), reloadPool, nullptr);
+
+        spdlog::info("Texture hot reload complete");
+    }
+
     // Update world and camera when playing
     if (gameStateManager->isPlaying()) {
         camera->update(deltaTime);
