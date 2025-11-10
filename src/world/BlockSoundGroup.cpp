@@ -42,4 +42,14 @@ const BlockSoundGroup BlockSoundGroup::WOOD = BlockSoundGroup(
     "block.wood.fall"
 );
 
+const BlockSoundGroup BlockSoundGroup::GLASS = BlockSoundGroup(
+    1.0f,
+    1.0f,
+    "block.glass.break",
+    "block.glass.step",
+    "block.glass.place",
+    "block.glass.hit",
+    "block.glass.fall"
+);
+
 } // namespace FarHorizon

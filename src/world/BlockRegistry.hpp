@@ -5,6 +5,7 @@
 #include "blocks/SlabBlock.hpp"
 #include "blocks/StairBlock.hpp"
 #include "blocks/GrassBlock.hpp"
+#include "blocks/TransparentBlock.hpp"
 #include "BlockModel.hpp"
 #include "BlockSoundGroup.hpp"
 #include <unordered_map>
@@ -21,6 +22,7 @@ public:
     static Block* STONE_SLAB;
     static Block* OAK_STAIRS;
     static Block* GRASS_BLOCK;
+    static Block* GLASS;
 
     // Initialize all blocks
     static void init();

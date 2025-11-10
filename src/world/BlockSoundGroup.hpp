@@ -45,6 +45,7 @@ public:
     static const BlockSoundGroup WOOD;
     static const BlockSoundGroup STONE;
     static const BlockSoundGroup GRASS;
+    static const BlockSoundGroup GLASS;
 
 };
 

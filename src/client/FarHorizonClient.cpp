@@ -291,6 +291,10 @@ void FarHorizonClient::handleInput(float deltaTime) {
         selectedBlock = BlockRegistry::OAK_STAIRS;
         spdlog::info("Selected: Oak Stairs");
     }
+    if (InputSystem::isKeyDown(KeyCode::Five)) {
+        selectedBlock = BlockRegistry::GLASS;
+        spdlog::info("Selected: Glass");
+    }
 
     // Raycast for block interaction
     auto crosshairTarget = Raycast::castRay(*chunkManager, camera->getPosition(),

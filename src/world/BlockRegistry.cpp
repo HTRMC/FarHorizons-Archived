@@ -10,6 +10,7 @@ Block* BlockRegistry::STONE = nullptr;
 Block* BlockRegistry::STONE_SLAB = nullptr;
 Block* BlockRegistry::OAK_STAIRS = nullptr;
 Block* BlockRegistry::GRASS_BLOCK = nullptr;
+Block* BlockRegistry::GLASS = nullptr;
 
 uint16_t BlockRegistry::m_nextStateId = 0;
 std::unordered_map<std::string, std::unique_ptr<Block>> BlockRegistry::m_blocks;
@@ -24,6 +25,7 @@ void BlockRegistry::init() {
     STONE_SLAB = registerBlock<SlabBlock>("stone_slab", BlockSoundGroup::STONE);
     OAK_STAIRS = registerBlock<StairBlock>("oak_stairs", BlockSoundGroup::WOOD);
     GRASS_BLOCK = registerBlock<GrassBlock>("grass_block", BlockSoundGroup::GRASS);
+    GLASS = registerBlock<TransparentBlock>("glass", BlockSoundGroup::GLASS);
 
     spdlog::info("Registered {} blocks with {} total states",
                  m_blocks.size(), m_nextStateId);

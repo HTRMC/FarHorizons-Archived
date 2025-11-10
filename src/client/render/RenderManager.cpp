@@ -229,6 +229,7 @@ void RenderManager::createPipelines(TextureManager& textureManager) {
     pipelineConfig.depthTest = true;
     pipelineConfig.depthWrite = true;
     pipelineConfig.cullMode = VK_CULL_MODE_BACK_BIT;
+    pipelineConfig.blendEnable = true;  // Enable alpha blending for transparency
     pipelineConfig.descriptorSetLayouts.push_back(textureManager.getDescriptorSetLayout());
     pipelineConfig.descriptorSetLayouts.push_back(geometrySetLayout);
     mainPipeline->init(device, pipelineConfig);

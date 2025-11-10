@@ -52,5 +52,22 @@
       "dig/wood4"
     ],
     "subtitle": "subtitles.block.generic.place"
+  },
+  "block.glass.break": {
+    "sounds": [
+      "random/glass1",
+      "random/glass2",
+      "random/glass3"
+    ],
+    "subtitle": "subtitles.block.generic.break"
+  },
+  "block.glass.place": {
+    "sounds": [
+      "dig/stone1",
+      "dig/stone2",
+      "dig/stone3",
+      "dig/stone4"
+    ],
+    "subtitle": "subtitles.block.generic.place"
   }
 }
