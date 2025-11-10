@@ -65,45 +65,43 @@ void FarHorizonClient::init() {
     renderManager = std::make_unique<RenderManager>();
     textureManager = std::make_unique<TextureManager>();
 
-    // Create upload command pool for texture loading
-    VkCommandPoolCreateInfo poolInfo{};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.queueFamilyIndex = renderManager->getQueueFamilyIndices().graphicsFamily.value();
-    poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    renderManager->init(window->getNativeWindow(), *textureManager);
 
-    VkCommandPool uploadPool;
-    vkCreateCommandPool(renderManager->getDevice(), &poolInfo, nullptr, &uploadPool);
+    VkCommandPoolCreateInfo texPoolInfo{};
+    texPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    texPoolInfo.queueFamilyIndex = renderManager->getQueueFamilyIndices().graphicsFamily.value();
+    texPoolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
 
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool = uploadPool;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = 1;
+    VkCommandPool texPool;
+    vkCreateCommandPool(renderManager->getDevice(), &texPoolInfo, nullptr, &texPool);
 
-    VkCommandBuffer uploadCmd;
-    vkAllocateCommandBuffers(renderManager->getDevice(), &allocInfo, &uploadCmd);
+    VkCommandBufferAllocateInfo texAllocInfo{};
+    texAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    texAllocInfo.commandPool = texPool;
+    texAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    texAllocInfo.commandBufferCount = 1;
 
-    // Initialize texture manager
-    VkCommandBufferBeginInfo beginInfo{};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    vkBeginCommandBuffer(uploadCmd, &beginInfo);
+    VkCommandBuffer texCmd;
+    vkAllocateCommandBuffers(renderManager->getDevice(), &texAllocInfo, &texCmd);
 
-    textureManager->init(renderManager->getDevice(), renderManager->getAllocator(), uploadCmd);
-    textureManager->loadBlockTextures(*chunkManager, *settings, uploadCmd);
-    textureManager->loadFonts(uploadCmd);
+    VkCommandBufferBeginInfo texBeginInfo{};
+    texBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    texBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(texCmd, &texBeginInfo);
 
-    vkEndCommandBuffer(uploadCmd);
+    textureManager->loadBlockTextures(*chunkManager, *settings, texCmd);
+    textureManager->loadFonts(texCmd);
 
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &uploadCmd;
-    vkQueueSubmit(renderManager->getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
+    vkEndCommandBuffer(texCmd);
+
+    VkSubmitInfo texSubmitInfo{};
+    texSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    texSubmitInfo.commandBufferCount = 1;
+    texSubmitInfo.pCommandBuffers = &texCmd;
+    vkQueueSubmit(renderManager->getGraphicsQueue(), 1, &texSubmitInfo, VK_NULL_HANDLE);
     vkQueueWaitIdle(renderManager->getGraphicsQueue());
 
-    // Cleanup upload resources (we're keeping a persistent pool in actual implementation)
-    vkDestroyCommandPool(renderManager->getDevice(), uploadPool, nullptr);
+    vkDestroyCommandPool(renderManager->getDevice(), texPool, nullptr);
 
     // Initialize camera
     camera = std::make_unique<Camera>();

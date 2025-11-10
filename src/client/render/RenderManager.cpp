@@ -55,7 +55,6 @@ RenderManager::~RenderManager() = default;
 void RenderManager::init(GLFWwindow* window, TextureManager& textureManager) {
     spdlog::info("Initializing rendering system...");
 
-    // Initialize Vulkan
     vulkanContext->init(window, "Far Horizon");
 
     uint32_t width, height;
@@ -66,10 +65,42 @@ void RenderManager::init(GLFWwindow* window, TextureManager& textureManager) {
     depthBuffer->init(vulkanContext->getAllocator(), vulkanContext->getDevice().getLogicalDevice(),
                      width, height);
 
-    // Create pipelines
-    createPipelines(textureManager);
+    VkCommandPoolCreateInfo uploadPoolInfo{};
+    uploadPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    uploadPoolInfo.queueFamilyIndex = vulkanContext->getDevice().getQueueFamilyIndices().graphicsFamily.value();
+    uploadPoolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
 
-    // Create buffers
+    VkCommandPool uploadPool;
+    vkCreateCommandPool(vulkanContext->getDevice().getLogicalDevice(), &uploadPoolInfo, nullptr, &uploadPool);
+
+    VkCommandBufferAllocateInfo uploadAllocInfo{};
+    uploadAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    uploadAllocInfo.commandPool = uploadPool;
+    uploadAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    uploadAllocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer uploadCmd;
+    vkAllocateCommandBuffers(vulkanContext->getDevice().getLogicalDevice(), &uploadAllocInfo, &uploadCmd);
+
+    VkCommandBufferBeginInfo uploadBeginInfo{};
+    uploadBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    uploadBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(uploadCmd, &uploadBeginInfo);
+
+    textureManager.init(vulkanContext->getDevice().getLogicalDevice(), vulkanContext->getAllocator(), uploadCmd);
+
+    vkEndCommandBuffer(uploadCmd);
+
+    VkSubmitInfo uploadSubmitInfo{};
+    uploadSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    uploadSubmitInfo.commandBufferCount = 1;
+    uploadSubmitInfo.pCommandBuffers = &uploadCmd;
+    vkQueueSubmit(vulkanContext->getDevice().getGraphicsQueue(), 1, &uploadSubmitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(vulkanContext->getDevice().getGraphicsQueue());
+
+    vkDestroyCommandPool(vulkanContext->getDevice().getLogicalDevice(), uploadPool, nullptr);
+
+    createPipelines(textureManager);
     createBuffers();
 
     // Initialize offscreen targets for blur
