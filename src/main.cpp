@@ -32,16 +32,10 @@
 #include "ui/MainMenu.hpp"
 #include "ui/OptionsMenu.hpp"
 #include "audio/AudioManager.hpp"
+#include "game/InteractionManager.hpp"
+#include "game/GameStateManager.hpp"
 
 using namespace VoxelEngine;
-
-enum class GameState {
-    MainMenu,
-    Playing,
-    Paused,
-    Options,
-    OptionsFromMain
-};
 
 int main() {
     try {
@@ -556,22 +550,17 @@ int main() {
 
         spdlog::info("Setup complete, entering render loop...");
 
-        // Initialize menus
-        MainMenu mainMenu(window.getWidth(), window.getHeight());
-        PauseMenu pauseMenu(window.getWidth(), window.getHeight(), &settings);
-        OptionsMenu optionsMenu(window.getWidth(), window.getHeight(), &camera, &chunkManager, &settings, &audioManager);
-        GameState gameState = GameState::MainMenu;
-
-        // Cursor starts unlocked in main menu
-        mouseCapture->unlockCursor();
+        // Initialize game state manager (handles menus and state transitions)
+        GameStateManager gameStateManager(
+            window.getWidth(), window.getHeight(),
+            mouseCapture, &camera, &chunkManager, &settings, &audioManager
+        );
 
         bool framebufferResized = false;
-        window.setResizeCallback([&framebufferResized, &camera, &pauseMenu, &mainMenu, &optionsMenu](uint32_t width, uint32_t height) {
+        window.setResizeCallback([&framebufferResized, &camera, &gameStateManager](uint32_t width, uint32_t height) {
             framebufferResized = true;
             camera.setAspectRatio(static_cast<float>(width) / static_cast<float>(height));
-            pauseMenu.onResize(width, height);
-            mainMenu.onResize(width, height);
-            optionsMenu.onResize(width, height);
+            gameStateManager.onResize(width, height);
             // NOTE: Offscreen targets are resized in the main loop after GPU sync
         });
 
@@ -583,6 +572,9 @@ int main() {
         // Current selected block for placing (default to stone)
         Block* selectedBlock = BlockRegistry::STONE;
 
+        // Create interaction manager for block breaking/placing
+        InteractionManager interactionManager(chunkManager, audioManager);
+
         while (!window.shouldClose()) {
             auto currentTime = std::chrono::high_resolution_clock::now();
             float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
@@ -591,33 +583,17 @@ int main() {
             window.pollEvents();
             InputSystem::processEvents();
 
-            // Handle game state updates
-            if (gameState == GameState::MainMenu) {
-                // Update main menu
-                auto action = mainMenu.update(deltaTime);
-                switch (action) {
-                    case MainMenu::Action::Singleplayer:
-                        gameState = GameState::Playing;
-                        mouseCapture->lockCursor();  // Lock cursor when entering gameplay
-                        spdlog::info("Starting singleplayer game");
-                        break;
-                    case MainMenu::Action::OpenOptions:
-                        gameState = GameState::OptionsFromMain;
-                        optionsMenu.reset();
-                        spdlog::info("Opening options menu from main menu");
-                        break;
-                    case MainMenu::Action::Quit:
-                        window.close();
-                        break;
-                    case MainMenu::Action::None:
-                        break;
-                }
-            } else if (gameState == GameState::Playing) {
-                // Handle ESC key to toggle pause menu (use isKeyDown for single press)
+            // Update game state manager (handles menu transitions and state management)
+            bool shouldQuit = gameStateManager.update(deltaTime);
+            if (shouldQuit) {
+                window.close();
+            }
+
+            // Handle gameplay-specific input and updates when playing
+            if (gameStateManager.isPlaying()) {
+                // Handle ESC key to open pause menu
                 if (InputSystem::isKeyDown(KeyCode::Escape)) {
-                    gameState = GameState::Paused;
-                    mouseCapture->unlockCursor();  // Unlock cursor when opening pause menu
-                    pauseMenu.reset();
+                    gameStateManager.openPauseMenu();
                 }
 
                 // Handle block selection with number keys
@@ -633,7 +609,6 @@ int main() {
                     selectedBlock = BlockRegistry::GRASS_BLOCK;
                     spdlog::info("Selected: Grass Block");
                 }
-
                 if (InputSystem::isKeyDown(KeyCode::Four)) {
                     selectedBlock = BlockRegistry::OAK_STAIRS;
                     spdlog::info("Selected: Oak Stairs");
@@ -649,386 +624,51 @@ int main() {
                 // Handle block breaking (left click)
                 if (InputSystem::isMouseButtonDown(MouseButton::Left)) {
                     if (crosshairTarget.has_value()) {
-                        ChunkPosition chunkPos = chunkManager.worldToChunkPos(glm::vec3(crosshairTarget->blockPos));
-                        Chunk* chunk = chunkManager.getChunk(chunkPos);
-                        if (chunk) {
-                            glm::ivec3 localPos = crosshairTarget->blockPos - glm::ivec3(
-                                chunkPos.x * CHUNK_SIZE,
-                                chunkPos.y * CHUNK_SIZE,
-                                chunkPos.z * CHUNK_SIZE
-                            );
-                            // Get sound group directly from registry (no virtual call!)
-                            const BlockSoundGroup& soundGroup = BlockRegistry::getSoundGroup(crosshairTarget->state);
-
-                            chunk->setBlockState(localPos.x, localPos.y, localPos.z, BlockRegistry::AIR->getDefaultState());
-                            chunkManager.queueChunkRemesh(chunkPos);
-
-                            // Play block break sound based on block sound group
-                            audioManager.playSoundEvent(soundGroup.getBreakSound(), soundGroup.getVolume(), soundGroup.getPitch());
-
-                            // Remesh neighbor chunks if block is on chunk boundary
-                            if (localPos.x == 0 || localPos.x == CHUNK_SIZE - 1 ||
-                                localPos.y == 0 || localPos.y == CHUNK_SIZE - 1 ||
-                                localPos.z == 0 || localPos.z == CHUNK_SIZE - 1) {
-                                chunkManager.queueNeighborRemesh(chunkPos);
-                            }
-                        }
+                        interactionManager.breakBlock(crosshairTarget.value());
                     }
                 }
 
                 // Handle block placing (right click)
                 if (InputSystem::isMouseButtonDown(MouseButton::Right)) {
                     if (crosshairTarget.has_value()) {
-                        // Place block adjacent to the hit face
-                        glm::ivec3 placePos = crosshairTarget->blockPos + crosshairTarget->normal;
-                        ChunkPosition chunkPos = chunkManager.worldToChunkPos(glm::vec3(placePos));
-                        Chunk* chunk = chunkManager.getChunk(chunkPos);
-                        if (chunk) {
-                            glm::ivec3 localPos = placePos - glm::ivec3(
-                                chunkPos.x * CHUNK_SIZE,
-                                chunkPos.y * CHUNK_SIZE,
-                                chunkPos.z * CHUNK_SIZE
-                            );
-                            // Check bounds
-                            if (localPos.x >= 0 && localPos.x < CHUNK_SIZE &&
-                                localPos.y >= 0 && localPos.y < CHUNK_SIZE &&
-                                localPos.z >= 0 && localPos.z < CHUNK_SIZE) {
-                                BlockState placedState = selectedBlock->getDefaultState();
-
-                                // Special placement logic for stairs
-                                if (dynamic_cast<StairBlock*>(selectedBlock)) {
-                                    StairBlock* stairBlock = static_cast<StairBlock*>(selectedBlock);
-
-                                    // Determine facing from player's horizontal direction
-                                    glm::vec3 forward = camera.getForward();
-                                    StairFacing facing;
-
-                                    // Get horizontal direction (ignore Y component)
-                                    if (abs(forward.x) > abs(forward.z)) {
-                                        facing = (forward.x > 0) ? StairFacing::EAST : StairFacing::WEST;
-                                    } else {
-                                        facing = (forward.z > 0) ? StairFacing::SOUTH : StairFacing::NORTH;
-                                    }
-
-                                    // Determine half based on where on the block was clicked
-                                    BlockHalf half = BlockHalf::BOTTOM;
-                                    float fractionalY = 0.0f;
-                                    std::string halfReason = "";
-
-                                    if (crosshairTarget->normal.y == 1) {
-                                        // Clicked top face - place as bottom half
-                                        half = BlockHalf::BOTTOM;
-                                        halfReason = "top_face";
-                                    } else if (crosshairTarget->normal.y == -1) {
-                                        // Clicked bottom face - place as top half
-                                        half = BlockHalf::TOP;
-                                        halfReason = "bottom_face";
-                                    } else {
-                                        // Clicked on a vertical face - check Y position
-                                        fractionalY = crosshairTarget->hitPos.y - floor(crosshairTarget->hitPos.y);
-                                        half = (fractionalY > 0.5f) ? BlockHalf::TOP : BlockHalf::BOTTOM;
-                                        halfReason = "vertical_face";
-                                    }
-
-                                    // Calculate stair shape based on neighbors
-                                    StairShape shape = StairShape::STRAIGHT;
-
-                                    // Helper lambda to get direction offset based on stair facing
-                                    auto getLeftOffset = [](StairFacing f) -> glm::ivec3 {
-                                        switch (f) {
-                                            case StairFacing::NORTH: return glm::ivec3(-1, 0, 0);  // West
-                                            case StairFacing::SOUTH: return glm::ivec3(1, 0, 0);   // East
-                                            case StairFacing::WEST: return glm::ivec3(0, 0, 1);    // South
-                                            case StairFacing::EAST: return glm::ivec3(0, 0, -1);   // North
-                                        }
-                                        return glm::ivec3(0, 0, 0);
-                                    };
-
-                                    auto getRightOffset = [](StairFacing f) -> glm::ivec3 {
-                                        switch (f) {
-                                            case StairFacing::NORTH: return glm::ivec3(1, 0, 0);   // East
-                                            case StairFacing::SOUTH: return glm::ivec3(-1, 0, 0);  // West
-                                            case StairFacing::WEST: return glm::ivec3(0, 0, -1);   // North
-                                            case StairFacing::EAST: return glm::ivec3(0, 0, 1);    // South
-                                        }
-                                        return glm::ivec3(0, 0, 0);
-                                    };
-
-                                    auto getFrontOffset = [](StairFacing f) -> glm::ivec3 {
-                                        switch (f) {
-                                            case StairFacing::NORTH: return glm::ivec3(0, 0, -1);
-                                            case StairFacing::SOUTH: return glm::ivec3(0, 0, 1);
-                                            case StairFacing::WEST: return glm::ivec3(-1, 0, 0);
-                                            case StairFacing::EAST: return glm::ivec3(1, 0, 0);
-                                        }
-                                        return glm::ivec3(0, 0, 0);
-                                    };
-
-                                    auto getBackOffset = [](StairFacing f) -> glm::ivec3 {
-                                        switch (f) {
-                                            case StairFacing::NORTH: return glm::ivec3(0, 0, 1);
-                                            case StairFacing::SOUTH: return glm::ivec3(0, 0, -1);
-                                            case StairFacing::WEST: return glm::ivec3(1, 0, 0);
-                                            case StairFacing::EAST: return glm::ivec3(-1, 0, 0);
-                                        }
-                                        return glm::ivec3(0, 0, 0);
-                                    };
-
-                                    // Check left neighbor
-                                    glm::ivec3 leftOffset = getLeftOffset(facing);
-                                    glm::ivec3 leftPos = glm::ivec3(placePos) + leftOffset;
-                                    Chunk* leftChunk = chunk;
-                                    glm::ivec3 leftLocalPos = localPos + leftOffset;
-
-                                    if (leftLocalPos.x < 0 || leftLocalPos.x >= CHUNK_SIZE ||
-                                        leftLocalPos.y < 0 || leftLocalPos.y >= CHUNK_SIZE ||
-                                        leftLocalPos.z < 0 || leftLocalPos.z >= CHUNK_SIZE) {
-                                        ChunkPosition leftChunkPos = chunkManager.worldToChunkPos(glm::vec3(leftPos));
-                                        leftChunk = chunkManager.getChunk(leftChunkPos);
-                                        if (leftChunk) {
-                                            leftLocalPos = glm::ivec3(
-                                                leftPos.x - leftChunkPos.x * CHUNK_SIZE,
-                                                leftPos.y - leftChunkPos.y * CHUNK_SIZE,
-                                                leftPos.z - leftChunkPos.z * CHUNK_SIZE
-                                            );
-                                        }
-                                    }
-
-                                    if (leftChunk && leftLocalPos.x >= 0 && leftLocalPos.x < CHUNK_SIZE &&
-                                        leftLocalPos.y >= 0 && leftLocalPos.y < CHUNK_SIZE &&
-                                        leftLocalPos.z >= 0 && leftLocalPos.z < CHUNK_SIZE) {
-                                        BlockState leftState = leftChunk->getBlockState(leftLocalPos.x, leftLocalPos.y, leftLocalPos.z);
-                                        Block* leftBlock = BlockRegistry::getBlock(leftState);
-
-                                        if (dynamic_cast<StairBlock*>(leftBlock)) {
-                                            StairBlock* leftStair = static_cast<StairBlock*>(leftBlock);
-                                            // Decode properties from state ID
-                                            int offset = leftState.id - leftStair->m_baseStateId;
-                                            StairFacing leftFacing = static_cast<StairFacing>(offset % 4);
-                                            BlockHalf leftHalf = static_cast<BlockHalf>((offset / 4) % 2);
-
-                                            // Only connect if same half
-                                            if (leftHalf == half) {
-                                                // Check if left stair is facing towards us (outer corner)
-                                                glm::ivec3 leftFront = getFrontOffset(leftFacing);
-                                                glm::ivec3 ourRight = getRightOffset(facing);
-                                                if (leftFront == ourRight) {
-                                                    shape = StairShape::OUTER_LEFT;
-                                                }
-                                                // Check if left stair is facing away (inner corner)
-                                                glm::ivec3 leftBack = getBackOffset(leftFacing);
-                                                if (leftBack == ourRight) {
-                                                    shape = StairShape::INNER_LEFT;
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    // Check right neighbor
-                                    glm::ivec3 rightOffset = getRightOffset(facing);
-                                    glm::ivec3 rightPos = glm::ivec3(placePos) + rightOffset;
-                                    Chunk* rightChunk = chunk;
-                                    glm::ivec3 rightLocalPos = localPos + rightOffset;
-
-                                    if (rightLocalPos.x < 0 || rightLocalPos.x >= CHUNK_SIZE ||
-                                        rightLocalPos.y < 0 || rightLocalPos.y >= CHUNK_SIZE ||
-                                        rightLocalPos.z < 0 || rightLocalPos.z >= CHUNK_SIZE) {
-                                        ChunkPosition rightChunkPos = chunkManager.worldToChunkPos(glm::vec3(rightPos));
-                                        rightChunk = chunkManager.getChunk(rightChunkPos);
-                                        if (rightChunk) {
-                                            rightLocalPos = glm::ivec3(
-                                                rightPos.x - rightChunkPos.x * CHUNK_SIZE,
-                                                rightPos.y - rightChunkPos.y * CHUNK_SIZE,
-                                                rightPos.z - rightChunkPos.z * CHUNK_SIZE
-                                            );
-                                        }
-                                    }
-
-                                    if (rightChunk && rightLocalPos.x >= 0 && rightLocalPos.x < CHUNK_SIZE &&
-                                        rightLocalPos.y >= 0 && rightLocalPos.y < CHUNK_SIZE &&
-                                        rightLocalPos.z >= 0 && rightLocalPos.z < CHUNK_SIZE) {
-                                        BlockState rightState = rightChunk->getBlockState(rightLocalPos.x, rightLocalPos.y, rightLocalPos.z);
-                                        Block* rightBlock = BlockRegistry::getBlock(rightState);
-
-                                        if (dynamic_cast<StairBlock*>(rightBlock)) {
-                                            StairBlock* rightStair = static_cast<StairBlock*>(rightBlock);
-                                            // Decode properties from state ID
-                                            int offset = rightState.id - rightStair->m_baseStateId;
-                                            StairFacing rightFacing = static_cast<StairFacing>(offset % 4);
-                                            BlockHalf rightHalf = static_cast<BlockHalf>((offset / 4) % 2);
-
-                                            // Only connect if same half
-                                            if (rightHalf == half) {
-                                                // Check if right stair is facing towards us (outer corner)
-                                                glm::ivec3 rightFront = getFrontOffset(rightFacing);
-                                                glm::ivec3 ourLeft = getLeftOffset(facing);
-                                                if (rightFront == ourLeft) {
-                                                    shape = StairShape::OUTER_RIGHT;
-                                                }
-                                                // Check if right stair is facing away (inner corner)
-                                                glm::ivec3 rightBack = getBackOffset(rightFacing);
-                                                if (rightBack == ourLeft) {
-                                                    shape = StairShape::INNER_RIGHT;
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    placedState = stairBlock->withFacingHalfAndShape(facing, half, shape);
-
-                                    // Debug log
-                                    spdlog::debug("Placing stairs: facing={}, half={}, shape={}, forward=({:.2f}, {:.2f}, {:.2f}), hitPos=({:.2f}, {:.2f}, {:.2f}), normal=({}, {}, {}), fractY={:.2f}, reason={}",
-                                                 (int)facing, (int)half, (int)shape,
-                                                 forward.x, forward.y, forward.z,
-                                                 crosshairTarget->hitPos.x, crosshairTarget->hitPos.y, crosshairTarget->hitPos.z,
-                                                 crosshairTarget->normal.x, crosshairTarget->normal.y, crosshairTarget->normal.z,
-                                                 fractionalY, halfReason);
-                                }
-
-                                chunk->setBlockState(localPos.x, localPos.y, localPos.z, placedState);
-                                chunkManager.queueChunkRemesh(chunkPos);
-
-                                // Play block place sound - get sound group from registry (no virtual call!)
-                                const BlockSoundGroup& soundGroup = BlockRegistry::getSoundGroup(placedState);
-                                audioManager.playSoundEvent(soundGroup.getPlaceSound(), soundGroup.getVolume(), soundGroup.getPitch());
-
-                                // Remesh neighbor chunks if block is on chunk boundary
-                                if (localPos.x == 0 || localPos.x == CHUNK_SIZE - 1 ||
-                                    localPos.y == 0 || localPos.y == CHUNK_SIZE - 1 ||
-                                    localPos.z == 0 || localPos.z == CHUNK_SIZE - 1) {
-                                    chunkManager.queueNeighborRemesh(chunkPos);
-                                }
-                            }
-                        }
+                        interactionManager.placeBlock(crosshairTarget.value(), selectedBlock, camera.getForward());
                     }
                 }
-            } else if (gameState == GameState::Paused) {
-                // Update pause menu
-                auto action = pauseMenu.update(deltaTime);
-                switch (action) {
-                    case PauseMenu::Action::Resume:
-                        gameState = GameState::Playing;
-                        mouseCapture->lockCursor();  // Lock cursor when resuming gameplay
-                        break;
-                    case PauseMenu::Action::OpenOptions:
-                        gameState = GameState::Options;
-                        optionsMenu.reset();
-                        spdlog::info("Opening options menu from pause menu");
-                        break;
-                    case PauseMenu::Action::Quit:
-                        gameState = GameState::MainMenu;
-                        mouseCapture->unlockCursor();  // Unlock cursor when returning to main menu
-                        mainMenu.reset();
+            }
 
-                        // Clear world state
-                        chunkManager.clearAllChunks();
-                        bufferManager.clear();
-                        pendingMeshes.clear();
+            // Handle texture reloading when mipmap settings change
+            if (gameStateManager.needsTextureReload()) {
+                spdlog::info("Mipmap settings changed - hot reloading all block textures...");
+                gameStateManager.clearTextureReloadFlag();
 
-                        // Reset camera to spawn position (preserve FOV, keybinds, and mouse sensitivity from settings)
-                        camera.init(glm::vec3(0.0f, 20.0f, 0.0f), aspectRatio, settings.fov);
-                        camera.setKeybinds(settings.keybinds);
-                        camera.setMouseSensitivity(settings.mouseSensitivity);
+                // Hot reload: Wait for GPU to finish, then reload all block textures
+                vulkanContext.waitIdle();
 
-                        // Reset buffer offsets
-                        quadInfoNeedsUpdate = true;
+                // Reset and begin command buffer for texture uploads
+                vkResetCommandBuffer(uploadCmd, 0);
+                VkCommandBufferBeginInfo reloadBeginInfo{};
+                reloadBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+                reloadBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+                vkBeginCommandBuffer(uploadCmd, &reloadBeginInfo);
 
-                        spdlog::info("Returning to main menu");
-                        break;
-                    case PauseMenu::Action::None:
-                        break;
-                }
-            } else if (gameState == GameState::Options) {
-                // Update options menu (from pause menu)
-                auto action = optionsMenu.update(deltaTime);
-                if (action == OptionsMenu::Action::Back) {
-                    gameState = GameState::Paused;
-                    // Cursor remains unlocked when returning to pause menu
-                    spdlog::info("Returning to pause menu");
+                // Reload all block textures with new mipmap settings
+                bool enableMipmaps = (settings.mipmapLevels > 0);
+                for (const auto& textureName : requiredTextures) {
+                    std::string texturePath = "assets/minecraft/textures/block/" + textureName + ".png";
+                    textureManager.reloadTexture(texturePath, uploadCmd, enableMipmaps, settings.mipmapLevels);
                 }
 
-                // Check if textures need reloading (mipmap level changed)
-                if (optionsMenu.needsTextureReload()) {
-                    spdlog::info("Mipmap settings changed - hot reloading all block textures...");
-                    optionsMenu.clearTextureReloadFlag();
+                // Submit and wait for texture upload to complete
+                vkEndCommandBuffer(uploadCmd);
+                VkSubmitInfo reloadSubmitInfo{};
+                reloadSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+                reloadSubmitInfo.commandBufferCount = 1;
+                reloadSubmitInfo.pCommandBuffers = &uploadCmd;
+                vkQueueSubmit(vulkanContext.getDevice().getGraphicsQueue(), 1, &reloadSubmitInfo, VK_NULL_HANDLE);
+                vkQueueWaitIdle(vulkanContext.getDevice().getGraphicsQueue());
 
-                    // Hot reload: Wait for GPU to finish, then reload all block textures
-                    vulkanContext.waitIdle();
-
-                    // Reset and begin command buffer for texture uploads
-                    vkResetCommandBuffer(uploadCmd, 0);
-                    VkCommandBufferBeginInfo reloadBeginInfo{};
-                    reloadBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-                    reloadBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-                    vkBeginCommandBuffer(uploadCmd, &reloadBeginInfo);
-
-                    // Reload all block textures with new mipmap settings
-                    bool enableMipmaps = (settings.mipmapLevels > 0);
-                    for (const auto& textureName : requiredTextures) {
-                        std::string texturePath = "assets/minecraft/textures/block/" + textureName + ".png";
-                        textureManager.reloadTexture(texturePath, uploadCmd, enableMipmaps, settings.mipmapLevels);
-                    }
-
-                    // Submit and wait for texture upload to complete
-                    vkEndCommandBuffer(uploadCmd);
-                    VkSubmitInfo reloadSubmitInfo{};
-                    reloadSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-                    reloadSubmitInfo.commandBufferCount = 1;
-                    reloadSubmitInfo.pCommandBuffers = &uploadCmd;
-                    vkQueueSubmit(vulkanContext.getDevice().getGraphicsQueue(), 1, &reloadSubmitInfo, VK_NULL_HANDLE);
-                    vkQueueWaitIdle(vulkanContext.getDevice().getGraphicsQueue());
-
-                    spdlog::info("Hot reload complete - {} textures reloaded with mipmap level {}",
-                                 requiredTextures.size(), settings.mipmapLevels);
-                }
-
-                // Update chunk manager to apply render distance changes immediately (only during gameplay)
-                chunkManager.update(camera.getPosition());
-            } else if (gameState == GameState::OptionsFromMain) {
-                // Update options menu (from main menu)
-                auto action = optionsMenu.update(deltaTime);
-                if (action == OptionsMenu::Action::Back) {
-                    gameState = GameState::MainMenu;
-                    // Cursor remains unlocked when returning to main menu
-                    spdlog::info("Returning to main menu");
-                }
-
-                // Check if textures need reloading (mipmap level changed)
-                if (optionsMenu.needsTextureReload()) {
-                    spdlog::info("Mipmap settings changed - hot reloading all block textures...");
-                    optionsMenu.clearTextureReloadFlag();
-
-                    // Hot reload: Wait for GPU to finish, then reload all block textures
-                    vulkanContext.waitIdle();
-
-                    // Reset and begin command buffer for texture uploads
-                    vkResetCommandBuffer(uploadCmd, 0);
-                    VkCommandBufferBeginInfo reloadBeginInfo{};
-                    reloadBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-                    reloadBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-                    vkBeginCommandBuffer(uploadCmd, &reloadBeginInfo);
-
-                    // Reload all block textures with new mipmap settings
-                    bool enableMipmaps = (settings.mipmapLevels > 0);
-                    for (const auto& textureName : requiredTextures) {
-                        std::string texturePath = "assets/minecraft/textures/block/" + textureName + ".png";
-                        textureManager.reloadTexture(texturePath, uploadCmd, enableMipmaps, settings.mipmapLevels);
-                    }
-
-                    // Submit and wait for texture upload to complete
-                    vkEndCommandBuffer(uploadCmd);
-                    VkSubmitInfo reloadSubmitInfo{};
-                    reloadSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-                    reloadSubmitInfo.commandBufferCount = 1;
-                    reloadSubmitInfo.pCommandBuffers = &uploadCmd;
-                    vkQueueSubmit(vulkanContext.getDevice().getGraphicsQueue(), 1, &reloadSubmitInfo, VK_NULL_HANDLE);
-                    vkQueueWaitIdle(vulkanContext.getDevice().getGraphicsQueue());
-
-                    spdlog::info("Hot reload complete - {} textures reloaded with mipmap level {}",
-                                 requiredTextures.size(), settings.mipmapLevels);
-                }
-
-                // Don't update chunk manager - game hasn't started yet!
+                spdlog::info("Hot reload complete - {} textures reloaded with mipmap level {}",
+                             requiredTextures.size(), settings.mipmapLevels);
             }
 
             // Collect new ready meshes
@@ -1168,7 +808,10 @@ int main() {
             auto cmd = renderer.getCurrentCommandBuffer();
 
             // Determine if blur is needed (pause menu or options menu, but not main menu, and blur amount > 0)
-            bool needsBlur = (gameState == GameState::Paused || gameState == GameState::Options) && settings.menuBlurAmount > 0;
+            auto currentState = gameStateManager.getState();
+            bool needsBlur = (currentState == GameStateManager::State::Paused ||
+                             currentState == GameStateManager::State::Options) &&
+                             settings.menuBlurAmount > 0;
 
             // Render scene to offscreen target if blur is needed, otherwise render directly to swapchain
             VkImageView renderTarget = needsBlur ? sceneTarget.getColorImageView() : swapchain.getImageViews()[renderer.getCurrentImageIndex()];
@@ -1253,7 +896,7 @@ int main() {
             }
 
             // Render block outline if looking at a block
-            if (crosshairTarget.has_value() && gameState == GameState::Playing) {
+            if (crosshairTarget.has_value() && gameStateManager.isPlaying()) {
                 const float OUTLINE_OFFSET = 0.002f;
                 glm::vec3 blockPos = glm::vec3(crosshairTarget->blockPos);
 
@@ -1323,9 +966,10 @@ int main() {
             }
 
             // Render panels for options menu only (sliders) - but NOT when blur is active (will be rendered on top of blur)
-            if ((gameState == GameState::Options || gameState == GameState::OptionsFromMain) && !needsBlur) {
+            if ((currentState == GameStateManager::State::Options ||
+                 currentState == GameStateManager::State::OptionsFromMain) && !needsBlur) {
                 std::vector<PanelVertex> allPanelVertices;
-                auto panelVertices = optionsMenu.generatePanelVertices(window.getWidth(), window.getHeight());
+                auto panelVertices = gameStateManager.getOptionsMenu().generatePanelVertices(window.getWidth(), window.getHeight());
                 allPanelVertices.insert(allPanelVertices.end(), panelVertices.begin(), panelVertices.end());
 
                 if (!allPanelVertices.empty()) {
@@ -1345,21 +989,21 @@ int main() {
             if (fontManager.hasFont("default")) {
                 std::vector<TextVertex> allTextVertices;
 
-                if (gameState == GameState::MainMenu) {
+                if (currentState == GameStateManager::State::MainMenu) {
                     // Render main menu (no blur)
-                    auto menuTextVertices = mainMenu.generateTextVertices(textRenderer);
+                    auto menuTextVertices = gameStateManager.getMainMenu().generateTextVertices(textRenderer);
                     allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
-                } else if (gameState == GameState::OptionsFromMain) {
+                } else if (currentState == GameStateManager::State::OptionsFromMain) {
                     // Render options menu from main menu (no blur)
-                    auto menuTextVertices = optionsMenu.generateTextVertices(textRenderer);
+                    auto menuTextVertices = gameStateManager.getOptionsMenu().generateTextVertices(textRenderer);
                     allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
-                } else if (gameState == GameState::Paused && !needsBlur) {
+                } else if (currentState == GameStateManager::State::Paused && !needsBlur) {
                     // Render pause menu without blur (when blur amount is 0)
-                    auto menuTextVertices = pauseMenu.generateTextVertices(textRenderer);
+                    auto menuTextVertices = gameStateManager.getPauseMenu().generateTextVertices(textRenderer);
                     allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
-                } else if (gameState == GameState::Options && !needsBlur) {
+                } else if (currentState == GameStateManager::State::Options && !needsBlur) {
                     // Render options menu without blur (when blur amount is 0)
-                    auto menuTextVertices = optionsMenu.generateTextVertices(textRenderer);
+                    auto menuTextVertices = gameStateManager.getOptionsMenu().generateTextVertices(textRenderer);
                     allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
                 } else if (!needsBlur) {
                     // Calculate FPS
@@ -1511,11 +1155,11 @@ int main() {
                 // Render UI on top of blurred scene
                 if (fontManager.hasFont("default")) {
                     std::vector<TextVertex> menuTextVertices;
-                    if (gameState == GameState::Paused) {
-                        menuTextVertices = pauseMenu.generateTextVertices(textRenderer);
-                    } else if (gameState == GameState::Options) {
+                    if (currentState == GameStateManager::State::Paused) {
+                        menuTextVertices = gameStateManager.getPauseMenu().generateTextVertices(textRenderer);
+                    } else if (currentState == GameStateManager::State::Options) {
                         // Also render slider panels for options
-                        std::vector<PanelVertex> panelVertices = optionsMenu.generatePanelVertices(window.getWidth(), window.getHeight());
+                        std::vector<PanelVertex> panelVertices = gameStateManager.getOptionsMenu().generatePanelVertices(window.getWidth(), window.getHeight());
                         if (!panelVertices.empty()) {
                             void* panelData = panelVertexBuffer.map();
                             memcpy(panelData, panelVertices.data(), panelVertices.size() * sizeof(PanelVertex));
@@ -1523,7 +1167,7 @@ int main() {
                             cmd.bindVertexBuffer(panelVertexBuffer.getBuffer());
                             cmd.draw(panelVertices.size(), 1, 0, 0);
                         }
-                        menuTextVertices = optionsMenu.generateTextVertices(textRenderer);
+                        menuTextVertices = gameStateManager.getOptionsMenu().generateTextVertices(textRenderer);
                     }
 
                     if (!menuTextVertices.empty()) {
