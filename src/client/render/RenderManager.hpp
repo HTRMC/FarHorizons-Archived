@@ -93,6 +93,11 @@ public:
     ChunkBufferManager& getChunkBufferManager() { return *bufferManager; }
 
     /**
+     * Mark QuadInfo buffer for update
+     */
+    void markQuadInfoForUpdate() { quadInfoNeedsUpdate = true; }
+
+    /**
      * Get window dimensions
      */
     uint32_t getWidth() const { return swapchain->getExtent().width; }

@@ -179,8 +179,25 @@ void FarHorizonClient::tick(float deltaTime) {
         // Collect ready meshes from chunk manager
         if (chunkManager->hasReadyMeshes()) {
             auto readyMeshes = chunkManager->getReadyMeshes();
-            // Add to render manager's buffer manager
-            // (Full implementation would handle this properly)
+            pendingMeshes.insert(pendingMeshes.end(),
+                                std::make_move_iterator(readyMeshes.begin()),
+                                std::make_move_iterator(readyMeshes.end()));
+        }
+
+        auto& bufferManager = renderManager->getChunkBufferManager();
+
+        // Remove unloaded chunks
+        bufferManager.removeUnloadedChunks(*chunkManager);
+
+        // Check for compaction
+        bufferManager.compactIfNeeded(bufferManager.getMeshCache());
+
+        // Add pending meshes incrementally (up to 20 per frame)
+        if (!pendingMeshes.empty()) {
+            bufferManager.addMeshes(pendingMeshes, 20);
+            size_t processCount = std::min(pendingMeshes.size(), size_t(20));
+            pendingMeshes.erase(pendingMeshes.begin(), pendingMeshes.begin() + processCount);
+            renderManager->markQuadInfoForUpdate();
         }
     }
 }

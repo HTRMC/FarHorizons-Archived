@@ -2,11 +2,13 @@
 
 #include <memory>
 #include <chrono>
+#include <vector>
 #include "core/Window.hpp"
 #include "core/InputSystem.hpp"
 #include "core/Camera.hpp"
 #include "core/Settings.hpp"
 #include "world/ChunkManager.hpp"
+#include "world/ChunkGpuData.hpp"
 #include "audio/AudioManager.hpp"
 #include "game/GameStateManager.hpp"
 #include "game/InteractionManager.hpp"
@@ -77,6 +79,9 @@ private:
     std::chrono::high_resolution_clock::time_point lastTime;
     bool running;
     bool framebufferResized;
+
+    // Chunk mesh management
+    std::vector<CompactChunkMesh> pendingMeshes;
 };
 
 } // namespace FarHorizon
