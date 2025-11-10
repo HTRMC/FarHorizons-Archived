@@ -1,7 +1,7 @@
 #include "ChunkBufferManager.hpp"
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 void ChunkBufferManager::init(VmaAllocator allocator, size_t maxFaces, size_t maxDrawCommands) {
     m_maxFaces = maxFaces;
@@ -356,4 +356,4 @@ bool ChunkBufferManager::hasAllocation(const ChunkPosition& pos) const {
     return m_allocations.find(pos) != m_allocations.end();
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

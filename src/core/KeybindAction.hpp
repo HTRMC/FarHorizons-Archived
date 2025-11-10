@@ -3,7 +3,7 @@
 #include <string>
 #include <magic_enum/magic_enum.hpp>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Enum for keybind actions (faster than string lookups)
@@ -42,4 +42,4 @@ inline std::string keybindActionToString(KeybindAction action) {
     return result;
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

@@ -6,7 +6,7 @@
 #include <vector>
 #include <cstdint>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Texture data loaded from file
 struct TextureData {
@@ -82,4 +82,4 @@ private:
     );
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

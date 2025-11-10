@@ -2,7 +2,7 @@
 #include <stdexcept>
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 static bool s_GLFWInitialized = false;
 
@@ -217,4 +217,4 @@ void Window::windowIconifyCallback(GLFWwindow* window, int iconified) {
     }
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

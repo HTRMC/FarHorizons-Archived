@@ -2,7 +2,7 @@
 
 #include "Buffer.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Ring buffer for per-frame dynamic data (e.g., uniforms, push constants data)
 // Allocates from a circular buffer, resetting when wrapping around
@@ -53,4 +53,4 @@ private:
     }
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

@@ -4,7 +4,7 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Graphics pipeline configuration
 struct GraphicsPipelineConfig {
@@ -74,4 +74,4 @@ private:
     VkPipelineLayout m_layout = VK_NULL_HANDLE;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

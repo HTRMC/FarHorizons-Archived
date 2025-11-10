@@ -3,7 +3,7 @@
 #include <spdlog/spdlog.h>
 #include <algorithm>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 void StagingBufferPool::init(VmaAllocator allocator, VkDeviceSize defaultBufferSize) {
     m_allocator = allocator;
@@ -65,4 +65,4 @@ void StagingBufferPool::reset() {
     }
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

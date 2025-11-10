@@ -3,7 +3,7 @@
 #include "Buffer.hpp"
 #include "../command/CommandBuffer.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Helper for uploading data from CPU to GPU via staging buffer
 class StagingBuffer {
@@ -41,4 +41,4 @@ private:
     Buffer m_stagingBuffer;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

@@ -8,7 +8,7 @@
 #include <simdjson.h>
 #include "SimpleOption.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Manages persistent game settings using SimpleOption for flexibility
@@ -265,4 +265,4 @@ public:
     }
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

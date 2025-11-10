@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Stair half property values (top or bottom of block)
 enum class StairHalf : uint8_t {
@@ -9,4 +9,4 @@ enum class StairHalf : uint8_t {
     TOP = 1
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

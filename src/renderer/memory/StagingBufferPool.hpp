@@ -4,7 +4,7 @@
 #include <vector>
 #include <memory>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Pool of staging buffers for efficient reuse
 // Staging buffers are expensive to create, so we pool them
@@ -45,4 +45,4 @@ private:
     std::vector<PoolEntry> m_pool;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

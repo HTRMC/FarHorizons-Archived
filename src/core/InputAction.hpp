@@ -7,7 +7,7 @@
 #include <functional>
 #include <variant>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Input binding types
 enum class InputBindingType {
@@ -114,4 +114,4 @@ private:
     static std::unordered_map<std::string, InputAxis> s_axes;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

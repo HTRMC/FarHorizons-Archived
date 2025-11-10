@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Face direction enum for block faces
 enum class FaceDirection : uint8_t {
@@ -14,4 +14,4 @@ enum class FaceDirection : uint8_t {
     EAST
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

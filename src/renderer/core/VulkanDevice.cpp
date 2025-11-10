@@ -4,7 +4,7 @@
 #include <spdlog/spdlog.h>
 #include <algorithm>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 VulkanDevice::VulkanDevice(VulkanDevice&& other) noexcept
     : m_physicalDevice(other.m_physicalDevice)
@@ -365,4 +365,4 @@ bool VulkanDevice::checkDeviceExtensionSupport(VkPhysicalDevice device) {
     return requiredExtensions.empty();
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

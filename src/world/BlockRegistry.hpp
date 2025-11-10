@@ -11,7 +11,7 @@
 #include <string>
 #include <memory>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 class BlockRegistry {
 public:
@@ -69,4 +69,4 @@ private:
     }
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

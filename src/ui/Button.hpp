@@ -7,7 +7,7 @@
 #include <functional>
 #include <string>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Interactive button UI element with text label.
@@ -121,4 +121,4 @@ private:
     std::function<void()> m_onClickCallback;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

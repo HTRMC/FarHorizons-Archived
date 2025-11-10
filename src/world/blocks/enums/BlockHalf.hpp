@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Block half property values (top or bottom of block)
 enum class BlockHalf : uint8_t {
@@ -9,4 +9,4 @@ enum class BlockHalf : uint8_t {
     TOP = 1
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

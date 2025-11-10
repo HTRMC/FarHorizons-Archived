@@ -2,7 +2,7 @@
 #include "../core/VulkanDebug.hpp"
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 void StagingBuffer::init(VmaAllocator allocator, VkDeviceSize size) {
     // Create staging buffer (HOST_VISIBLE for CPU writes, TRANSFER_SRC for GPU copies)
@@ -55,4 +55,4 @@ bool StagingBuffer::upload(
     return true;
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

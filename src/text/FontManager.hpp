@@ -7,7 +7,7 @@
 #include <memory>
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Manages multiple font atlases and their textures.
@@ -194,4 +194,4 @@ private:
     std::unordered_map<std::string, uint32_t> m_fontTextures;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

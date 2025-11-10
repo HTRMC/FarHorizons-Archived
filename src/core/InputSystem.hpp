@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <string>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Event listener callback type
 using InputEventCallback = std::function<void(const InputEvent&)>;
@@ -134,4 +134,4 @@ private:
     static MouseCapture* s_mouseCapture;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

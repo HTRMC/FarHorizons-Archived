@@ -2,7 +2,7 @@
 #include <vector>
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -133,4 +133,4 @@ bool checkValidationLayerSupport() {
     return true;
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

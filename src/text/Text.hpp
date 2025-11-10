@@ -5,7 +5,7 @@
 #include <vector>
 #include <memory>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Represents a styled text component that can be composed of multiple segments.
@@ -125,4 +125,4 @@ private:
     std::vector<Segment> m_segments;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

@@ -12,7 +12,7 @@
 #include "../core/Raycast.hpp"
 #include "../audio/AudioManager.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Handles block interactions (breaking, placing).
@@ -89,4 +89,4 @@ private:
     void queueRemeshIfNeeded(const ChunkPosition& chunkPos, const glm::ivec3& localPos);
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

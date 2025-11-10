@@ -1,7 +1,7 @@
 #include "Fence.hpp"
 #include "../core/VulkanDebug.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 Fence::Fence(Fence&& other) noexcept
     : m_device(other.m_device)
@@ -51,4 +51,4 @@ bool Fence::isSignaled() const {
     return vkGetFenceStatus(m_device, m_fence) == VK_SUCCESS;
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

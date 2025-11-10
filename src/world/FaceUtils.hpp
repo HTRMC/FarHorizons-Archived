@@ -3,7 +3,7 @@
 #include "BlockModel.hpp"
 #include <glm/glm.hpp>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Face direction utilities
 namespace FaceUtils {
@@ -157,4 +157,4 @@ inline glm::vec3 getFaceNormal(FaceDirection dir) {
 
 } // namespace FaceUtils
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

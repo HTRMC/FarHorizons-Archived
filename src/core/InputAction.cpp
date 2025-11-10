@@ -1,7 +1,7 @@
 #include "InputAction.hpp"
 #include "InputSystem.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 std::unordered_map<std::string, InputAction> InputActionManager::s_actions;
 std::unordered_map<std::string, InputAxis> InputActionManager::s_axes;
@@ -112,4 +112,4 @@ void InputActionManager::clear() {
     s_axes.clear();
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

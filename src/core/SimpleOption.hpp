@@ -9,7 +9,7 @@
 #include <spdlog/spdlog.h>
 #include <magic_enum/magic_enum.hpp>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Minecraft-style flexible option system with validation, serialization, and callbacks.
@@ -250,16 +250,16 @@ inline SimpleOption<E> ofEnum(
     );
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon
 
 // ============================================================================
 // fmt formatter support for spdlog
 // ============================================================================
 namespace fmt {
     template<typename T>
-    struct formatter<VoxelEngine::SimpleOption<T>> : formatter<T> {
+    struct formatter<FarHorizon::SimpleOption<T>> : formatter<T> {
         template<typename FormatContext>
-        auto format(const VoxelEngine::SimpleOption<T>& opt, FormatContext& ctx) const {
+        auto format(const FarHorizon::SimpleOption<T>& opt, FormatContext& ctx) const {
             return formatter<T>::format(opt.getValue(), ctx);
         }
     };

@@ -1,7 +1,7 @@
 #pragma once
 #include "SnowyBlock.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // SpreadableBlock - base class for blocks that can spread (grass, mycelium, etc.)
 // Similar to Minecraft's SpreadableBlock
@@ -14,4 +14,4 @@ public:
     // For now, this is just a base class that inherits snowy behavior
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

@@ -4,7 +4,7 @@
 #include <cstring>
 #include <cmath>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 Chunk::Chunk(const ChunkPosition& position)
     : m_position(position)
@@ -83,4 +83,4 @@ void Chunk::generate() {
     }
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

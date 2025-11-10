@@ -1,6 +1,6 @@
 #include "Settings.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 Settings::Settings()
     : version(ofInt("version", 1, 1, 100))
@@ -21,4 +21,4 @@ Settings::Settings()
 {
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

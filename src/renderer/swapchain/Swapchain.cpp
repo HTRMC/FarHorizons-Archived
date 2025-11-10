@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 Swapchain::Swapchain(Swapchain&& other) noexcept
     : m_context(other.m_context)
@@ -261,4 +261,4 @@ VkExtent2D Swapchain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilit
     }
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

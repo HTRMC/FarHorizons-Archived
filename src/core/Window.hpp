@@ -7,7 +7,7 @@
 #include <memory>
 #include "MouseCapture.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 struct WindowProperties {
     std::string title = "Vulkan Voxel Engine";
@@ -100,4 +100,4 @@ private:
     std::unique_ptr<MouseCapture> m_mouseCapture;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

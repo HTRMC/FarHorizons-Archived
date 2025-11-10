@@ -1,7 +1,7 @@
 #include "MouseCapture.hpp"
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 MouseCapture::MouseCapture(GLFWwindow* window)
     : m_window(window) {
@@ -149,4 +149,4 @@ void MouseCapture::setRawMouseInput(bool enabled) {
     }
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

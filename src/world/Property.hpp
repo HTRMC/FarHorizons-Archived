@@ -4,7 +4,7 @@
 #include <utility>
 #include <optional>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Base class for type-erased property access
 class PropertyBase {
@@ -70,4 +70,4 @@ public:
     }
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

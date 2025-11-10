@@ -2,7 +2,7 @@
 
 #include <vulkan/vulkan.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // RAII wrapper for VkSemaphore
 class Semaphore {
@@ -28,4 +28,4 @@ private:
     VkSemaphore m_semaphore = VK_NULL_HANDLE;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

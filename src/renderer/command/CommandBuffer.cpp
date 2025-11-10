@@ -1,7 +1,7 @@
 #include "CommandBuffer.hpp"
 #include "../core/VulkanDebug.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 void CommandBuffer::begin(VkCommandBufferUsageFlags flags) const {
     VkCommandBufferBeginInfo beginInfo{};
@@ -138,4 +138,4 @@ void CommandBuffer::transitionImageLayout(
     vkCmdPipelineBarrier2(m_buffer, &dependencyInfo);
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

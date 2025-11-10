@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <iostream>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 void Camera::init(const glm::vec3& position, float aspectRatio, float fov) {
     m_position = position;
@@ -135,4 +135,4 @@ void Camera::updateVectors() {
     m_up = glm::normalize(glm::cross(m_right, m_forward));
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

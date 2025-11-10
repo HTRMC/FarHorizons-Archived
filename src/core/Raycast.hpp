@@ -5,7 +5,7 @@
 #include "../world/BlockState.hpp"
 #include "../world/ChunkManager.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 struct BlockHitResult {
     glm::ivec3 blockPos;
@@ -30,4 +30,4 @@ private:
     }
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

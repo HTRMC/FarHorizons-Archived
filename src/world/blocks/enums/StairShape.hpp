@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Stair shape property values (corner detection)
 enum class StairShape : uint8_t {
@@ -12,4 +12,4 @@ enum class StairShape : uint8_t {
     OUTER_RIGHT = 4
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

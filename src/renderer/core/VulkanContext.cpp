@@ -5,7 +5,7 @@
 #define VMA_IMPLEMENTATION
 #include <vk_mem_alloc.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 VulkanContext::VulkanContext(VulkanContext&& other) noexcept
     : m_instance(other.m_instance)
@@ -147,4 +147,4 @@ std::vector<const char*> VulkanContext::getRequiredExtensions() {
     return extensions;
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

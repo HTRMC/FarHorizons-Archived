@@ -5,7 +5,7 @@
 #include <cmath>
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 TextureData TextureLoader::loadPNG(const std::string& filepath) {
     TextureData result;
@@ -331,4 +331,4 @@ Texture TextureLoader::createTexture(
     return texture;
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

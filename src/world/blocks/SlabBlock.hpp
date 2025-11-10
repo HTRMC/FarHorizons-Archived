@@ -3,7 +3,7 @@
 #include "../Properties.hpp"
 #include "enums/SlabType.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // SlabBlock - half-height block with directional opacity
 class SlabBlock : public Block {
@@ -75,4 +75,4 @@ private:
     }
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

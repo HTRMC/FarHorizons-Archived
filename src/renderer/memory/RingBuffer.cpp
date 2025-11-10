@@ -2,7 +2,7 @@
 #include "../core/VulkanDebug.hpp"
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 void RingBuffer::init(VmaAllocator allocator, VkDeviceSize size, VkDeviceSize alignment) {
     m_alignment = alignment;
@@ -52,4 +52,4 @@ void RingBuffer::reset() {
     m_currentOffset = 0;
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

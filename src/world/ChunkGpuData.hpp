@@ -5,7 +5,7 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Packed lighting data per face (16 bytes).
@@ -158,4 +158,4 @@ struct alignas(16) ChunkData {
 
 static_assert(sizeof(ChunkData) == 16, "ChunkData must be 16 bytes");
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

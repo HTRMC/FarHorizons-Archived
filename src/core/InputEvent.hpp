@@ -4,7 +4,7 @@
 #include <variant>
 #include <string>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Event types for the input system
 enum class InputEventType {
@@ -123,4 +123,4 @@ inline InputEventType getEventType(const InputEvent& event) {
     return std::visit([](const auto& e) { return e.type; }, event);
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

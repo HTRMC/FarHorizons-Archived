@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include <cstdint>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Per-chunk palette that maps local indices to global blockstate IDs
 // Saves memory - stores only the blockstates actually used in this chunk
@@ -32,4 +32,4 @@ private:
     std::unordered_map<uint16_t, uint8_t> m_indexMap;     // Global state ID -> Local index
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

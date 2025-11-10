@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <array>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 constexpr uint32_t CHUNK_SIZE = 16;
 constexpr uint32_t CHUNK_VOLUME = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
@@ -95,4 +95,4 @@ private:
     uint32_t getBlockIndex(uint32_t x, uint32_t y, uint32_t z) const;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

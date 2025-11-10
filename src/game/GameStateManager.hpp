@@ -10,7 +10,7 @@
 #include "../world/ChunkManager.hpp"
 #include "../audio/AudioManager.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Manages game states and menu transitions.
@@ -111,4 +111,4 @@ private:
     void resetWorld();
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

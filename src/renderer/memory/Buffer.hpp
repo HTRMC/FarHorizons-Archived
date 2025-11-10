@@ -4,7 +4,7 @@
 #include <vk_mem_alloc.h>
 #include <cstddef>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // RAII wrapper for VMA-allocated buffers
 class Buffer {
@@ -53,4 +53,4 @@ private:
     void* m_mappedData = nullptr;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

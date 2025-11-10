@@ -5,7 +5,7 @@
 #include <string>
 #include <memory>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Immutable text style inspired by Minecraft's style system.
@@ -171,4 +171,4 @@ private:
     bool m_shadow;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

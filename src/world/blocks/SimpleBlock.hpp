@@ -1,7 +1,7 @@
 #pragma once
 #include "../Block.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // SimpleBlock - regular full cube block (stone, dirt, etc.)
 class SimpleBlock : public Block {
@@ -15,4 +15,4 @@ public:
     // - 1 state
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

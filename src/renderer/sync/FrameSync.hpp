@@ -5,7 +5,7 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Per-frame synchronization data
 struct FrameData {
@@ -48,4 +48,4 @@ private:
     uint32_t m_currentFrame = 0;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

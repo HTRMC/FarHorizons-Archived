@@ -6,7 +6,7 @@
 #include <vector>
 #include <cstdint>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Character information for a font atlas.
@@ -125,4 +125,4 @@ private:
     float m_lineHeight = 16.0f;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

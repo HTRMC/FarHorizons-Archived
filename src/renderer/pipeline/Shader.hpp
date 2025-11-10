@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // SPIR-V shader module wrapper
 class Shader {
@@ -38,4 +38,4 @@ private:
     VkShaderModule m_module = VK_NULL_HANDLE;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

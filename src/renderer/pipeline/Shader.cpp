@@ -3,7 +3,7 @@
 #include <fstream>
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 Shader::Shader(Shader&& other) noexcept
     : m_device(other.m_device)
@@ -67,4 +67,4 @@ std::vector<uint32_t> Shader::readFile(const std::string& filepath) {
     return buffer;
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

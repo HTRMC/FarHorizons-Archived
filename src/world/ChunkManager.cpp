@@ -6,7 +6,7 @@
 #include <functional>
 #include <glm/gtc/matrix_transform.hpp>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // ===== Blockstate Rotation Helper Functions =====
 
@@ -753,4 +753,4 @@ bool ChunkManager::areNeighborsLoadedForMeshing(const ChunkPosition& pos) const 
     return true;  // All required neighbors loaded
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Pause menu UI with Resume, Options, and Quit buttons.
@@ -221,4 +221,4 @@ private:
     std::vector<std::unique_ptr<Button>> m_buttons;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

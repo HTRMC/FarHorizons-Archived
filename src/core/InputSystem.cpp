@@ -4,7 +4,7 @@
 
 #include <magic_enum/magic_enum.hpp>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Static member initialization
 GLFWwindow* InputSystem::s_window = nullptr;
@@ -459,4 +459,4 @@ MouseButton InputSystem::stringToMouseButton(const std::string& keybind) {
     return MouseButton::MaxButtons; // Invalid
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

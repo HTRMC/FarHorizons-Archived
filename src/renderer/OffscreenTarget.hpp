@@ -4,7 +4,7 @@
 #include <vk_mem_alloc.h>
 #include <stdexcept>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Offscreen render target for post-processing effects.
@@ -165,4 +165,4 @@ private:
     VkFormat m_depthFormat = VK_FORMAT_UNDEFINED;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

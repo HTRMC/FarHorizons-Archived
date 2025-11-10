@@ -16,7 +16,7 @@
 #include <optional>
 #include <magic_enum/magic_enum.hpp>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Options menu UI with FOV, render distance sliders, and keybind configuration.
@@ -713,4 +713,4 @@ private:
     std::vector<std::unique_ptr<Button>> m_buttons;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

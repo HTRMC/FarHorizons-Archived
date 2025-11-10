@@ -4,7 +4,7 @@
 #include <vector>
 #include <optional>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Queue family indices
 struct QueueFamilyIndices {
@@ -89,4 +89,4 @@ private:
     };
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

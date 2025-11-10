@@ -3,7 +3,7 @@
 #include <spdlog/spdlog.h>
 #include <cstring>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 Buffer::Buffer(Buffer&& other) noexcept
     : m_allocator(other.m_allocator)
@@ -124,4 +124,4 @@ void Buffer::copyData(const void* data, size_t size, size_t offset) {
     std::memcpy(static_cast<char*>(m_mappedData) + offset, data, size);
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

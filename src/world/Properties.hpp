@@ -5,7 +5,7 @@
 #include "blocks/enums/StairFacing.hpp"
 #include "blocks/enums/StairShape.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Central registry of all block properties (like Minecraft's Properties class)
 class Properties {
@@ -22,4 +22,4 @@ public:
     // Add more properties as needed...
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

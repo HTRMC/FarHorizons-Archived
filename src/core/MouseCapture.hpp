@@ -3,7 +3,7 @@
 #include <GLFW/glfw3.h>
 #include <functional>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Mouse Capture System - Controls cursor locking/unlocking
@@ -86,4 +86,4 @@ private:
     CursorStateCallback m_cursorStateCallback;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

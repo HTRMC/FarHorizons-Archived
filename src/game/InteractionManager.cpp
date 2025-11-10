@@ -2,7 +2,7 @@
 #include <spdlog/spdlog.h>
 #include <cmath>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 InteractionManager::InteractionManager(ChunkManager& chunkManager, AudioManager& audioManager)
     : m_chunkManager(chunkManager), m_audioManager(audioManager) {}
@@ -298,4 +298,4 @@ void InteractionManager::queueRemeshIfNeeded(const ChunkPosition& chunkPos, cons
     }
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

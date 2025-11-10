@@ -1,7 +1,7 @@
 #pragma once
 #include "SpreadableBlock.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // GrassBlock - grass block with snowy property
 // Extends SpreadableBlock which extends SnowyBlock which has the SNOWY property
@@ -19,4 +19,4 @@ public:
     // TODO: Add fertilizable behavior in future (grow grass/flowers on top)
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

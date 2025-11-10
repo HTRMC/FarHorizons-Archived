@@ -3,7 +3,7 @@
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Lightweight command buffer wrapper
 class CommandBuffer {
@@ -71,4 +71,4 @@ private:
     VkCommandBuffer m_buffer = VK_NULL_HANDLE;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

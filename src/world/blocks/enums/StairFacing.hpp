@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Stair facing property values (direction the stairs face)
 enum class StairFacing : uint8_t {
@@ -11,4 +11,4 @@ enum class StairFacing : uint8_t {
     EAST = 3
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

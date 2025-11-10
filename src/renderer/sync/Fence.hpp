@@ -2,7 +2,7 @@
 
 #include <vulkan/vulkan.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // RAII wrapper for VkFence
 class Fence {
@@ -32,4 +32,4 @@ private:
     VkFence m_fence = VK_NULL_HANDLE;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

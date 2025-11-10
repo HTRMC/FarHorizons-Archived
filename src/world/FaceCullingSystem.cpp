@@ -4,7 +4,7 @@
 #include "BlockRegistry.hpp"
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // ============================================================================
 // FaceCullCache Implementation
@@ -392,4 +392,4 @@ void FaceCullingSystem::clearCache() {
     m_shapeCache.clear();
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

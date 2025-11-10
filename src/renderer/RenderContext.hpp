@@ -9,7 +9,7 @@
 #include "memory/RingBuffer.hpp"
 #include <vector>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // High-level rendering interface
 class RenderContext {
@@ -63,4 +63,4 @@ private:
     bool m_frameInProgress = false;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

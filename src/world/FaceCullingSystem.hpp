@@ -10,7 +10,7 @@
 #include <cstdint>
 #include <optional>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // LRU cache for geometric face culling comparisons
 // Thread-local to avoid contention (like Minecraft's FACE_CULL_MAP)
@@ -103,4 +103,4 @@ private:
     std::unordered_map<uint16_t, BlockShape> m_shapeCache;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

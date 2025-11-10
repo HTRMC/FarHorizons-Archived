@@ -5,7 +5,7 @@
 #include "enums/StairFacing.hpp"
 #include "enums/StairShape.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // StairBlock - stair block with facing, half, and shape properties
 class StairBlock : public Block {
@@ -76,4 +76,4 @@ private:
     }
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

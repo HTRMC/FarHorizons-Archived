@@ -1,7 +1,7 @@
 #include "CommandPool.hpp"
 #include "../core/VulkanDebug.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 CommandPool::CommandPool(CommandPool&& other) noexcept
     : m_device(other.m_device)
@@ -44,4 +44,4 @@ void CommandPool::reset() const {
     VK_CHECK(vkResetCommandPool(m_device, m_pool, 0));
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

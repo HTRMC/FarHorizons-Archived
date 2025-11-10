@@ -2,7 +2,7 @@
 #include "BlockModel.hpp"
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Static member initialization
 Block* BlockRegistry::AIR = nullptr;
@@ -79,4 +79,4 @@ const std::unordered_map<std::string, std::unique_ptr<Block>>& BlockRegistry::ge
     return m_blocks;
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

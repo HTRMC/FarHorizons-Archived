@@ -5,7 +5,7 @@
 #include <cstdint>
 #include "FaceDirection.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Represents the geometric shape of a block for culling purposes
 // Inspired by Minecraft's VoxelShape system but simplified
@@ -71,13 +71,13 @@ struct ShapePair {
     }
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon
 
 // Hash specialization for ShapePair
 namespace std {
     template<>
-    struct hash<VoxelEngine::ShapePair> {
-        size_t operator()(const VoxelEngine::ShapePair& pair) const {
+    struct hash<FarHorizon::ShapePair> {
+        size_t operator()(const FarHorizon::ShapePair& pair) const {
             return pair.hash();
         }
     };

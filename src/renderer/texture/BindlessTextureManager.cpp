@@ -2,7 +2,7 @@
 #include <stdexcept>
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 void BindlessTextureManager::init(VkDevice device, VmaAllocator allocator, uint32_t maxTextures) {
     m_device = device;
@@ -261,4 +261,4 @@ void BindlessTextureManager::updateExternalTexture(uint32_t index, VkImageView i
     spdlog::info("[BindlessTextureManager] Updated external texture (index {})", index);
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

@@ -2,7 +2,7 @@
 
 #include <vulkan/vulkan.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // RAII wrapper for VkCommandPool
 class CommandPool {
@@ -30,4 +30,4 @@ private:
     VkCommandPool m_pool = VK_NULL_HANDLE;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

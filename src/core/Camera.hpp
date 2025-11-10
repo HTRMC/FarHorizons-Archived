@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <string>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // First-person camera with customizable keybinds
 class Camera {
@@ -105,4 +105,4 @@ private:
     MouseCapture* m_mouseCapture = nullptr;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

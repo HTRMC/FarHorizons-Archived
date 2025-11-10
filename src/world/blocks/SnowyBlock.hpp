@@ -2,7 +2,7 @@
 #include "../Block.hpp"
 #include "../Properties.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // SnowyBlock - base class for blocks that can have snow on top
 // Similar to Minecraft's SnowyBlock
@@ -46,4 +46,4 @@ protected:
     }
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

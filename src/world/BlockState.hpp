@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Face directions for per-face queries
 enum class Face : uint8_t {
@@ -27,4 +27,4 @@ struct BlockState {
     bool isAir() const { return id == 0; }
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

@@ -1,7 +1,7 @@
 #pragma once
 #include "world/Block.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // AirBlock - invisible, non-solid block
 class AirBlock : public Block {
@@ -34,4 +34,4 @@ public:
     }
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

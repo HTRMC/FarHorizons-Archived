@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Slab type property values
 enum class SlabType : uint8_t {
@@ -10,4 +10,4 @@ enum class SlabType : uint8_t {
     DOUBLE = 2
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

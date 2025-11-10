@@ -1,6 +1,6 @@
 #include "BlockSoundGroup.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 const BlockSoundGroup BlockSoundGroup::INTENTIONALLY_EMPTY = BlockSoundGroup(
     1.0f,
@@ -42,4 +42,4 @@ const BlockSoundGroup BlockSoundGroup::WOOD = BlockSoundGroup(
     "block.wood.fall"
 );
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

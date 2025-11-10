@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 #include <vector>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Vertex structure for text rendering.
@@ -188,4 +188,4 @@ private:
     FontManager* m_fontManager = nullptr;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

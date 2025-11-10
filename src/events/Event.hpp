@@ -3,7 +3,7 @@
 #include <string>
 #include <functional>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Event types
 enum class EventType {
@@ -266,4 +266,4 @@ private:
     int m_joystickID;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

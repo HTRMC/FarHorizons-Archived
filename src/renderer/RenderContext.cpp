@@ -2,7 +2,7 @@
 #include "core/VulkanDebug.hpp"
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 void RenderContext::init(VulkanContext& context, Swapchain& swapchain) {
     m_context = &context;
@@ -197,4 +197,4 @@ CommandBuffer RenderContext::getCurrentCommandBuffer() const {
     return CommandBuffer(m_commandBuffers[frameIndex][0]);
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

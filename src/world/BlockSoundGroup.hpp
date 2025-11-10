@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 class BlockSoundGroup {
 public:
@@ -48,4 +48,4 @@ public:
 
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

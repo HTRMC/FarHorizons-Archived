@@ -1,7 +1,7 @@
 #include "ChunkPalette.hpp"
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 ChunkPalette::ChunkPalette() {
     // Initialize with AIR at index 0
@@ -46,4 +46,4 @@ void ChunkPalette::clear() {
     m_indexMap[0] = 0;
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

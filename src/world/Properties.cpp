@@ -1,6 +1,6 @@
 #include "Properties.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Initialize static properties
 Property<bool> Properties::SNOWY("snowy", {
@@ -34,4 +34,4 @@ Property<StairShape> Properties::STAIR_SHAPE("shape", {
     {"outer_right", StairShape::OUTER_RIGHT}
 });
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

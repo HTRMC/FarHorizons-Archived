@@ -5,7 +5,7 @@
 #include <mutex>
 #include <vector>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Thread-safe input event queue
 class InputQueue {
@@ -63,4 +63,4 @@ private:
     std::queue<InputEvent> m_queue;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <functional>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Event callback type
 using EventCallback = std::function<void(Event&)>;
@@ -111,4 +111,4 @@ private:
     static inline std::queue<std::unique_ptr<Event>> s_eventQueue;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

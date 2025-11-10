@@ -6,7 +6,7 @@
 #include <string>
 #include <cstdint>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Block base class - defines game logic behavior
 class Block {
@@ -84,4 +84,4 @@ public:
     // See BlockRegistry::getSoundGroup(BlockState) for compile-time lookup
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

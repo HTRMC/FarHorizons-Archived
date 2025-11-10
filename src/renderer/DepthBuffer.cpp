@@ -1,6 +1,6 @@
 #include "DepthBuffer.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 void DepthBuffer::init(VmaAllocator allocator, VkDevice device, uint32_t width, uint32_t height, VkFormat format) {
     m_format = format;
@@ -55,4 +55,4 @@ void DepthBuffer::resize(VmaAllocator allocator, VkDevice device, uint32_t width
     init(allocator, device, width, height, m_format);
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

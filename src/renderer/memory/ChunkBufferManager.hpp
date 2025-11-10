@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 struct ChunkBufferAllocation {
     uint32_t faceOffset;      // Offset in FaceData buffer
@@ -67,4 +67,4 @@ private:
     void rebuildDrawCommands();  // Fast rebuild: only updates draw commands, not face/lighting data
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

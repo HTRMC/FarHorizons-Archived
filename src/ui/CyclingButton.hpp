@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Cycling button UI element that cycles through a list of options when clicked.
@@ -166,4 +166,4 @@ private:
     std::function<void(const std::string&)> m_onChangeCallback;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

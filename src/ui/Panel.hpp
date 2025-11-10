@@ -4,7 +4,7 @@
 #include <vector>
 #include <cstdint>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Simple UI panel for rendering colored rectangles.
@@ -103,4 +103,4 @@ private:
     glm::vec4 m_color;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

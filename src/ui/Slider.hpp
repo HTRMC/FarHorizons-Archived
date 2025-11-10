@@ -10,7 +10,7 @@
 #include <sstream>
 #include <iomanip>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Interactive slider UI element for adjusting numeric values.
@@ -260,4 +260,4 @@ private:
     std::function<std::string(float)> m_valueFormatter;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

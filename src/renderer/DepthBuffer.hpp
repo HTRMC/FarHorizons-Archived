@@ -3,7 +3,7 @@
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 class DepthBuffer {
 public:
@@ -22,4 +22,4 @@ private:
     VkFormat m_format = VK_FORMAT_D32_SFLOAT;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

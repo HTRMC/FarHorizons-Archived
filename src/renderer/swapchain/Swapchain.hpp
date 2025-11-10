@@ -4,7 +4,7 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Swapchain support details
 struct SwapchainSupportDetails {
@@ -70,4 +70,4 @@ private:
     VkExtent2D m_extent = {};
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

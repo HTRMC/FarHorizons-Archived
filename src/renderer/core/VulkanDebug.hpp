@@ -6,7 +6,7 @@
 #include <cassert>
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // AAA-standard Vulkan error checking macro
 #define VK_CHECK(result) \
@@ -71,4 +71,4 @@ inline const std::vector<const char*> getRequiredValidationLayers() {
 // Check if validation layers are available
 bool checkValidationLayerSupport();
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

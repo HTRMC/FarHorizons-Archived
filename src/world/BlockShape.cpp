@@ -1,6 +1,6 @@
 #include "BlockShape.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Static instances for common shapes (like Minecraft's VoxelShapes.empty() and VoxelShapes.fullCube())
 static BlockShape s_emptyShape(ShapeType::EMPTY);
@@ -21,4 +21,4 @@ BlockShape BlockShape::partial(const glm::vec3& from, const glm::vec3& to) {
     return shape;
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

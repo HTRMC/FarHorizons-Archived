@@ -6,7 +6,7 @@
 #include <filesystem>
 #include <unordered_set>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Helper function to normalize model/texture names
 // Converts "minecraft:block/stone" or "block/stone" to "stone"
@@ -80,9 +80,9 @@ namespace JsonHelpers {
     }
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 void BlockModel::mergeParent(const BlockModel& parentModel) {
     // Merge textures (parent textures don't override existing ones)
@@ -653,4 +653,4 @@ void BlockModelManager::cacheTextureIndices() {
                  totalFacesCached, processedModels.size());
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

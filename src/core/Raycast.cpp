@@ -3,7 +3,7 @@
 #include "../world/BlockRegistry.hpp"
 #include <cmath>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 std::optional<BlockHitResult> Raycast::castRay(
     const ChunkManager& chunkManager,
@@ -132,4 +132,4 @@ std::optional<BlockHitResult> Raycast::castRay(
     return std::nullopt;
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

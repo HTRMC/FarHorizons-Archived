@@ -63,7 +63,7 @@ struct fmt::formatter<ma_format> {
     }
 };
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 class Sound {
 public:
@@ -582,4 +582,4 @@ private:
     std::vector<std::unique_ptr<Sound>> m_activeSounds;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

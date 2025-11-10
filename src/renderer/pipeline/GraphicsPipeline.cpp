@@ -3,7 +3,7 @@
 #include <glm/glm.hpp>
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 GraphicsPipeline::GraphicsPipeline(GraphicsPipeline&& other) noexcept
     : m_device(other.m_device)
@@ -188,4 +188,4 @@ void GraphicsPipeline::cleanup() {
     }
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

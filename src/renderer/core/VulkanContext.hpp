@@ -7,7 +7,7 @@
 #include <GLFW/glfw3.h>
 #include <string>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Main Vulkan context - owns instance, surface, device, and VMA allocator
 class VulkanContext {
@@ -50,4 +50,4 @@ private:
     VmaAllocator m_allocator = VK_NULL_HANDLE;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

@@ -1,7 +1,7 @@
 #include "Semaphore.hpp"
 #include "../core/VulkanDebug.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 Semaphore::Semaphore(Semaphore&& other) noexcept
     : m_device(other.m_device)
@@ -38,4 +38,4 @@ void Semaphore::cleanup() {
     }
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

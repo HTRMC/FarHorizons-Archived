@@ -1,7 +1,7 @@
 #include "FrameSync.hpp"
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 void FrameSync::init(VkDevice device) {
     m_frames.resize(MAX_FRAMES_IN_FLIGHT);
@@ -27,4 +27,4 @@ void FrameSync::shutdown() {
     spdlog::info("[FrameSync] Shutdown");
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

@@ -8,7 +8,7 @@
 #include <memory>
 #include "FaceDirection.hpp"
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Represents a single face of a block element
 struct BlockFace {
@@ -151,4 +151,4 @@ inline const char* faceDirectionToString(FaceDirection dir) {
     return "unknown";
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

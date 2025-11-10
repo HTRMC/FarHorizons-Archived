@@ -7,7 +7,7 @@
 #include <vector>
 #include <unordered_map>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Manages a bindless texture array using descriptor indexing
 class BindlessTextureManager {
@@ -65,4 +65,4 @@ private:
     VkSampler m_sampler = VK_NULL_HANDLE;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

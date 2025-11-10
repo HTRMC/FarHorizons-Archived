@@ -14,7 +14,7 @@
 #include <atomic>
 #include <condition_variable>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 /**
  * Manages a library of unique quad geometries.
@@ -122,4 +122,4 @@ private:
     bool areNeighborsLoadedForMeshing(const ChunkPosition& pos) const;
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

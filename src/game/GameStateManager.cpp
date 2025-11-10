@@ -1,7 +1,7 @@
 #include "GameStateManager.hpp"
 #include <spdlog/spdlog.h>
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 GameStateManager::GameStateManager(
     uint32_t windowWidth,
@@ -152,4 +152,4 @@ void GameStateManager::resetWorld() {
     m_mainMenu.reset();
 }
 
-} // namespace VoxelEngine
+} // namespace FarHorizon

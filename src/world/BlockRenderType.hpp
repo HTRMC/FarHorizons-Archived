@@ -1,6 +1,6 @@
 #pragma once
 
-namespace VoxelEngine {
+namespace FarHorizon {
 
 // Render type for blocks (similar to Minecraft's BlockRenderType)
 enum class BlockRenderType {
@@ -8,4 +8,4 @@ enum class BlockRenderType {
     INVISIBLE   // No rendering (air, barriers, structure voids)
 };
 
-} // namespace VoxelEngine
+} // namespace FarHorizon
