@@ -346,7 +346,8 @@ void FarHorizonClient::handleInput(float deltaTime) {
     // NOTE: WASD movement input is now handled in tick() loop (once per tick, not per frame)
     // Only handle vertical movement and other non-tick actions here
 
-    // Handle vertical movement
+    // Handle jump input (Minecraft's pattern - set every frame, checked every tick)
+    // This prevents timing issues between high FPS input and 20Hz physics
     if (player->isNoClip()) {
         // In noclip mode, Space/Shift = up/down
         auto vel = player->getVelocity();
@@ -359,10 +360,8 @@ void FarHorizonClient::handleInput(float deltaTime) {
         }
         player->setVelocity(vel);
     } else {
-        // In physics mode, Space = jump
-        if (InputSystem::isKeyDown(KeyCode::Space)) {
-            player->jump();
-        }
+        // In physics mode, set jumping flag (will be checked during physics tick)
+        player->setJumping(InputSystem::isKeyPressed(KeyCode::Space));
     }
 
     // Toggle noclip with F (for testing)

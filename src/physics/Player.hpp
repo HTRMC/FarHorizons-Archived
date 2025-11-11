@@ -41,6 +41,8 @@ private:
     bool noClip_;                  // Ghost mode (fly through blocks)
     bool isSprinting_;
     bool isSneaking_;
+    bool jumping_;                 // Jump input (set every frame, checked every tick)
+    int jumpingCooldown_;          // Cooldown to prevent jump spam (in ticks)
 
 public:
     Player()
@@ -53,6 +55,8 @@ public:
         , noClip_(false)
         , isSprinting_(false)
         , isSneaking_(false)
+        , jumping_(false)
+        , jumpingCooldown_(0)
     {}
 
     // Getters
@@ -78,6 +82,9 @@ public:
     void setNoClip(bool noClip) { noClip_ = noClip; }
     void setSprinting(bool sprinting) { isSprinting_ = sprinting; }
     void setSneaking(bool sneaking) { isSneaking_ = sneaking; }
+
+    // Set jump input (called every frame, Minecraft's pattern)
+    void setJumping(bool jumping) { jumping_ = jumping; }
 
     // Get player's bounding box
     AABB getBoundingBox() const {
@@ -180,6 +187,18 @@ public:
         // Zero Y velocity if we hit something vertically
         if (verticalCollision) {
             velocity_.y = 0.0;
+        }
+
+        // Handle jump cooldown (Minecraft's pattern - LivingEntity.java line 2755-2757)
+        if (jumpingCooldown_ > 0) {
+            jumpingCooldown_--;
+        }
+
+        // Handle jump input (Minecraft's pattern - LivingEntity.java line 2822-2825)
+        // Check if jumping flag is set AND we're on ground AND cooldown expired
+        if (jumping_ && onGround_ && jumpingCooldown_ == 0) {
+            jump();
+            jumpingCooldown_ = 10;  // 10 ticks = 0.5 seconds (Minecraft's value)
         }
 
         // Apply drag (different for ground vs air)
