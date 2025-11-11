@@ -7,6 +7,7 @@
 #include "core/InputSystem.hpp"
 #include "core/Camera.hpp"
 #include "core/Settings.hpp"
+#include "core/TickManager.hpp"
 #include "world/ChunkManager.hpp"
 #include "world/ChunkGpuData.hpp"
 #include "audio/AudioManager.hpp"
@@ -14,6 +15,8 @@
 #include "game/InteractionManager.hpp"
 #include "render/RenderManager.hpp"
 #include "render/TextureManager.hpp"
+#include "physics/Player.hpp"
+#include "physics/CollisionSystem.hpp"
 
 namespace FarHorizon {
 
@@ -64,6 +67,10 @@ private:
     std::unique_ptr<Camera> camera;
     std::unique_ptr<Settings> settings;
 
+    // Physics
+    std::unique_ptr<Player> player;
+    std::unique_ptr<CollisionSystem> collisionSystem;
+
     // Managers
     std::unique_ptr<RenderManager> renderManager;
     std::unique_ptr<TextureManager> textureManager;
@@ -79,6 +86,7 @@ private:
     int lastFps;
     bool running;
     bool framebufferResized;
+    TickManager tickManager;
 
     // Chunk mesh management
     std::vector<CompactChunkMesh> pendingMeshes;

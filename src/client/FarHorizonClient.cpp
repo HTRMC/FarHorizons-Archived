@@ -38,9 +38,14 @@ void FarHorizonClient::init() {
 
     spdlog::info("=== Far Horizon - Infinite Voxel Engine ===");
     spdlog::info("Controls:");
-    spdlog::info("  WASD - Move camera");
-    spdlog::info("  Mouse - Rotate camera");
-    spdlog::info("  Space/Shift - Move up/down");
+    spdlog::info("  WASD - Move");
+    spdlog::info("  Mouse - Look around");
+    spdlog::info("  Space - Jump (or fly up in NoClip)");
+    spdlog::info("  Shift - Fly down (in NoClip)");
+    spdlog::info("  F - Toggle NoClip");
+    spdlog::info("  1-5 - Select blocks");
+    spdlog::info("  Left Click - Break block");
+    spdlog::info("  Right Click - Place block");
     spdlog::info("  ESC - Pause menu");
     spdlog::info("==========================================");
 
@@ -115,6 +120,12 @@ void FarHorizonClient::init() {
     camera->setMouseSensitivity(settings->mouseSensitivity);
     camera->setMouseCapture(mouseCapture);
 
+    // Initialize physics system
+    collisionSystem = std::make_unique<CollisionSystem>(chunkManager.get());
+    player = std::make_unique<Player>();
+    player->setPosition(glm::dvec3(0.0, 100.0, 0.0)); // Start high up
+    spdlog::info("Initialized physics system with collision detection");
+
     // Initialize game state manager
     gameStateManager = std::make_unique<GameStateManager>(
         window->getWidth(), window->getHeight(),
@@ -143,6 +154,7 @@ void FarHorizonClient::run() {
     while (!window->shouldClose() && running) {
         auto currentTime = std::chrono::high_resolution_clock::now();
         currentDeltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
+
         lastTime = currentTime;
 
         // Update FPS counter once per second
@@ -175,7 +187,7 @@ void FarHorizonClient::run() {
 }
 
 void FarHorizonClient::tick(float deltaTime) {
-    // Update game state manager
+    // Update game state manager (still uses deltaTime for UI animations)
     bool shouldQuit = gameStateManager->update(deltaTime);
     if (shouldQuit) {
         running = false;
@@ -241,9 +253,35 @@ void FarHorizonClient::tick(float deltaTime) {
         spdlog::info("Texture hot reload complete");
     }
 
-    // Update world and camera when playing
     if (gameStateManager->isPlaying()) {
-        camera->update(deltaTime);
+        // Minecraft's exact pattern: beginRenderTick returns number of ticks to runIs t
+        int ticksToRun = tickManager.beginRenderTick(deltaTime, true);
+
+        for (int i = 0; i < ticksToRun; ++i) {
+            // Sample movement input and apply it ONCE per tick (not per frame!)
+            glm::vec2 moveInput(0.0f);
+            if (InputSystem::isKeyPressed(KeyCode::W)) moveInput.y += 1.0f;
+            if (InputSystem::isKeyPressed(KeyCode::S)) moveInput.y -= 1.0f;
+            if (InputSystem::isKeyPressed(KeyCode::A)) moveInput.x -= 1.0f;
+            if (InputSystem::isKeyPressed(KeyCode::D)) moveInput.x += 1.0f;
+
+            if (glm::length(moveInput) > 0.001f) {
+                float yaw = glm::radians(camera->getYaw());
+                player->applyMovementInput(moveInput, yaw);
+            }
+
+            // Handle player physics and movement (at fixed 20 ticks/second)
+            player->tick(*collisionSystem);
+        }
+
+        // Make camera follow player's eye position with sub-tick interpolation
+        // This provides buttery-smooth rendering at high framerates (60Hz+) while physics runs at 20Hz
+        // Uses Minecraft's exact pattern: lerp between previousPos and currentPos using partialTick
+        float partialTick = tickManager.getTickProgress();
+        glm::dvec3 interpolatedEyePos = player->getInterpolatedEyePosition(partialTick);
+        camera->setPosition(glm::vec3(interpolatedEyePos));
+
+        // Update chunks around player
         chunkManager->update(camera->getPosition());
 
         // Collect ready meshes from chunk manager
@@ -281,6 +319,56 @@ void FarHorizonClient::handleInput(float deltaTime) {
     if (InputSystem::isKeyDown(KeyCode::Escape)) {
         gameStateManager->openPauseMenu();
         return;
+    }
+
+    // Handle mouse look (camera rotation only)
+    auto* mouseCapture = window->getMouseCapture();
+    if (mouseCapture && mouseCapture->isCursorLocked()) {
+        glm::vec2 mouseDelta(
+            static_cast<float>(mouseCapture->getCursorDeltaX()),
+            static_cast<float>(mouseCapture->getCursorDeltaY())
+        );
+
+        if (mouseDelta.x != 0.0f || mouseDelta.y != 0.0f) {
+            // Apply Minecraft's mouse sensitivity formula
+            float d = settings->mouseSensitivity * 0.6f + 0.2f;
+            float e = d * d * d;
+            float f = e * 8.0f;
+
+            float yawDelta = mouseDelta.x * f * 0.15f;
+            float pitchDelta = -mouseDelta.y * f * 0.15f;
+            camera->rotate(yawDelta, pitchDelta);
+        }
+
+        mouseCapture->resetDeltas();
+    }
+
+    // NOTE: WASD movement input is now handled in tick() loop (once per tick, not per frame)
+    // Only handle vertical movement and other non-tick actions here
+
+    // Handle vertical movement
+    if (player->isNoClip()) {
+        // In noclip mode, Space/Shift = up/down
+        auto vel = player->getVelocity();
+        if (InputSystem::isKeyPressed(KeyCode::Space)) {
+            vel.y = 10.0; // Fly up
+        } else if (InputSystem::isKeyPressed(KeyCode::LeftShift) || InputSystem::isKeyPressed(KeyCode::RightShift)) {
+            vel.y = -10.0; // Fly down
+        } else {
+            vel.y = 0.0; // Stop vertical movement
+        }
+        player->setVelocity(vel);
+    } else {
+        // In physics mode, Space = jump
+        if (InputSystem::isKeyDown(KeyCode::Space)) {
+            player->jump();
+        }
+    }
+
+    // Toggle noclip with F (for testing)
+    if (InputSystem::isKeyDown(KeyCode::F)) {
+        player->setNoClip(!player->isNoClip());
+        spdlog::info("NoClip: {}", player->isNoClip() ? "ON" : "OFF");
     }
 
     // Block selection with number keys
