@@ -39,7 +39,6 @@ public:
     constexpr const std::string& getFallSound() const { return fallSound; }
 
     // ===== Static Sound Group Constants =====
-    // These mirror Minecraft's BlockSoundGroup definitions
 
     static const BlockSoundGroup INTENTIONALLY_EMPTY;
     static const BlockSoundGroup WOOD;

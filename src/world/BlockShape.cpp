@@ -5,7 +5,7 @@
 namespace FarHorizon {
 
 // ============================================================================
-// Static instances for common shapes (like Minecraft's VoxelShapes.empty() and VoxelShapes.fullCube())
+// Static instances for common shapes
 // ============================================================================
 
 static BlockShape s_emptyShape;  // Default constructed (empty)
@@ -59,7 +59,7 @@ const BlockShape& BlockShape::fullCube() {
     return s_fullCubeShape;
 }
 
-// Helper: Find required bit resolution for a coordinate range (like Minecraft's VoxelShapes.findRequiredBitResolution)
+// Helper: Find required bit resolution for a coordinate range
 // Returns 0, 1, 2, or 3 for resolutions 1, 2, 4, or 8
 // Returns -1 if coordinates are out of range or don't snap to a power-of-2 grid
 static int findRequiredBitResolution(float min, float max) {
@@ -103,8 +103,7 @@ BlockShape BlockShape::fromBounds(const glm::vec3& min, const glm::vec3& max) {
         return fullCube();
     }
 
-    // Determine appropriate voxel grid resolution PER AXIS (like Minecraft)
-    // Minecraft: VoxelShapes.cuboidUnchecked()
+    // Determine appropriate voxel grid resolution PER AXIS
     int bitResX = findRequiredBitResolution(min.x, max.x);
     int bitResY = findRequiredBitResolution(min.y, max.y);
     int bitResZ = findRequiredBitResolution(min.z, max.z);
@@ -140,7 +139,7 @@ BlockShape BlockShape::fromBounds(const glm::vec3& min, const glm::vec3& max) {
     maxVoxelY = std::max(0, std::min(maxVoxelY, resY));
     maxVoxelZ = std::max(0, std::min(maxVoxelZ, resZ));
 
-    // Create voxel grid with PER-AXIS resolution (like Minecraft!)
+    // Create voxel grid with PER-AXIS resolution
     auto voxels = BitSetVoxelSet::createBox(resX, resY, resZ,
                                             minVoxelX, minVoxelY, minVoxelZ,
                                             maxVoxelX, maxVoxelY, maxVoxelZ);
@@ -172,9 +171,8 @@ std::shared_ptr<VoxelSet> BlockShape::getCullingFace(FaceDirection direction) co
         return m_cullingFaces[dirIndex];
     }
 
-    // Extract face slice (like Minecraft's SlicedVoxelShape)
-    // We extract the voxel slice at the BLOCK BOUNDARY
-    // Like Minecraft's getUncachedFace which uses coordinate 0.0 (NEGATIVE) or 1.0 (POSITIVE)
+    // Extract face slice at the block boundary
+    // Uses coordinate 0.0 (NEGATIVE) or 1.0 (POSITIVE)
     //
     // For NEGATIVE direction (DOWN/WEST/NORTH): extract at index 0 (y=0.0 boundary)
     // For POSITIVE direction (UP/EAST/SOUTH): extract at last index (y=1.0 boundary)
@@ -218,7 +216,6 @@ std::shared_ptr<VoxelSet> BlockShape::getCullingFace(FaceDirection direction) co
     }
 
     // Create a view wrapper (no copying!) using SlicedVoxelSet
-    // Like Minecraft's SlicedVoxelShape → CroppedVoxelSet
     auto faceVoxels = std::make_shared<SlicedVoxelSet>(m_voxels, axis, sliceIndex);
 
     // Cache the result

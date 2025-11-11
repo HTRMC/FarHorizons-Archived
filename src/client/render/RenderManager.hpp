@@ -23,7 +23,6 @@ namespace FarHorizon {
 
 /**
  * Manages all rendering resources and pipelines.
- * Similar to Minecraft's GameRenderer and WorldRenderer combined.
  */
 class RenderManager {
 public:

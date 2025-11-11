@@ -7,7 +7,7 @@
 
 namespace FarHorizon {
 
-// Central registry of all block properties (like Minecraft's Properties class)
+// Central registry of all block properties
 class Properties {
 public:
     // Boolean properties

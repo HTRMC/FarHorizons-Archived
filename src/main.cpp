@@ -8,7 +8,6 @@ using namespace FarHorizon;
 
 /**
  * Far Horizon - Main entry point
- * Following Minecraft's architecture: main() just bootstraps and runs the client
  */
 int main() {
     try {
@@ -25,7 +24,7 @@ int main() {
         spdlog::info("=== Far Horizon ===");
         spdlog::info("Initializing...");
 
-        // Create and run the client (following MinecraftClient pattern)
+        // Create and run the client
         FarHorizonClient client;
         client.init();
         client.run();

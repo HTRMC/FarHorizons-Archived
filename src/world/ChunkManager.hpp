@@ -101,7 +101,7 @@ private:
     bool m_renderDistanceChanged = false;
 
     mutable BlockModelManager m_modelManager;
-    mutable FaceCullingSystem m_cullingSystem;  // Face culling with Minecraft-style fast paths
+    mutable FaceCullingSystem m_cullingSystem;  // Face culling system
     mutable QuadInfoLibrary m_quadLibrary;  // Shared quad geometry library
 
     std::vector<std::thread> m_workerThreads;
@@ -118,7 +118,7 @@ private:
     Chunk* loadChunk(const ChunkPosition& pos);
     void meshWorker();
 
-    // Helper: Check if all required neighbors are loaded for meshing (Minecraft's ChunkRegion approach)
+    // Helper: Check if all required neighbors are loaded for meshing
     bool areNeighborsLoadedForMeshing(const ChunkPosition& pos) const;
 };
 

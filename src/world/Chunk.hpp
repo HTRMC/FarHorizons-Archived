@@ -31,7 +31,7 @@ struct ChunkPosition {
         return std::sqrt(static_cast<float>(dx*dx + dy*dy + dz*dz));
     }
 
-    // Get the 6 face-adjacent neighbor positions (Minecraft's directDependencies)
+    // Get the 6 face-adjacent neighbor positions
     // Order: West, East, Down, Up, North, South
     static constexpr std::array<glm::ivec3, 6> getFaceNeighborOffsets() {
         return {{

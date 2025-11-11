@@ -82,7 +82,6 @@ public:
     }
 
     // Check if a face should be invisible when adjacent to another block
-    // Like Minecraft's AbstractBlock.isSideInvisible()
     // Override in transparent blocks (glass, water, etc.) to implement special culling
     //
     // currentState: The block state we're rendering

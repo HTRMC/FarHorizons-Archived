@@ -11,10 +11,7 @@ namespace FarHorizon {
 // ============================================================================
 // BlockShape - Represents the geometric shape of a block for culling
 // ============================================================================
-// Now uses Minecraft's VoxelShape system with 3D voxel grids
-// for precise geometric culling comparisons
-//
-// Minecraft reference: net/minecraft/util/shape/VoxelShape.java
+// Uses 3D voxel grids for precise geometric culling comparisons
 class BlockShape {
 public:
     BlockShape(); // Empty shape
@@ -35,7 +32,6 @@ public:
     bool isFullCube() const;
 
     // Get the culling face shape for a specific direction
-    // Like Minecraft's VoxelShape.getFace(direction)
     // Returns a sliced VoxelSet containing only voxels at the face boundary
     std::shared_ptr<VoxelSet> getCullingFace(FaceDirection direction) const;
 
@@ -56,7 +52,7 @@ private:
         PARTIAL
     } m_type;
 
-    // Cached culling faces (like Minecraft's VoxelShape.shapeCache)
+    // Cached culling faces
     mutable std::shared_ptr<VoxelSet> m_cullingFaces[6];  // One per FaceDirection
 };
 
@@ -64,13 +60,12 @@ private:
 // Cache key for geometric face culling comparisons
 // ============================================================================
 // Stores two VoxelSets (face slices) for comparison
-// Like Minecraft's Block.VoxelShapePair
 struct ShapePair {
     std::shared_ptr<VoxelSet> first;   // Our block's face geometry
     std::shared_ptr<VoxelSet> second;  // Neighbor block's face geometry
 
     bool operator==(const ShapePair& other) const {
-        // Use identity comparison for shared_ptr (like Minecraft)
+        // Use identity comparison for shared_ptr
         return first == other.first && second == other.second;
     }
 

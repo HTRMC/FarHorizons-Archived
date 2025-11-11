@@ -53,7 +53,7 @@ void FaceCullCache::clear() {
 // FaceCullingSystem Implementation
 // ============================================================================
 
-// Thread-local cache instance (like Minecraft's ThreadLocal<Object2ByteLinkedOpenHashMap>)
+// Thread-local cache instance
 thread_local FaceCullCache FaceCullingSystem::s_cache;
 
 bool FaceCullingSystem::shouldDrawFace(
@@ -66,7 +66,6 @@ bool FaceCullingSystem::shouldDrawFace(
     // ========================================================================
     // FAST PATH 1: Neighbor is full cube → cull face
     // ========================================================================
-    // Minecraft: if (voxelShape == VoxelShapes.fullCube()) return false;
     if (neighborShape.isFullCube()) {
         return false;  // Completely covered, don't draw
     }
@@ -74,8 +73,6 @@ bool FaceCullingSystem::shouldDrawFace(
     // ========================================================================
     // FAST PATH 2: Special block logic (glass-to-glass, etc.)
     // ========================================================================
-    // Minecraft: if (state.isSideInvisible(otherState, side)) return false;
-    //
     // Implements special culling cases:
     // - Glass blocks adjacent to other glass blocks (cull internal faces)
     // - Could be extended for water-to-water, leaves-to-leaves, etc.
@@ -87,7 +84,6 @@ bool FaceCullingSystem::shouldDrawFace(
     // ========================================================================
     // FAST PATH 3: Neighbor is empty/air → draw face
     // ========================================================================
-    // Minecraft: if (voxelShape == VoxelShapes.empty()) return true;
     if (neighborShape.isEmpty() || neighborState.isAir()) {
         return true;  // Nothing blocking, must draw
     }
@@ -95,7 +91,6 @@ bool FaceCullingSystem::shouldDrawFace(
     // ========================================================================
     // FAST PATH 4: Our face is empty → draw face
     // ========================================================================
-    // Minecraft: if (voxelShape2 == VoxelShapes.empty()) return true;
     if (currentShape.isEmpty()) {
         return true;  // We have no geometry on this face, shouldn't reach here
     }
@@ -103,17 +98,13 @@ bool FaceCullingSystem::shouldDrawFace(
     // ========================================================================
     // SLOW PATH: Geometric comparison with caching
     // ========================================================================
-    // Minecraft:
-    //   VoxelShape voxelShape = otherState.getCullingFace(side.getOpposite());
-    //   VoxelShape voxelShape2 = state.getCullingFace(side);
-    //   VoxelShapePair pair = new VoxelShapePair(voxelShape2, voxelShape);
-    //   byte cached = FACE_CULL_MAP.get().getAndMoveToFirst(pair);
-    //   if (cached != Byte.MAX_VALUE) return (cached != 0);
-    //   boolean result = VoxelShapes.matchesAnywhere(ourShape, neighborShape, ONLY_FIRST);
-    //   ... cache result ...
-    //   return result;
+    // Algorithm:
+    //   1. Extract face-specific geometry from both blocks
+    //   2. Check cache for previous result
+    //   3. If cache miss, perform voxel-level comparison
+    //   4. Cache result for future queries
 
-    // Extract face-specific geometry (like Minecraft's getCullingFace)
+    // Extract face-specific geometry
     // IMPORTANT: neighbor uses OPPOSITE face direction (adjacent faces touch)
     auto ourFace = currentShape.getCullingFace(face);
     auto neighborFace = neighborShape.getCullingFace(getOpposite(face));
@@ -143,10 +134,10 @@ BlockState FaceCullingSystem::getNeighborBlockState(
     const std::function<const Chunk*(const ChunkPosition&)>& getChunkFunc
 ) const {
     // ========================================================================
-    // Minecraft ChunkRegion.getBlockState() logic:
+    // Neighbor block access logic:
     //   1. Convert block position to chunk coordinates
     //   2. Check if chunk is within dependency radius
-    //   3. Return block state or crash if out of range
+    //   3. Return block state or AIR if out of range
     // ========================================================================
 
     // Check if coordinates are within current chunk
@@ -186,15 +177,10 @@ BlockState FaceCullingSystem::getNeighborBlockState(
     }
 
     // ========================================================================
-    // Minecraft ChunkRegion.getChunk() boundary check:
-    //   - Calculates Chebyshev distance to center chunk
-    //   - Checks if distance < directDependencies.size()
-    //   - Returns chunk if within range, crashes otherwise
-    //
-    // For VulkanVoxel during rendering:
-    //   - We simply check if neighbor chunk exists
+    // Chunk boundary check:
+    //   - Check if neighbor chunk exists
     //   - If not loaded, treat as AIR (causes faces at render edge to draw)
-    //   - This matches Minecraft's behavior at render distance boundary
+    //   - This ensures correct rendering at render distance boundary
     // ========================================================================
 
     const Chunk* neighborChunk = getChunkFunc(neighborChunkPos);
@@ -217,8 +203,7 @@ const BlockShape& FaceCullingSystem::getBlockShape(BlockState state, const Block
     }
 
     // Cache miss - compute shape and store it
-    // Like Minecraft: use Block's getOutlineShape() for culling logic
-    // This is analogous to Minecraft's getCullingShape() which defaults to getOutlineShape()
+    // Use Block's getOutlineShape() for culling logic
     if (state.isAir()) {
         m_shapeCache[state.id] = BlockShape::empty();
         return m_shapeCache[state.id];
@@ -267,7 +252,7 @@ void FaceCullingSystem::precacheAllShapes(const std::unordered_map<uint16_t, con
     for (const auto& [stateId, model] : stateToModel) {
         BlockState state(stateId);
 
-        // Compute shape using Block's getOutlineShape() (like Minecraft's getCullingShape)
+        // Compute shape using Block's getOutlineShape()
         if (state.isAir()) {
             m_shapeCache[stateId] = BlockShape::empty();
             emptyShapes++;
@@ -320,15 +305,15 @@ bool FaceCullingSystem::geometricComparison(
     const std::shared_ptr<VoxelSet>& neighborFace
 ) {
     // ========================================================================
-    // Minecraft's VoxelShapes.matchesAnywhere(shape1, shape2, ONLY_FIRST)
+    // Voxel-level matching with ONLY_FIRST predicate
     // Returns: true if ANY part of shape1 is NOT covered by shape2
     //
-    // Minecraft's approach:
+    // Algorithm:
     //   1. Creates merged voxel grid of both shapes
     //   2. Tests each voxel: shape1.contains(voxel) && !shape2.contains(voxel)
     //   3. Returns true if any voxel matches (exposed geometry)
     //
-    // Our implementation:
+    // Implementation:
     //   - Use the matchesAnywhere function from VoxelSet.cpp
     //   - Directly tests voxel-by-voxel coverage
     //   - Returns true if ourFace has any voxel that neighborFace doesn't

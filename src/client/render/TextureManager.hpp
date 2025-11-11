@@ -13,7 +13,6 @@ namespace FarHorizon {
 
 /**
  * Manages all texture and font resources.
- * Similar to Minecraft's TextureManager + FontManager.
  */
 class TextureManager {
 public:

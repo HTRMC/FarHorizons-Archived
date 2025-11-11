@@ -18,9 +18,8 @@
 namespace FarHorizon {
 
 /**
- * Far Horizon - Main client class following Minecraft's architecture pattern.
+ * Far Horizon - Main client class.
  * This is the central hub that owns and coordinates all subsystems.
- * Similar to net.minecraft.client.MinecraftClient
  */
 class FarHorizonClient {
 public:
@@ -46,7 +45,7 @@ public:
      */
     void shutdown();
 
-    // Getters for managers (following Minecraft pattern)
+    // Getters for managers
     Window& getWindow() { return *window; }
     Camera& getCamera() { return *camera; }
     ChunkManager& getChunkManager() { return *chunkManager; }
@@ -65,7 +64,7 @@ private:
     std::unique_ptr<Camera> camera;
     std::unique_ptr<Settings> settings;
 
-    // Managers (following Minecraft's manager pattern)
+    // Managers
     std::unique_ptr<RenderManager> renderManager;
     std::unique_ptr<TextureManager> textureManager;
     std::unique_ptr<AudioManager> audioManager;

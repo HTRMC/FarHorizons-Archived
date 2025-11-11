@@ -13,7 +13,7 @@
 namespace FarHorizon {
 
 // LRU cache for geometric face culling comparisons
-// Thread-local to avoid contention (like Minecraft's FACE_CULL_MAP)
+// Thread-local to avoid contention
 class FaceCullCache {
 public:
     static constexpr size_t MAX_SIZE = 256;
@@ -35,13 +35,12 @@ private:
 };
 
 // Central face culling system
-// Implements Minecraft's shouldDrawSide() logic adapted for VulkanVoxel
 class FaceCullingSystem {
 public:
     FaceCullingSystem() = default;
 
     // Main culling function - determines if a face should be drawn
-    // Implements Minecraft's Block.shouldDrawSide() with 4 fast paths + geometric cache
+    // Uses 4 fast paths + geometric cache for performance
     //
     // currentState: The block we're rendering
     // neighborState: The adjacent block in the given direction
@@ -87,14 +86,14 @@ public:
 
 private:
     // Geometric comparison using voxel-level matching
-    // Like Minecraft's VoxelShapes.matchesAnywhere with ONLY_FIRST predicate
+    // Uses ONLY_FIRST predicate (tests if shape1 has any voxel that shape2 doesn't)
     // Returns true if face should be drawn (NOT culled)
     bool geometricComparison(
         const std::shared_ptr<VoxelSet>& ourFace,
         const std::shared_ptr<VoxelSet>& neighborFace
     );
 
-    // Thread-local cache (one per thread, like Minecraft)
+    // Thread-local cache (one per thread)
     static thread_local FaceCullCache s_cache;
 
     // BlockShape cache: maps BlockState ID → BlockShape

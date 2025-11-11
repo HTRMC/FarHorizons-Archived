@@ -11,7 +11,6 @@ namespace FarHorizon {
 
 /**
  * Manages multiple font atlases and their textures.
- * Similar to Minecraft's FontManager.
  */
 class FontManager {
 public:
@@ -25,7 +24,7 @@ public:
     }
 
     /**
-     * Load a simple grid-based font (like Minecraft's ASCII font).
+     * Load a simple grid-based font.
      * @param fontName Name to identify this font
      * @param texturePath Path to the font texture
      * @param uploadCmd Command buffer for texture upload
@@ -72,7 +71,7 @@ public:
         auto atlas = std::make_shared<FontAtlas>();
         atlas->initGrid(textureWidth, textureHeight, charsPerRow, charsPerCol, firstChar);
 
-        // Calculate variable widths for each character (Minecraft algorithm)
+        // Calculate variable widths for each character
         for (uint32_t row = 0; row < charsPerCol; ++row) {
             for (uint32_t col = 0; col < charsPerRow; ++col) {
                 uint32_t gridPos = row * charsPerRow + col;
@@ -82,7 +81,7 @@ public:
                 int actualWidth = findCharacterWidth(textureData, charWidth, charHeight, col, row);
 
                 // Update the character info with the calculated width
-                // Width is actualWidth + 1 pixel spacing (Minecraft formula)
+                // Width is actualWidth + 1 pixel spacing
                 float advance;
                 if (charCode == 32) { // Space character
                     advance = 4.0f;
@@ -152,7 +151,6 @@ public:
 private:
     /**
      * Find the actual width of a character by scanning pixels from right to left.
-     * This implements Minecraft's character width calculation algorithm.
      * @param textureData The loaded texture pixel data
      * @param charWidth Width of each character cell in the grid
      * @param charHeight Height of each character cell in the grid
@@ -163,7 +161,7 @@ private:
     int findCharacterWidth(const TextureData& textureData,
                           uint32_t charWidth, uint32_t charHeight,
                           uint32_t charPosX, uint32_t charPosY) {
-        // Scan from right to left (Minecraft algorithm)
+        // Scan from right to left
         for (int x = static_cast<int>(charWidth) - 1; x >= 0; --x) {
             int pixelX = charPosX * charWidth + x;
 

@@ -10,12 +10,10 @@ namespace FarHorizon {
 enum class Axis : uint8_t { X, Y, Z };
 
 // ============================================================================
-// VoxelSet - 3D Voxel Grid (like Minecraft's VoxelSet)
+// VoxelSet - 3D Voxel Grid
 // ============================================================================
 // Stores a 3D grid of boolean values (voxel occupancy)
 // Used for precise geometric culling comparisons
-//
-// Minecraft reference: net/minecraft/util/shape/VoxelSet.java
 class VoxelSet {
 public:
     VoxelSet(int sizeX, int sizeY, int sizeZ);
@@ -54,28 +52,23 @@ protected:
 };
 
 // ============================================================================
-// VoxelShape Comparison Functions (like Minecraft's VoxelShapes.matchesAnywhere)
+// VoxelShape Comparison Functions
 // ============================================================================
 
 // Check if shape1 has any voxel that shape2 doesn't have (ONLY_FIRST predicate)
 // Returns true if any part of shape1 is NOT covered by shape2
 // This is used for face culling: if true → draw face (exposed), if false → cull face (covered)
-//
-// Minecraft reference: VoxelShapes.matchesAnywhere(shape1, shape2, BooleanBiFunction.ONLY_FIRST)
 bool matchesAnywhere(const VoxelSet& shape1, const VoxelSet& shape2);
 
 // ============================================================================
-// BitSetVoxelSet - BitSet-based VoxelSet (like Minecraft's BitSetVoxelSet)
+// BitSetVoxelSet - BitSet-based VoxelSet
 // ============================================================================
 // Memory-efficient storage using bit array (1 bit per voxel)
-//
-// Minecraft reference: net/minecraft/util/shape/BitSetVoxelSet.java
 class BitSetVoxelSet : public VoxelSet {
 public:
     BitSetVoxelSet(int sizeX, int sizeY, int sizeZ);
 
     // Factory method to create a filled box region
-    // Like Minecraft's BitSetVoxelSet.create(...)
     static std::shared_ptr<BitSetVoxelSet> createBox(
         int sizeX, int sizeY, int sizeZ,
         int minX, int minY, int minZ,
@@ -94,7 +87,7 @@ private:
     void set(int x, int y, int z, bool updateBounds);
 
     // Convert 3D coordinates to 1D index
-    // Minecraft's formula: (x * sizeY + y) * sizeZ + z
+    // Formula: (x * sizeY + y) * sizeZ + z
     int getIndex(int x, int y, int z) const;
 
     // Bit storage (1 bit per voxel)
@@ -109,10 +102,7 @@ private:
 // ============================================================================
 // SlicedVoxelSet - View wrapper that extracts a face slice
 // ============================================================================
-// Like Minecraft's SlicedVoxelShape → CroppedVoxelSet
 // Provides a view into a parent VoxelSet, extracting only voxels at a specific slice
-//
-// Minecraft reference: net/minecraft/util/shape/CroppedVoxelSet.java
 class SlicedVoxelSet : public VoxelSet {
 public:
     // Create a slice view along a specific axis at a given index

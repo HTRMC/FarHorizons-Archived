@@ -21,14 +21,13 @@ struct CharInfo {
 
 /**
  * Font atlas that manages character UV coordinates and metrics.
- * Supports bitmap fonts similar to Minecraft's font system.
  */
 class FontAtlas {
 public:
     FontAtlas() = default;
 
     /**
-     * Initialize a grid-based font atlas (like Minecraft's ASCII font).
+     * Initialize a grid-based font atlas.
      * @param textureWidth Width of the font texture
      * @param textureHeight Height of the font texture
      * @param charsPerRow Number of characters per row in the texture
@@ -46,7 +45,7 @@ public:
         float charWidth = static_cast<float>(textureWidth) / charsPerRow;
         float charHeight = static_cast<float>(textureHeight) / charsPerCol;
 
-        // UV padding to prevent texture bleeding (Minecraft-style: 0.01 pixel inset)
+        // UV padding to prevent texture bleeding (0.01 pixel inset)
         const float uvPadding = 0.01f;
 
         // Generate character info for ASCII printable characters

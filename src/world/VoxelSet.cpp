@@ -75,7 +75,7 @@ std::shared_ptr<BitSetVoxelSet> BitSetVoxelSet::createBox(
     voxelSet->m_maxY = maxY;
     voxelSet->m_maxZ = maxZ;
 
-    // Fill the box region (like Minecraft's BitSetVoxelSet.create)
+    // Fill the box region
     for (int x = minX; x < maxX; x++) {
         for (int y = minY; y < maxY; y++) {
             for (int z = minZ; z < maxZ; z++) {
@@ -88,7 +88,7 @@ std::shared_ptr<BitSetVoxelSet> BitSetVoxelSet::createBox(
 }
 
 int BitSetVoxelSet::getIndex(int x, int y, int z) const {
-    // Minecraft's formula: (x * sizeY + y) * sizeZ + z
+    // Formula: (x * sizeY + y) * sizeZ + z
     return (x * m_sizeY + y) * m_sizeZ + z;
 }
 
@@ -150,18 +150,18 @@ int BitSetVoxelSet::getMax(Axis axis) const {
 // matchesAnywhere Implementation (ONLY_FIRST predicate)
 // ============================================================================
 
-// Helper struct for merged coordinate indices (like Minecraft's PairList)
+// Helper struct for merged coordinate indices
 struct IndexPair {
     int index1;  // Index in shape1
     int index2;  // Index in shape2
 };
 
-// Merge coordinate grids from two shapes (like Minecraft's createListPair + SimplePairList)
+// Merge coordinate grids from two shapes
 // Returns pairs of indices that represent corresponding voxels in both coordinate systems
 static std::vector<IndexPair> mergeCoordinateGrid(int size1, int size2, int min1, int max1, int min2, int max2) {
     std::vector<IndexPair> merged;
 
-    // Special case: identical grids (like Minecraft's IdentityPairList)
+    // Special case: identical grids
     if (size1 == size2) {
         for (int i = 0; i < size1; i++) {
             merged.push_back({i, i});
@@ -170,7 +170,6 @@ static std::vector<IndexPair> mergeCoordinateGrid(int size1, int size2, int min1
     }
 
     // General case: merge two different grids using coordinate boundaries
-    // Like Minecraft's SimplePairList which merges DoubleList coordinate positions
     //
     // For a grid with size N, we have N+1 coordinate boundaries: [0, 1/N, 2/N, ..., N/N]
     // Between each pair of consecutive boundaries, we have a voxel region
@@ -210,10 +209,8 @@ static std::vector<IndexPair> mergeCoordinateGrid(int size1, int size2, int min1
 }
 
 bool matchesAnywhere(const VoxelSet& shape1, const VoxelSet& shape2) {
-    // Minecraft's logic: check if shape1 has any voxel that shape2 doesn't have
-    //
-    // Like Minecraft's VoxelShapes.matchesAnywhere(shape1, shape2, BooleanBiFunction.ONLY_FIRST)
-    // which tests: shape1.contains(voxel) && !shape2.contains(voxel)
+    // Check if shape1 has any voxel that shape2 doesn't have
+    // Tests: shape1.contains(voxel) && !shape2.contains(voxel)
 
     // Early exit: if shape1 is empty, nothing is exposed
     if (shape1.isEmpty()) {
@@ -248,12 +245,12 @@ bool matchesAnywhere(const VoxelSet& shape1, const VoxelSet& shape2) {
     int min2Z = shape2.getMin(Axis::Z);
     int max2Z = shape2.getMax(Axis::Z);
 
-    // Create merged coordinate grids for each axis (like Minecraft's PairList)
+    // Create merged coordinate grids for each axis
     auto mergedX = mergeCoordinateGrid(size1X, size2X, min1X, max1X, min2X, max2X);
     auto mergedY = mergeCoordinateGrid(size1Y, size2Y, min1Y, max1Y, min2Y, max2Y);
     auto mergedZ = mergeCoordinateGrid(size1Z, size2Z, min1Z, max1Z, min2Z, max2Z);
 
-    // Iterate through merged grid (like Minecraft's triple-nested forEachPair)
+    // Iterate through merged grid
     // For each merged voxel, check: shape1.contains(x1,y1,z1) && !shape2.contains(x2,y2,z2)
     for (const auto& xPair : mergedX) {
         for (const auto& yPair : mergedY) {
@@ -274,7 +271,7 @@ bool matchesAnywhere(const VoxelSet& shape1, const VoxelSet& shape2) {
 }
 
 // ============================================================================
-// SlicedVoxelSet Implementation (like Minecraft's CroppedVoxelSet)
+// SlicedVoxelSet Implementation
 // ============================================================================
 
 SlicedVoxelSet::SlicedVoxelSet(std::shared_ptr<VoxelSet> parent, Axis axis, int sliceIndex)
@@ -285,7 +282,7 @@ SlicedVoxelSet::SlicedVoxelSet(std::shared_ptr<VoxelSet> parent, Axis axis, int 
       ),
       m_parent(parent) {
 
-    // Set crop bounds (like Minecraft's CroppedVoxelSet)
+    // Set crop bounds
     m_minX = 0;
     m_minY = 0;
     m_minZ = 0;
@@ -293,7 +290,7 @@ SlicedVoxelSet::SlicedVoxelSet(std::shared_ptr<VoxelSet> parent, Axis axis, int 
     m_maxY = parent->getSizeY();
     m_maxZ = parent->getSizeZ();
 
-    // Crop to the specified slice (like Minecraft's SlicedVoxelShape)
+    // Crop to the specified slice
     // We extract a single layer perpendicular to the axis
     switch (axis) {
         case Axis::X:
@@ -312,7 +309,7 @@ SlicedVoxelSet::SlicedVoxelSet(std::shared_ptr<VoxelSet> parent, Axis axis, int 
 }
 
 bool SlicedVoxelSet::contains(int x, int y, int z) const {
-    // Offset coordinates to parent's space (like Minecraft's CroppedVoxelSet)
+    // Offset coordinates to parent's space
     return m_parent->inBoundsAndContains(m_minX + x, m_minY + y, m_minZ + z);
 }
 
@@ -336,19 +333,16 @@ bool SlicedVoxelSet::isEmpty() const {
 }
 
 int SlicedVoxelSet::getMin(Axis axis) const {
-    // Like Minecraft's CroppedVoxelSet.getMin()
     // Returns the minimum coordinate within the cropped region
     return clamp(axis, m_parent->getMin(axis));
 }
 
 int SlicedVoxelSet::getMax(Axis axis) const {
-    // Like Minecraft's CroppedVoxelSet.getMax()
     // Returns the maximum coordinate within the cropped region
     return clamp(axis, m_parent->getMax(axis));
 }
 
 int SlicedVoxelSet::clamp(Axis axis, int value) const {
-    // Like Minecraft's CroppedVoxelSet.clampIndex()
     // Clamps a value from parent's coordinate space to local cropped space
     int min, max;
     switch (axis) {
