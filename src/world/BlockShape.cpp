@@ -173,38 +173,47 @@ std::shared_ptr<VoxelSet> BlockShape::getCullingFace(FaceDirection direction) co
     }
 
     // Extract face slice (like Minecraft's SlicedVoxelShape)
-    // We extract the voxel slice at the face boundary
-    // For POSITIVE direction (UP/EAST/SOUTH): use the highest filled voxel (max - 1)
-    // For NEGATIVE direction (DOWN/WEST/NORTH): use the lowest filled voxel (min)
+    // We extract the voxel slice at the BLOCK BOUNDARY
+    // Like Minecraft's getUncachedFace which uses coordinate 0.0 (NEGATIVE) or 1.0 (POSITIVE)
+    //
+    // For NEGATIVE direction (DOWN/WEST/NORTH): extract at index 0 (y=0.0 boundary)
+    // For POSITIVE direction (UP/EAST/SOUTH): extract at last index (y=1.0 boundary)
+    //
+    // If the shape doesn't have voxels at that boundary (e.g., top slab's DOWN face),
+    // the slice will be empty, which is correct!
+
+    int sizeX = m_voxels->getSizeX();
+    int sizeY = m_voxels->getSizeY();
+    int sizeZ = m_voxels->getSizeZ();
 
     // Determine which slice to extract based on direction
     int sliceIndex;
     Axis axis;
 
     switch (direction) {
-        case FaceDirection::DOWN:   // -Y face (bottom)
+        case FaceDirection::DOWN:   // -Y face (bottom boundary at y=0)
             axis = Axis::Y;
-            sliceIndex = m_voxels->getMin(Axis::Y);  // Lowest voxel
+            sliceIndex = 0;
             break;
-        case FaceDirection::UP:     // +Y face (top)
+        case FaceDirection::UP:     // +Y face (top boundary at y=1)
             axis = Axis::Y;
-            sliceIndex = m_voxels->getMax(Axis::Y) - 1;  // Highest voxel (max is exclusive)
+            sliceIndex = sizeY - 1;
             break;
-        case FaceDirection::NORTH:  // -Z face (back)
+        case FaceDirection::NORTH:  // -Z face (back boundary at z=0)
             axis = Axis::Z;
-            sliceIndex = m_voxels->getMin(Axis::Z);
+            sliceIndex = 0;
             break;
-        case FaceDirection::SOUTH:  // +Z face (front)
+        case FaceDirection::SOUTH:  // +Z face (front boundary at z=1)
             axis = Axis::Z;
-            sliceIndex = m_voxels->getMax(Axis::Z) - 1;
+            sliceIndex = sizeZ - 1;
             break;
-        case FaceDirection::WEST:   // -X face (left)
+        case FaceDirection::WEST:   // -X face (left boundary at x=0)
             axis = Axis::X;
-            sliceIndex = m_voxels->getMin(Axis::X);
+            sliceIndex = 0;
             break;
-        case FaceDirection::EAST:   // +X face (right)
+        case FaceDirection::EAST:   // +X face (right boundary at x=1)
             axis = Axis::X;
-            sliceIndex = m_voxels->getMax(Axis::X) - 1;
+            sliceIndex = sizeX - 1;
             break;
     }
 

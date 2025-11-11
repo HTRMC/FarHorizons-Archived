@@ -114,8 +114,9 @@ bool FaceCullingSystem::shouldDrawFace(
     //   return result;
 
     // Extract face-specific geometry (like Minecraft's getCullingFace)
+    // IMPORTANT: neighbor uses OPPOSITE face direction (adjacent faces touch)
     auto ourFace = currentShape.getCullingFace(face);
-    auto neighborFace = neighborShape.getCullingFace(face);
+    auto neighborFace = neighborShape.getCullingFace(getOpposite(face));
 
     // Create cache key with face-extracted VoxelSets
     ShapePair pair{ourFace, neighborFace};
