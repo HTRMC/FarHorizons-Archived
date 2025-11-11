@@ -3,6 +3,7 @@
 #include "Property.hpp"
 #include "BlockRenderType.hpp"
 #include "BlockShape.hpp"
+#include "FaceDirection.hpp"
 #include <string>
 #include <cstdint>
 
@@ -78,6 +79,19 @@ public:
     // Override in blocks with custom shapes (slabs, stairs, etc.)
     virtual BlockShape getOutlineShape(BlockState state) const {
         return BlockShape::fullCube(); // Most blocks are full cubes
+    }
+
+    // Check if a face should be invisible when adjacent to another block
+    // Like Minecraft's AbstractBlock.isSideInvisible()
+    // Override in transparent blocks (glass, water, etc.) to implement special culling
+    //
+    // currentState: The block state we're rendering
+    // neighborState: The adjacent block state in the given direction
+    // direction: Which face we're checking
+    //
+    // Returns: true if the face should be culled (made invisible)
+    virtual bool isSideInvisible(BlockState currentState, BlockState neighborState, FaceDirection direction) const {
+        return false; // Base implementation: never cull (always draw faces)
     }
 
     // Sound groups are now managed by BlockRegistry (no virtual call!)

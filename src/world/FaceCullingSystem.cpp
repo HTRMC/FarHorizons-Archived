@@ -75,13 +75,13 @@ bool FaceCullingSystem::shouldDrawFace(
     // ========================================================================
     // Minecraft: if (state.isSideInvisible(otherState, side)) return false;
     //
-    // For VulkanVoxel, we could implement special cases here:
-    // - Glass blocks adjacent to other glass blocks
-    // - Water adjacent to water
-    // - Leaves adjacent to leaves (optional transparency culling)
-    //
-    // TODO: Implement BlockState.isSideInvisible() equivalent if needed
-    // For now, we skip this fast path
+    // Implements special culling cases:
+    // - Glass blocks adjacent to other glass blocks (cull internal faces)
+    // - Could be extended for water-to-water, leaves-to-leaves, etc.
+    Block* currentBlock = BlockRegistry::getBlock(currentState);
+    if (currentBlock && currentBlock->isSideInvisible(currentState, neighborState, face)) {
+        return false;  // Block says this face should be invisible
+    }
 
     // ========================================================================
     // FAST PATH 3: Neighbor is empty/air → draw face

@@ -21,6 +21,11 @@ public:
 
     // Has 1 state (no variants)
     // Uses default: uint16_t getStateCount() const override { return 1; }
+
+    // Implement glass-to-glass culling (like Minecraft's TranslucentBlock)
+    // When a glass block is adjacent to another glass block of the same type,
+    // cull the internal face to avoid visual artifacts
+    bool isSideInvisible(BlockState currentState, BlockState neighborState, FaceDirection direction) const override;
 };
 
 } // namespace FarHorizon
