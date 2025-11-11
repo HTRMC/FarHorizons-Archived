@@ -6,12 +6,10 @@
 #include <set>
 #include "renderer/texture/BindlessTextureManager.hpp"
 #include "text/FontManager.hpp"
+#include "world/ChunkManager.hpp"
+#include "core/Settings.hpp"
 
 namespace FarHorizon {
-
-// Forward declarations
-class ChunkManager;
-class Settings;
 
 /**
  * Manages all texture and font resources.

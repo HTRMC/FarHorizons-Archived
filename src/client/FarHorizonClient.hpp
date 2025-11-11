@@ -12,12 +12,10 @@
 #include "audio/AudioManager.hpp"
 #include "game/GameStateManager.hpp"
 #include "game/InteractionManager.hpp"
+#include "render/RenderManager.hpp"
+#include "render/TextureManager.hpp"
 
 namespace FarHorizon {
-
-// Forward declarations
-class RenderManager;
-class TextureManager;
 
 /**
  * Far Horizon - Main client class following Minecraft's architecture pattern.

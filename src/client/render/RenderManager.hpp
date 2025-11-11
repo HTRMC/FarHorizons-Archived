@@ -13,15 +13,13 @@
 #include "renderer/memory/ChunkBufferManager.hpp"
 #include "world/ChunkGpuData.hpp"
 #include "game/GameStateManager.hpp"
+#include "core/Camera.hpp"
+#include "world/ChunkManager.hpp"
+#include "core/Settings.hpp"
+#include "core/Raycast.hpp"
+#include "TextureManager.hpp"
 
 namespace FarHorizon {
-
-// Forward declarations
-class Camera;
-class ChunkManager;
-class TextureManager;
-class Settings;
-struct BlockHitResult;
 
 /**
  * Manages all rendering resources and pipelines.
