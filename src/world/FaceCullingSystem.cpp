@@ -2,6 +2,7 @@
 #include "Chunk.hpp"
 #include "BlockModel.hpp"
 #include "BlockRegistry.hpp"
+#include "VoxelSet.hpp"
 #include <spdlog/spdlog.h>
 
 namespace FarHorizon {
@@ -66,7 +67,7 @@ bool FaceCullingSystem::shouldDrawFace(
     // FAST PATH 1: Neighbor is full cube → cull face
     // ========================================================================
     // Minecraft: if (voxelShape == VoxelShapes.fullCube()) return false;
-    if (neighborShape.getType() == ShapeType::FULL_CUBE) {
+    if (neighborShape.isFullCube()) {
         return false;  // Completely covered, don't draw
     }
 
@@ -87,7 +88,7 @@ bool FaceCullingSystem::shouldDrawFace(
     // FAST PATH 3: Neighbor is empty/air → draw face
     // ========================================================================
     // Minecraft: if (voxelShape == VoxelShapes.empty()) return true;
-    if (neighborShape.getType() == ShapeType::EMPTY || neighborState.isAir()) {
+    if (neighborShape.isEmpty() || neighborState.isAir()) {
         return true;  // Nothing blocking, must draw
     }
 
@@ -95,7 +96,7 @@ bool FaceCullingSystem::shouldDrawFace(
     // FAST PATH 4: Our face is empty → draw face
     // ========================================================================
     // Minecraft: if (voxelShape2 == VoxelShapes.empty()) return true;
-    if (currentShape.getType() == ShapeType::EMPTY) {
+    if (currentShape.isEmpty()) {
         return true;  // We have no geometry on this face, shouldn't reach here
     }
 
@@ -112,11 +113,11 @@ bool FaceCullingSystem::shouldDrawFace(
     //   ... cache result ...
     //   return result;
 
-    // Extract face-specific geometry BEFORE caching (like Minecraft's getCullingFace)
-    FaceBounds ourFace = currentShape.getCullingFace(face);
-    FaceBounds neighborFace = neighborShape.getCullingFace(face);
+    // Extract face-specific geometry (like Minecraft's getCullingFace)
+    auto ourFace = currentShape.getCullingFace(face);
+    auto neighborFace = neighborShape.getCullingFace(face);
 
-    // Create cache key with face-extracted geometry (no direction needed!)
+    // Create cache key with face-extracted VoxelSets
     ShapePair pair{ourFace, neighborFace};
 
     // Check cache
@@ -125,8 +126,8 @@ bool FaceCullingSystem::shouldDrawFace(
         return cached.value();  // Return cached result
     }
 
-    // Cache miss - perform geometric comparison
-    bool shouldDraw = geometricComparison(ourFace, neighborFace, face);
+    // Cache miss - perform geometric comparison using voxels
+    bool shouldDraw = geometricComparison(ourFace, neighborFace);
 
     // Store in cache
     s_cache.put(pair, shouldDraw);
@@ -216,7 +217,7 @@ const BlockShape& FaceCullingSystem::getBlockShape(BlockState state, const Block
 
     // Cache miss - compute shape and store it
     if (state.isAir() || !model || model->elements.empty()) {
-        m_shapeCache[state.id] = BlockShape(ShapeType::EMPTY);
+        m_shapeCache[state.id] = BlockShape::empty();
         return m_shapeCache[state.id];
     }
 
@@ -229,17 +230,12 @@ const BlockShape& FaceCullingSystem::getBlockShape(BlockState state, const Block
         maxBounds = glm::max(maxBounds, element.to);
     }
 
-    // Check if it's a full cube
-    constexpr float EPSILON = 0.01f;
-    bool isFullCube =
-        minBounds.x < EPSILON && minBounds.y < EPSILON && minBounds.z < EPSILON &&
-        maxBounds.x > (16.0f - EPSILON) && maxBounds.y > (16.0f - EPSILON) && maxBounds.z > (16.0f - EPSILON);
+    // Convert from block space (0-16) to normalized space (0-1)
+    minBounds /= 16.0f;
+    maxBounds /= 16.0f;
 
-    if (isFullCube) {
-        m_shapeCache[state.id] = BlockShape(ShapeType::FULL_CUBE);
-    } else {
-        m_shapeCache[state.id] = BlockShape::partial(minBounds / 16.0f, maxBounds / 16.0f);
-    }
+    // Create BlockShape from bounds (automatically selects appropriate voxel resolution)
+    m_shapeCache[state.id] = BlockShape::fromBounds(minBounds, maxBounds);
 
     return m_shapeCache[state.id];
 }
@@ -259,7 +255,7 @@ void FaceCullingSystem::precacheAllShapes(const std::unordered_map<uint16_t, con
 
         // Compute shape
         if (state.isAir() || !model || model->elements.empty()) {
-            m_shapeCache[stateId] = BlockShape(ShapeType::EMPTY);
+            m_shapeCache[stateId] = BlockShape::empty();
             emptyShapes++;
             continue;
         }
@@ -273,17 +269,17 @@ void FaceCullingSystem::precacheAllShapes(const std::unordered_map<uint16_t, con
             maxBounds = glm::max(maxBounds, element.to);
         }
 
-        // Check if it's a full cube
-        constexpr float EPSILON = 0.01f;
-        bool isFullCube =
-            minBounds.x < EPSILON && minBounds.y < EPSILON && minBounds.z < EPSILON &&
-            maxBounds.x > (16.0f - EPSILON) && maxBounds.y > (16.0f - EPSILON) && maxBounds.z > (16.0f - EPSILON);
+        // Convert from block space (0-16) to normalized space (0-1)
+        minBounds /= 16.0f;
+        maxBounds /= 16.0f;
 
-        if (isFullCube) {
-            m_shapeCache[stateId] = BlockShape(ShapeType::FULL_CUBE);
+        // Create BlockShape from bounds (automatically creates voxel grid)
+        m_shapeCache[stateId] = BlockShape::fromBounds(minBounds, maxBounds);
+
+        // Count shape types
+        if (m_shapeCache[stateId].isFullCube()) {
             fullCubes++;
         } else {
-            m_shapeCache[stateId] = BlockShape::partial(minBounds / 16.0f, maxBounds / 16.0f);
             partialShapes++;
         }
     }
@@ -293,61 +289,35 @@ void FaceCullingSystem::precacheAllShapes(const std::unordered_map<uint16_t, con
 }
 
 bool FaceCullingSystem::geometricComparison(
-    const FaceBounds& ourFace,
-    const FaceBounds& neighborFace,
-    FaceDirection face
+    const std::shared_ptr<VoxelSet>& ourFace,
+    const std::shared_ptr<VoxelSet>& neighborFace
 ) {
     // ========================================================================
-    // Adapted from Minecraft's VoxelShapes.matchesAnywhere(shape1, shape2, ONLY_FIRST)
+    // Minecraft's VoxelShapes.matchesAnywhere(shape1, shape2, ONLY_FIRST)
     // Returns: true if ANY part of shape1 is NOT covered by shape2
     //
     // Minecraft's approach:
-    //   1. Creates voxel grid of intersection region
+    //   1. Creates merged voxel grid of both shapes
     //   2. Tests each voxel: shape1.contains(voxel) && !shape2.contains(voxel)
     //   3. Returns true if any voxel matches (exposed geometry)
     //
-    // Our simplified approach (appropriate for bounding box shapes):
-    //   1. Check if 2D face bounds overlap (shapes must touch)
-    //   2. Check if our face extends beyond neighbor's face (exposed area)
-    //   3. Return true if any part is exposed
+    // Our implementation:
+    //   - Use the matchesAnywhere function from VoxelSet.cpp
+    //   - Directly tests voxel-by-voxel coverage
+    //   - Returns true if ourFace has any voxel that neighborFace doesn't
     // ========================================================================
 
-    constexpr float EPSILON = 0.001f;
-
-    // STEP 1: Check if the faces actually overlap in 2D space
-    // If they don't overlap at all, our face is definitely exposed
-    bool overlapX = !(ourFace.max.x < neighborFace.min.x - EPSILON ||
-                      ourFace.min.x > neighborFace.max.x + EPSILON);
-    bool overlapY = !(ourFace.max.y < neighborFace.min.y - EPSILON ||
-                      ourFace.min.y > neighborFace.max.y + EPSILON);
-
-    if (!overlapX || !overlapY) {
-        // No overlap - our face is completely exposed
+    // Handle null cases
+    if (!ourFace || !neighborFace) {
+        // If our face is null (empty), nothing to draw
+        if (!ourFace) return false;
+        // If neighbor face is null (empty), our face is exposed
         return true;
     }
 
-    // STEP 2: Check if our face is completely contained within neighbor's face
-    // This is the key test: is every part of our face covered by neighbor?
-    //
-    // For proper culling, neighbor's face must completely cover ours
-    // If ANY edge of our face extends beyond neighbor's face, we're exposed
-    bool exposedOnLeft = ourFace.min.x < neighborFace.min.x - EPSILON;
-    bool exposedOnRight = ourFace.max.x > neighborFace.max.x + EPSILON;
-    bool exposedOnBottom = ourFace.min.y < neighborFace.min.y - EPSILON;
-    bool exposedOnTop = ourFace.max.y > neighborFace.max.y + EPSILON;
-
-    if (exposedOnLeft || exposedOnRight || exposedOnBottom || exposedOnTop) {
-        return true;  // Some part of our face extends beyond neighbor's coverage
-    }
-
-    // STEP 3: Our face is completely covered by neighbor's face
-    // This handles the common cases correctly:
-    // - Full cube vs full cube: both faces are (0,0)-(1,1), fully covers, cull
-    // - Slab (height 0.5) vs full cube: slab face (0,0)-(1,1) on XZ, but only to Y=0.5
-    //   Full cube face is (0,0)-(1,1) on XZ to Y=1.0, fully covers slab, cull
-    // - Slab vs slab (same height): both (0,0)-(1,1) on XZ to Y=0.5, fully covers, cull
-    // - Partial shape: only covered if neighbor's face is at least as large
-    return false;  // Cull the face
+    // Use the voxel-level matchesAnywhere comparison
+    // Returns true if ourFace has any voxel NOT in neighborFace (exposed)
+    return matchesAnywhere(*ourFace, *neighborFace);
 }
 
 void FaceCullingSystem::clearCache() {

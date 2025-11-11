@@ -55,7 +55,7 @@ public:
     BlockShape getOutlineShape(BlockState state) const override {
         // For now, use a simplified bounding box that covers the entire block space
         // The actual visual model will be handled by the blockstate JSON
-        return BlockShape::partial(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+        return BlockShape::fromBounds(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f));
     }
 
 private:

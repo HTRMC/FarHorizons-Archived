@@ -1,104 +1,84 @@
 #pragma once
 
+#include "VoxelSet.hpp"
+#include "FaceDirection.hpp"
 #include <glm/glm.hpp>
 #include <memory>
 #include <cstdint>
-#include "FaceDirection.hpp"
 
 namespace FarHorizon {
 
-// Represents the geometric shape of a block for culling purposes
-// Inspired by Minecraft's VoxelShape system but simplified
-enum class ShapeType : uint8_t {
-    EMPTY,      // No geometry (air, cave_air, etc.)
-    FULL_CUBE,  // Complete 1x1x1 cube (stone, dirt, etc.)
-    PARTIAL     // Custom geometry (slabs, stairs, etc.)
-};
-
-// Represents the 2D bounds of a face for culling comparisons
-// Like Minecraft's VoxelShape but extracted for a specific face
-struct FaceBounds {
-    glm::vec2 min;  // Minimum UV coordinates (0-1 space)
-    glm::vec2 max;  // Maximum UV coordinates (0-1 space)
-    float depth;    // Position along the face's axis (0-1 space)
-    bool isEmpty;   // True if no geometry exists on this face
-
-    bool operator==(const FaceBounds& other) const {
-        if (isEmpty && other.isEmpty) return true;
-        if (isEmpty != other.isEmpty) return false;
-        constexpr float EPSILON = 1e-6f;
-        return std::abs(min.x - other.min.x) < EPSILON &&
-               std::abs(min.y - other.min.y) < EPSILON &&
-               std::abs(max.x - other.max.x) < EPSILON &&
-               std::abs(max.y - other.max.y) < EPSILON &&
-               std::abs(depth - other.depth) < EPSILON;
-    }
-
-    size_t hash() const {
-        if (isEmpty) return 0;
-        // Simple hash combining min, max, and depth
-        size_t h = 0;
-        h ^= std::hash<float>{}(min.x) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        h ^= std::hash<float>{}(min.y) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        h ^= std::hash<float>{}(max.x) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        h ^= std::hash<float>{}(max.y) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        h ^= std::hash<float>{}(depth) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        return h;
-    }
-};
-
-// Represents a block's culling shape
-// Used to determine if adjacent faces should be rendered
+// ============================================================================
+// BlockShape - Represents the geometric shape of a block for culling
+// ============================================================================
+// Now uses Minecraft's VoxelShape system with 3D voxel grids
+// for precise geometric culling comparisons
+//
+// Minecraft reference: net/minecraft/util/shape/VoxelShape.java
 class BlockShape {
 public:
-    BlockShape() : m_type(ShapeType::EMPTY) {}  // Default constructor for std::unordered_map
-    BlockShape(ShapeType type) : m_type(type) {}
+    BlockShape(); // Empty shape
+    explicit BlockShape(std::shared_ptr<VoxelSet> voxels);
 
     // Factory methods for common shapes
-    static const BlockShape& empty();
-    static const BlockShape& fullCube();
-    static BlockShape partial(const glm::vec3& from, const glm::vec3& to);
+    static const BlockShape& empty();     // 0×0×0 grid (no geometry)
+    static const BlockShape& fullCube();  // 1×1×1 grid (full cube)
 
-    ShapeType getType() const { return m_type; }
+    // Create a partial shape from bounding box
+    // Resolution is auto-selected based on bounds (1×1×1, 2×2×2, 4×4×4, or 8×8×8)
+    static BlockShape fromBounds(const glm::vec3& min, const glm::vec3& max);
+
+    // Check if shape is empty
+    bool isEmpty() const;
+
+    // Check if shape is a full cube (fast path optimization)
+    bool isFullCube() const;
 
     // Get the culling face shape for a specific direction
-    // Like Minecraft's BlockState.getCullingFace(direction)
-    // Extracts the 2D face geometry that's relevant for culling
-    FaceBounds getCullingFace(FaceDirection direction) const;
+    // Like Minecraft's VoxelShape.getFace(direction)
+    // Returns a sliced VoxelSet containing only voxels at the face boundary
+    std::shared_ptr<VoxelSet> getCullingFace(FaceDirection direction) const;
 
-    // For partial shapes, get the full bounding box
-    const glm::vec3& getMin() const { return m_min; }
-    const glm::vec3& getMax() const { return m_max; }
+    // Get the underlying voxel set
+    const std::shared_ptr<VoxelSet>& getVoxels() const { return m_voxels; }
 
-    // Identity-based comparison for cache keys (like Minecraft's VoxelShapePair)
-    bool identityEquals(const BlockShape& other) const {
-        return this == &other;
-    }
-
-    size_t identityHash() const {
-        return reinterpret_cast<size_t>(this);
-    }
+    // Get bounding box (for outline rendering, etc.)
+    glm::vec3 getMin() const;
+    glm::vec3 getMax() const;
 
 private:
-    ShapeType m_type;
-    glm::vec3 m_min{0.0f};  // Bounding box min (0-1 space)
-    glm::vec3 m_max{1.0f};  // Bounding box max (0-1 space)
+    std::shared_ptr<VoxelSet> m_voxels;
+
+    // Cache the type for fast path checks
+    enum class Type : uint8_t {
+        EMPTY,
+        FULL_CUBE,
+        PARTIAL
+    } m_type;
+
+    // Cached culling faces (like Minecraft's VoxelShape.shapeCache)
+    mutable std::shared_ptr<VoxelSet> m_cullingFaces[6];  // One per FaceDirection
 };
 
+// ============================================================================
 // Cache key for geometric face culling comparisons
-// Like Minecraft's VoxelShapePair - stores extracted face geometries
-// NOTE: No direction needed! Direction is handled by extracting face-specific geometry beforehand
+// ============================================================================
+// Stores two VoxelSets (face slices) for comparison
+// Like Minecraft's Block.VoxelShapePair
 struct ShapePair {
-    FaceBounds first;   // Our block's face geometry
-    FaceBounds second;  // Neighbor block's face geometry
+    std::shared_ptr<VoxelSet> first;   // Our block's face geometry
+    std::shared_ptr<VoxelSet> second;  // Neighbor block's face geometry
 
     bool operator==(const ShapePair& other) const {
+        // Use identity comparison for shared_ptr (like Minecraft)
         return first == other.first && second == other.second;
     }
 
     size_t hash() const {
-        // Combine hashes of both FaceBounds
-        return first.hash() * 31 + second.hash();
+        // Hash based on pointer addresses (identity)
+        size_t h1 = std::hash<void*>{}(first.get());
+        size_t h2 = std::hash<void*>{}(second.get());
+        return h1 * 31 + h2;
     }
 };
 

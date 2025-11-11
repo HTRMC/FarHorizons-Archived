@@ -86,13 +86,12 @@ public:
     void clearCache();
 
 private:
-    // Geometric comparison for partial shapes using extracted face bounds
-    // Checks if our 2D face is completely covered by neighbor's 2D face
+    // Geometric comparison using voxel-level matching
+    // Like Minecraft's VoxelShapes.matchesAnywhere with ONLY_FIRST predicate
     // Returns true if face should be drawn (NOT culled)
     bool geometricComparison(
-        const FaceBounds& ourFace,
-        const FaceBounds& neighborFace,
-        FaceDirection face
+        const std::shared_ptr<VoxelSet>& ourFace,
+        const std::shared_ptr<VoxelSet>& neighborFace
     );
 
     // Thread-local cache (one per thread, like Minecraft)
