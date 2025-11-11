@@ -59,6 +59,39 @@ const BlockShape& BlockShape::fullCube() {
     return s_fullCubeShape;
 }
 
+// Helper: Find required bit resolution for a coordinate range (like Minecraft's VoxelShapes.findRequiredBitResolution)
+// Returns 0, 1, 2, or 3 for resolutions 1, 2, 4, or 8
+// Returns -1 if coordinates are out of range or don't snap to a power-of-2 grid
+static int findRequiredBitResolution(float min, float max) {
+    constexpr float MIN_SIZE = 1.0e-7f;
+    constexpr float EPSILON = 1.0e-7f;
+
+    // Check if coordinates are within valid range [0, 1]
+    if (min < -EPSILON || max > 1.0f + EPSILON) {
+        return -1;
+    }
+
+    // Try resolutions 1, 2, 4, 8 (i = 0, 1, 2, 3)
+    for (int i = 0; i <= 3; i++) {
+        int resolution = 1 << i;  // 2^i
+        float scaledMin = min * resolution;
+        float scaledMax = max * resolution;
+
+        // Check if min and max snap to grid points
+        float roundedMin = std::round(scaledMin);
+        float roundedMax = std::round(scaledMax);
+
+        bool minSnaps = std::abs(scaledMin - roundedMin) < EPSILON * resolution;
+        bool maxSnaps = std::abs(scaledMax - roundedMax) < EPSILON * resolution;
+
+        if (minSnaps && maxSnaps) {
+            return i;  // Found coarsest grid that works
+        }
+    }
+
+    return -1;  // Doesn't snap to any standard grid
+}
+
 BlockShape BlockShape::fromBounds(const glm::vec3& min, const glm::vec3& max) {
     // Check if it's a full cube
     constexpr float EPSILON = 0.01f;
@@ -70,40 +103,47 @@ BlockShape BlockShape::fromBounds(const glm::vec3& min, const glm::vec3& max) {
         return fullCube();
     }
 
-    // Determine appropriate voxel grid resolution
-    // Minecraft uses power-of-2 grids: 1, 2, 4, or 8
-    // We'll auto-select based on the smallest dimension
-    glm::vec3 size = max - min;
-    float minDim = std::min({size.x, size.y, size.z});
+    // Determine appropriate voxel grid resolution PER AXIS (like Minecraft)
+    // Minecraft: VoxelShapes.cuboidUnchecked()
+    int bitResX = findRequiredBitResolution(min.x, max.x);
+    int bitResY = findRequiredBitResolution(min.y, max.y);
+    int bitResZ = findRequiredBitResolution(min.z, max.z);
 
-    int resolution;
-    if (minDim >= 0.5f) {
-        resolution = 2;   // Half slabs, etc.
-    } else if (minDim >= 0.25f) {
-        resolution = 4;   // Quarter blocks
-    } else {
-        resolution = 8;   // Fine details (fences, etc.)
+    // If any axis doesn't snap to a grid, use 8×8×8 as fallback
+    if (bitResX < 0 || bitResY < 0 || bitResZ < 0) {
+        bitResX = bitResY = bitResZ = 3;  // 8×8×8
     }
 
-    // Create voxel grid and fill the bounded region
+    // Check if it's actually a full cube (all resolutions are 0 → 1×1×1)
+    if (bitResX == 0 && bitResY == 0 && bitResZ == 0) {
+        return fullCube();
+    }
+
+    // Calculate actual resolutions (2^i)
+    int resX = 1 << bitResX;
+    int resY = 1 << bitResY;
+    int resZ = 1 << bitResZ;
+
     // Convert from float coordinates (0-1 space) to voxel indices
-    int minX = static_cast<int>(std::floor(min.x * resolution));
-    int minY = static_cast<int>(std::floor(min.y * resolution));
-    int minZ = static_cast<int>(std::floor(min.z * resolution));
-    int maxX = static_cast<int>(std::ceil(max.x * resolution));
-    int maxY = static_cast<int>(std::ceil(max.y * resolution));
-    int maxZ = static_cast<int>(std::ceil(max.z * resolution));
+    int minVoxelX = static_cast<int>(std::round(min.x * resX));
+    int minVoxelY = static_cast<int>(std::round(min.y * resY));
+    int minVoxelZ = static_cast<int>(std::round(min.z * resZ));
+    int maxVoxelX = static_cast<int>(std::round(max.x * resX));
+    int maxVoxelY = static_cast<int>(std::round(max.y * resY));
+    int maxVoxelZ = static_cast<int>(std::round(max.z * resZ));
 
     // Clamp to grid bounds
-    minX = std::max(0, std::min(minX, resolution));
-    minY = std::max(0, std::min(minY, resolution));
-    minZ = std::max(0, std::min(minZ, resolution));
-    maxX = std::max(0, std::min(maxX, resolution));
-    maxY = std::max(0, std::min(maxY, resolution));
-    maxZ = std::max(0, std::min(maxZ, resolution));
+    minVoxelX = std::max(0, std::min(minVoxelX, resX));
+    minVoxelY = std::max(0, std::min(minVoxelY, resY));
+    minVoxelZ = std::max(0, std::min(minVoxelZ, resZ));
+    maxVoxelX = std::max(0, std::min(maxVoxelX, resX));
+    maxVoxelY = std::max(0, std::min(maxVoxelY, resY));
+    maxVoxelZ = std::max(0, std::min(maxVoxelZ, resZ));
 
-    auto voxels = BitSetVoxelSet::createBox(resolution, resolution, resolution,
-                                            minX, minY, minZ, maxX, maxY, maxZ);
+    // Create voxel grid with PER-AXIS resolution (like Minecraft!)
+    auto voxels = BitSetVoxelSet::createBox(resX, resY, resZ,
+                                            minVoxelX, minVoxelY, minVoxelZ,
+                                            maxVoxelX, maxVoxelY, maxVoxelZ);
 
     return BlockShape(voxels);
 }
@@ -170,27 +210,9 @@ std::shared_ptr<VoxelSet> BlockShape::getCullingFace(FaceDirection direction) co
             break;
     }
 
-    // Create a new VoxelSet containing only the face slice
-    auto faceVoxels = std::make_shared<BitSetVoxelSet>(sizeX, sizeY, sizeZ);
-
-    // Copy voxels from the slice
-    for (int x = 0; x < sizeX; x++) {
-        for (int y = 0; y < sizeY; y++) {
-            for (int z = 0; z < sizeZ; z++) {
-                // Check if this voxel is in the slice
-                bool inSlice = false;
-                switch (axis) {
-                    case Axis::X: inSlice = (x == sliceIndex); break;
-                    case Axis::Y: inSlice = (y == sliceIndex); break;
-                    case Axis::Z: inSlice = (z == sliceIndex); break;
-                }
-
-                if (inSlice && m_voxels->contains(x, y, z)) {
-                    faceVoxels->set(x, y, z);
-                }
-            }
-        }
-    }
+    // Create a view wrapper (no copying!) using SlicedVoxelSet
+    // Like Minecraft's SlicedVoxelShape → CroppedVoxelSet
+    auto faceVoxels = std::make_shared<SlicedVoxelSet>(m_voxels, axis, sliceIndex);
 
     // Cache the result
     m_cullingFaces[dirIndex] = faceVoxels;

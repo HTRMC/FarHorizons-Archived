@@ -106,4 +106,33 @@ private:
     int m_maxX, m_maxY, m_maxZ;
 };
 
+// ============================================================================
+// SlicedVoxelSet - View wrapper that extracts a face slice
+// ============================================================================
+// Like Minecraft's SlicedVoxelShape → CroppedVoxelSet
+// Provides a view into a parent VoxelSet, extracting only voxels at a specific slice
+//
+// Minecraft reference: net/minecraft/util/shape/CroppedVoxelSet.java
+class SlicedVoxelSet : public VoxelSet {
+public:
+    // Create a slice view along a specific axis at a given index
+    // For example: axis=Y, sliceIndex=0 extracts the bottom face (y=0)
+    SlicedVoxelSet(std::shared_ptr<VoxelSet> parent, Axis axis, int sliceIndex);
+
+    bool contains(int x, int y, int z) const override;
+    void set(int x, int y, int z) override;
+    bool isEmpty() const override;
+
+    int getMin(Axis axis) const override;
+    int getMax(Axis axis) const override;
+
+private:
+    std::shared_ptr<VoxelSet> m_parent;
+    int m_minX, m_minY, m_minZ;
+    int m_maxX, m_maxY, m_maxZ;
+
+    // Clamp a value to the cropped region and convert to local coordinates
+    int clamp(Axis axis, int value) const;
+};
+
 } // namespace FarHorizon
