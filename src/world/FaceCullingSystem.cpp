@@ -298,44 +298,56 @@ bool FaceCullingSystem::geometricComparison(
     FaceDirection face
 ) {
     // ========================================================================
-    // Minecraft's VoxelShapes.matchesAnywhere(shape1, shape2, ONLY_FIRST)
+    // Adapted from Minecraft's VoxelShapes.matchesAnywhere(shape1, shape2, ONLY_FIRST)
     // Returns: true if ANY part of shape1 is NOT covered by shape2
     //
-    // In other words:
-    //   - true = face should be drawn (some geometry is exposed)
-    //   - false = face should be culled (completely covered)
+    // Minecraft's approach:
+    //   1. Creates voxel grid of intersection region
+    //   2. Tests each voxel: shape1.contains(voxel) && !shape2.contains(voxel)
+    //   3. Returns true if any voxel matches (exposed geometry)
+    //
+    // Our simplified approach (appropriate for bounding box shapes):
+    //   1. Check if 2D face bounds overlap (shapes must touch)
+    //   2. Check if our face extends beyond neighbor's face (exposed area)
+    //   3. Return true if any part is exposed
     // ========================================================================
-
-    // With face bounds already extracted, we just check:
-    // 1. Do the faces actually touch at the boundary (depth check)?
-    // 2. Is our 2D face area completely covered by neighbor's 2D face area?
 
     constexpr float EPSILON = 0.001f;
 
-    // Check if the faces actually touch (depth alignment)
-    // For adjacent blocks, our face and neighbor's face should be at matching depths
-    // E.g., our North face (depth=0) should touch neighbor's South face (depth=1)
-    float depthDiff = std::abs(ourFace.depth - neighborFace.depth);
-    if (depthDiff > EPSILON) {
-        // Faces don't align properly - this shouldn't normally happen for adjacent blocks
-        // but could occur with very small partial shapes
-        return true;  // Conservative: draw the face
+    // STEP 1: Check if the faces actually overlap in 2D space
+    // If they don't overlap at all, our face is definitely exposed
+    bool overlapX = !(ourFace.max.x < neighborFace.min.x - EPSILON ||
+                      ourFace.min.x > neighborFace.max.x + EPSILON);
+    bool overlapY = !(ourFace.max.y < neighborFace.min.y - EPSILON ||
+                      ourFace.min.y > neighborFace.max.y + EPSILON);
+
+    if (!overlapX || !overlapY) {
+        // No overlap - our face is completely exposed
+        return true;
     }
 
-    // Check 2D coverage: is our face rectangle completely covered by neighbor's?
-    // If ANY part of our face extends beyond neighbor's face, we must draw
+    // STEP 2: Check if our face is completely contained within neighbor's face
+    // This is the key test: is every part of our face covered by neighbor?
+    //
+    // For proper culling, neighbor's face must completely cover ours
+    // If ANY edge of our face extends beyond neighbor's face, we're exposed
     bool exposedOnLeft = ourFace.min.x < neighborFace.min.x - EPSILON;
     bool exposedOnRight = ourFace.max.x > neighborFace.max.x + EPSILON;
     bool exposedOnBottom = ourFace.min.y < neighborFace.min.y - EPSILON;
     bool exposedOnTop = ourFace.max.y > neighborFace.max.y + EPSILON;
 
-    // If any edge is exposed, must draw
     if (exposedOnLeft || exposedOnRight || exposedOnBottom || exposedOnTop) {
-        return true;  // Some part of our face is not covered
+        return true;  // Some part of our face extends beyond neighbor's coverage
     }
 
-    // Our face is completely covered by neighbor's face - can cull
-    return false;
+    // STEP 3: Our face is completely covered by neighbor's face
+    // This handles the common cases correctly:
+    // - Full cube vs full cube: both faces are (0,0)-(1,1), fully covers, cull
+    // - Slab (height 0.5) vs full cube: slab face (0,0)-(1,1) on XZ, but only to Y=0.5
+    //   Full cube face is (0,0)-(1,1) on XZ to Y=1.0, fully covers slab, cull
+    // - Slab vs slab (same height): both (0,0)-(1,1) on XZ to Y=0.5, fully covers, cull
+    // - Partial shape: only covered if neighbor's face is at least as large
+    return false;  // Cull the face
 }
 
 void FaceCullingSystem::clearCache() {
