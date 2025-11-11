@@ -462,7 +462,8 @@ void RenderManager::onResize(uint32_t width, uint32_t height, TextureManager& te
 void RenderManager::render(Camera& camera, ChunkManager& chunkManager,
                           GameStateManager& gameStateManager, Settings& settings,
                           TextureManager& textureManager,
-                          const std::optional<BlockHitResult>& crosshairTarget) {
+                          const std::optional<BlockHitResult>& crosshairTarget,
+                          int fps) {
     // Update QuadInfo buffer if needed
     if (quadInfoNeedsUpdate) {
         const auto& quadInfos = chunkManager.getQuadInfos();
@@ -564,7 +565,7 @@ void RenderManager::render(Camera& camera, ChunkManager& chunkManager,
     cmd.setScissor(scissor);
 
     renderScene(camera, chunkManager, gameStateManager, crosshairTarget, textureManager, cmd, viewport);
-    renderUI(gameStateManager, settings, camera, needsBlur, currentState, textureManager, cmd);
+    renderUI(gameStateManager, settings, camera, needsBlur, currentState, textureManager, cmd, fps);
 
     cmd.endRendering();
 
@@ -685,7 +686,7 @@ void RenderManager::renderBlockOutline(const BlockHitResult& target, CommandBuff
 
 void RenderManager::renderUI(GameStateManager& gameStateManager, Settings& settings,
                             Camera& camera, bool needsBlur, GameStateManager::State currentState,
-                            TextureManager& textureManager, CommandBuffer& cmd) {
+                            TextureManager& textureManager, CommandBuffer& cmd, int fps) {
     if (!textureManager.hasFont("default")) {
         return;
     }
@@ -707,6 +708,10 @@ void RenderManager::renderUI(GameStateManager& gameStateManager, Settings& setti
         auto menuTextVertices = gameStateManager.getOptionsMenu().generateTextVertices(textRenderer);
         allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
     } else if (!needsBlur) {
+        // FPS counter in top left (updated once per second)
+        auto fpsText = Text::literal("FPS: ", Style::gray())
+            .append(std::to_string(fps), Style::white());
+
         auto titleText = Text::literal("Far Horizon", Style::yellow().withBold(true));
 
         auto posText = Text::literal("Position: ", Style::gray())
@@ -714,11 +719,14 @@ void RenderManager::renderUI(GameStateManager& gameStateManager, Settings& setti
                    std::to_string((int)camera.getPosition().y) + ", " +
                    std::to_string((int)camera.getPosition().z), Style::white());
 
-        auto titleVertices = textRenderer.generateVertices(titleText, glm::vec2(10, 10), 3.0f,
+        auto fpsVertices = textRenderer.generateVertices(fpsText, glm::vec2(10, 10), 2.0f,
+                                                         getWidth(), getHeight());
+        auto titleVertices = textRenderer.generateVertices(titleText, glm::vec2(10, 40), 3.0f,
                                                            getWidth(), getHeight());
-        auto posVertices = textRenderer.generateVertices(posText, glm::vec2(10, 80), 2.0f,
+        auto posVertices = textRenderer.generateVertices(posText, glm::vec2(10, 110), 2.0f,
                                                         getWidth(), getHeight());
 
+        allTextVertices.insert(allTextVertices.end(), fpsVertices.begin(), fpsVertices.end());
         allTextVertices.insert(allTextVertices.end(), titleVertices.begin(), titleVertices.end());
         allTextVertices.insert(allTextVertices.end(), posVertices.begin(), posVertices.end());
     }

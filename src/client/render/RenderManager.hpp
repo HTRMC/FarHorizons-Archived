@@ -45,7 +45,8 @@ public:
     void render(Camera& camera, ChunkManager& chunkManager,
                 GameStateManager& gameStateManager, Settings& settings,
                 TextureManager& textureManager,
-                const std::optional<BlockHitResult>& crosshairTarget);
+                const std::optional<BlockHitResult>& crosshairTarget,
+                int fps);
 
     /**
      * End the current frame and present
@@ -125,7 +126,7 @@ private:
                            const PushConstants& pushConstants);
     void renderUI(GameStateManager& gameStateManager, Settings& settings,
                   Camera& camera, bool needsBlur, GameStateManager::State currentState,
-                  TextureManager& textureManager, CommandBuffer& cmd);
+                  TextureManager& textureManager, CommandBuffer& cmd, int fps);
     void applyBlurPostProcessing(Settings& settings, GameStateManager& gameStateManager,
                                 GameStateManager::State currentState, TextureManager& textureManager,
                                 CommandBuffer& cmd, const VkViewport& viewport, const VkRect2D& scissor);

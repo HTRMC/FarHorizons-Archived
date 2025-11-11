@@ -10,6 +10,9 @@ namespace FarHorizon {
 FarHorizonClient::FarHorizonClient()
     : running(false)
     , framebufferResized(false)
+    , currentDeltaTime(0.0f)
+    , fpsUpdateTimer(0.0f)
+    , lastFps(0)
     , previousState(GameStateManager::State::MainMenu) {
 }
 
@@ -139,18 +142,25 @@ void FarHorizonClient::run() {
 
     while (!window->shouldClose() && running) {
         auto currentTime = std::chrono::high_resolution_clock::now();
-        float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
+        currentDeltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
         lastTime = currentTime;
+
+        // Update FPS counter once per second
+        fpsUpdateTimer += currentDeltaTime;
+        if (fpsUpdateTimer >= 1.0f) {
+            lastFps = currentDeltaTime > 0.0f ? static_cast<int>(1.0f / currentDeltaTime) : 0;
+            fpsUpdateTimer = 0.0f;
+        }
 
         // Poll events and process input
         window->pollEvents();
         InputSystem::processEvents();
 
         // Update game state
-        tick(deltaTime);
+        tick(currentDeltaTime);
 
         // Handle input
-        handleInput(deltaTime);
+        handleInput(currentDeltaTime);
 
         // Handle resize
         if (framebufferResized) {
@@ -327,7 +337,7 @@ void FarHorizonClient::render() {
     // Render the frame
     if (renderManager->beginFrame()) {
         renderManager->render(*camera, *chunkManager, *gameStateManager,
-                             *settings, *textureManager, crosshairTarget);
+                             *settings, *textureManager, crosshairTarget, lastFps);
         renderManager->endFrame();
     } else {
         // Swapchain recreation needed

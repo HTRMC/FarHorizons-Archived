@@ -74,6 +74,9 @@ private:
 
     // Timing
     std::chrono::high_resolution_clock::time_point lastTime;
+    float currentDeltaTime;
+    float fpsUpdateTimer;
+    int lastFps;
     bool running;
     bool framebufferResized;
 
