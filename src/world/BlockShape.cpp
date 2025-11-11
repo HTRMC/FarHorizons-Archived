@@ -173,11 +173,9 @@ std::shared_ptr<VoxelSet> BlockShape::getCullingFace(FaceDirection direction) co
     }
 
     // Extract face slice (like Minecraft's SlicedVoxelShape)
-    // We need to create a new VoxelSet that only contains voxels at the face boundary
-
-    int sizeX = m_voxels->getSizeX();
-    int sizeY = m_voxels->getSizeY();
-    int sizeZ = m_voxels->getSizeZ();
+    // We extract the voxel slice at the face boundary
+    // For POSITIVE direction (UP/EAST/SOUTH): use the highest filled voxel (max - 1)
+    // For NEGATIVE direction (DOWN/WEST/NORTH): use the lowest filled voxel (min)
 
     // Determine which slice to extract based on direction
     int sliceIndex;
@@ -186,27 +184,27 @@ std::shared_ptr<VoxelSet> BlockShape::getCullingFace(FaceDirection direction) co
     switch (direction) {
         case FaceDirection::DOWN:   // -Y face (bottom)
             axis = Axis::Y;
-            sliceIndex = 0;  // First slice along Y axis
+            sliceIndex = m_voxels->getMin(Axis::Y);  // Lowest voxel
             break;
         case FaceDirection::UP:     // +Y face (top)
             axis = Axis::Y;
-            sliceIndex = sizeY - 1;  // Last slice along Y axis
+            sliceIndex = m_voxels->getMax(Axis::Y) - 1;  // Highest voxel (max is exclusive)
             break;
         case FaceDirection::NORTH:  // -Z face (back)
             axis = Axis::Z;
-            sliceIndex = 0;
+            sliceIndex = m_voxels->getMin(Axis::Z);
             break;
         case FaceDirection::SOUTH:  // +Z face (front)
             axis = Axis::Z;
-            sliceIndex = sizeZ - 1;
+            sliceIndex = m_voxels->getMax(Axis::Z) - 1;
             break;
         case FaceDirection::WEST:   // -X face (left)
             axis = Axis::X;
-            sliceIndex = 0;
+            sliceIndex = m_voxels->getMin(Axis::X);
             break;
         case FaceDirection::EAST:   // +X face (right)
             axis = Axis::X;
-            sliceIndex = sizeX - 1;
+            sliceIndex = m_voxels->getMax(Axis::X) - 1;
             break;
     }
 

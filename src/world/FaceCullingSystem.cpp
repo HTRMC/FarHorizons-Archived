@@ -216,26 +216,39 @@ const BlockShape& FaceCullingSystem::getBlockShape(BlockState state, const Block
     }
 
     // Cache miss - compute shape and store it
-    if (state.isAir() || !model || model->elements.empty()) {
+    // Like Minecraft: use Block's getOutlineShape() for culling logic
+    // This is analogous to Minecraft's getCullingShape() which defaults to getOutlineShape()
+    if (state.isAir()) {
         m_shapeCache[state.id] = BlockShape::empty();
         return m_shapeCache[state.id];
     }
 
-    // Compute bounding box from all model elements
-    glm::vec3 minBounds(16.0f);
-    glm::vec3 maxBounds(0.0f);
+    // Get the block and ask for its outline shape
+    // This respects each block's custom shape definition (slabs, stairs, etc.)
+    Block* block = BlockRegistry::getBlock(state);
+    if (block) {
+        m_shapeCache[state.id] = block->getOutlineShape(state);
+    } else {
+        // Fallback: compute from model if block not found (shouldn't happen in normal operation)
+        if (!model || model->elements.empty()) {
+            m_shapeCache[state.id] = BlockShape::empty();
+        } else {
+            // Compute bounding box from all model elements
+            glm::vec3 minBounds(16.0f);
+            glm::vec3 maxBounds(0.0f);
 
-    for (const auto& element : model->elements) {
-        minBounds = glm::min(minBounds, element.from);
-        maxBounds = glm::max(maxBounds, element.to);
+            for (const auto& element : model->elements) {
+                minBounds = glm::min(minBounds, element.from);
+                maxBounds = glm::max(maxBounds, element.to);
+            }
+
+            // Convert from block space (0-16) to normalized space (0-1)
+            minBounds /= 16.0f;
+            maxBounds /= 16.0f;
+
+            m_shapeCache[state.id] = BlockShape::fromBounds(minBounds, maxBounds);
+        }
     }
-
-    // Convert from block space (0-16) to normalized space (0-1)
-    minBounds /= 16.0f;
-    maxBounds /= 16.0f;
-
-    // Create BlockShape from bounds (automatically selects appropriate voxel resolution)
-    m_shapeCache[state.id] = BlockShape::fromBounds(minBounds, maxBounds);
 
     return m_shapeCache[state.id];
 }
@@ -253,31 +266,44 @@ void FaceCullingSystem::precacheAllShapes(const std::unordered_map<uint16_t, con
     for (const auto& [stateId, model] : stateToModel) {
         BlockState state(stateId);
 
-        // Compute shape
-        if (state.isAir() || !model || model->elements.empty()) {
+        // Compute shape using Block's getOutlineShape() (like Minecraft's getCullingShape)
+        if (state.isAir()) {
             m_shapeCache[stateId] = BlockShape::empty();
             emptyShapes++;
             continue;
         }
 
-        // Compute bounding box from all model elements
-        glm::vec3 minBounds(16.0f);
-        glm::vec3 maxBounds(0.0f);
+        Block* block = BlockRegistry::getBlock(state);
+        if (block) {
+            m_shapeCache[stateId] = block->getOutlineShape(state);
+        } else {
+            // Fallback: compute from model
+            if (!model || model->elements.empty()) {
+                m_shapeCache[stateId] = BlockShape::empty();
+                emptyShapes++;
+                continue;
+            }
 
-        for (const auto& element : model->elements) {
-            minBounds = glm::min(minBounds, element.from);
-            maxBounds = glm::max(maxBounds, element.to);
+            // Compute bounding box from all model elements
+            glm::vec3 minBounds(16.0f);
+            glm::vec3 maxBounds(0.0f);
+
+            for (const auto& element : model->elements) {
+                minBounds = glm::min(minBounds, element.from);
+                maxBounds = glm::max(maxBounds, element.to);
+            }
+
+            // Convert from block space (0-16) to normalized space (0-1)
+            minBounds /= 16.0f;
+            maxBounds /= 16.0f;
+
+            m_shapeCache[stateId] = BlockShape::fromBounds(minBounds, maxBounds);
         }
 
-        // Convert from block space (0-16) to normalized space (0-1)
-        minBounds /= 16.0f;
-        maxBounds /= 16.0f;
-
-        // Create BlockShape from bounds (automatically creates voxel grid)
-        m_shapeCache[stateId] = BlockShape::fromBounds(minBounds, maxBounds);
-
         // Count shape types
-        if (m_shapeCache[stateId].isFullCube()) {
+        if (m_shapeCache[stateId].isEmpty()) {
+            emptyShapes++;
+        } else if (m_shapeCache[stateId].isFullCube()) {
             fullCubes++;
         } else {
             partialShapes++;

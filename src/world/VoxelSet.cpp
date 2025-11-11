@@ -1,6 +1,7 @@
 #include "VoxelSet.hpp"
 #include <stdexcept>
 #include <algorithm>
+#include <set>
 #include <string>
 
 namespace FarHorizon {
@@ -156,56 +157,53 @@ struct IndexPair {
 };
 
 // Merge coordinate grids from two shapes (like Minecraft's createListPair + SimplePairList)
-// Returns pairs of indices that represent the same voxel in both coordinate systems
+// Returns pairs of indices that represent corresponding voxels in both coordinate systems
 static std::vector<IndexPair> mergeCoordinateGrid(int size1, int size2, int min1, int max1, int min2, int max2) {
     std::vector<IndexPair> merged;
 
     // Special case: identical grids (like Minecraft's IdentityPairList)
-    if (size1 == size2 && min1 == min2 && max1 == max2) {
-        for (int i = min1; i < max1; i++) {
+    if (size1 == size2) {
+        for (int i = 0; i < size1; i++) {
             merged.push_back({i, i});
         }
         return merged;
     }
 
-    // General case: merge two different grids using normalized coordinates
-    // Map each voxel index to normalized 0-1 space, then merge
+    // General case: merge two different grids using coordinate boundaries
+    // Like Minecraft's SimplePairList which merges DoubleList coordinate positions
     //
-    // Minecraft does this with DoubleList + SimplePairList
-    // We'll do a simplified version that achieves the same result
+    // For a grid with size N, we have N+1 coordinate boundaries: [0, 1/N, 2/N, ..., N/N]
+    // Between each pair of consecutive boundaries, we have a voxel region
+    // We need to determine which voxel index from each shape covers each region
 
-    // Collect all unique normalized coordinates from both shapes
-    std::vector<std::pair<double, IndexPair>> normalized;
-
-    // Add coordinates from shape1
-    for (int i = min1; i < max1; i++) {
-        double normCoord = static_cast<double>(i) / size1;
-        // Find corresponding index in shape2
-        int i2 = static_cast<int>(normCoord * size2);
-        i2 = std::max(min2, std::min(max2 - 1, i2));
-        normalized.push_back({normCoord, {i, i2}});
-    }
-
-    // Add coordinates from shape2
-    for (int i = min2; i < max2; i++) {
-        double normCoord = static_cast<double>(i) / size2;
-        // Find corresponding index in shape1
-        int i1 = static_cast<int>(normCoord * size1);
-        i1 = std::max(min1, std::min(max1 - 1, i1));
-        normalized.push_back({normCoord, {i1, i}});
-    }
-
-    // Sort by normalized coordinate
-    std::sort(normalized.begin(), normalized.end(),
-              [](const auto& a, const auto& b) { return a.first < b.first; });
-
-    // Remove duplicates (coordinates within epsilon)
     constexpr double EPSILON = 1.0e-7;
-    for (size_t i = 0; i < normalized.size(); i++) {
-        if (i > 0 && std::abs(normalized[i].first - normalized[i-1].first) < EPSILON) {
-            continue;  // Skip duplicate
+
+    // Collect all unique boundary coordinates from both shapes
+    std::set<double> boundarySet;
+    for (int i = 0; i <= size1; i++) {
+        boundarySet.insert(static_cast<double>(i) / size1);
+    }
+    for (int i = 0; i <= size2; i++) {
+        boundarySet.insert(static_cast<double>(i) / size2);
+    }
+
+    // Convert to sorted vector
+    std::vector<double> boundaries(boundarySet.begin(), boundarySet.end());
+
+    // For each region between consecutive boundaries, determine voxel indices
+    for (size_t i = 0; i + 1 < boundaries.size(); i++) {
+        double start = boundaries[i];
+        double end = boundaries[i + 1];
+        double mid = (start + end) / 2.0;  // Sample point in the middle of region
+
+        // Find which voxel index in each shape contains this coordinate
+        int index1 = std::min(static_cast<int>(mid * size1), size1 - 1);
+        int index2 = std::min(static_cast<int>(mid * size2), size2 - 1);
+
+        // Add if not duplicate
+        if (merged.empty() || merged.back().index1 != index1 || merged.back().index2 != index2) {
+            merged.push_back({index1, index2});
         }
-        merged.push_back(normalized[i].second);
     }
 
     return merged;
@@ -280,10 +278,14 @@ bool matchesAnywhere(const VoxelSet& shape1, const VoxelSet& shape2) {
 // ============================================================================
 
 SlicedVoxelSet::SlicedVoxelSet(std::shared_ptr<VoxelSet> parent, Axis axis, int sliceIndex)
-    : VoxelSet(parent->getSizeX(), parent->getSizeY(), parent->getSizeZ()),
+    : VoxelSet(
+        axis == Axis::X ? 1 : parent->getSizeX(),  // Collapsed to 1 if slicing this axis
+        axis == Axis::Y ? 1 : parent->getSizeY(),
+        axis == Axis::Z ? 1 : parent->getSizeZ()
+      ),
       m_parent(parent) {
 
-    // Initialize bounds to parent's size (uncropped)
+    // Set crop bounds (like Minecraft's CroppedVoxelSet)
     m_minX = 0;
     m_minY = 0;
     m_minZ = 0;
