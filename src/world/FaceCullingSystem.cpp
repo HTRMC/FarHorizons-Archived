@@ -103,15 +103,21 @@ bool FaceCullingSystem::shouldDrawFace(
     // SLOW PATH: Geometric comparison with caching
     // ========================================================================
     // Minecraft:
-    //   VoxelShapePair pair = new VoxelShapePair(ourShape, neighborShape);
+    //   VoxelShape voxelShape = otherState.getCullingFace(side.getOpposite());
+    //   VoxelShape voxelShape2 = state.getCullingFace(side);
+    //   VoxelShapePair pair = new VoxelShapePair(voxelShape2, voxelShape);
     //   byte cached = FACE_CULL_MAP.get().getAndMoveToFirst(pair);
     //   if (cached != Byte.MAX_VALUE) return (cached != 0);
     //   boolean result = VoxelShapes.matchesAnywhere(ourShape, neighborShape, ONLY_FIRST);
     //   ... cache result ...
     //   return result;
 
-    // Both blocks have partial geometry - need geometric comparison
-    ShapePair pair{&currentShape, &neighborShape, face};
+    // Extract face-specific geometry BEFORE caching (like Minecraft's getCullingFace)
+    FaceBounds ourFace = currentShape.getCullingFace(face);
+    FaceBounds neighborFace = neighborShape.getCullingFace(face);
+
+    // Create cache key with face-extracted geometry (no direction needed!)
+    ShapePair pair{ourFace, neighborFace};
 
     // Check cache
     auto cached = s_cache.get(pair);
@@ -120,7 +126,7 @@ bool FaceCullingSystem::shouldDrawFace(
     }
 
     // Cache miss - perform geometric comparison
-    bool shouldDraw = geometricComparison(currentShape, neighborShape, face);
+    bool shouldDraw = geometricComparison(ourFace, neighborFace, face);
 
     // Store in cache
     s_cache.put(pair, shouldDraw);
@@ -287,8 +293,8 @@ void FaceCullingSystem::precacheAllShapes(const std::unordered_map<uint16_t, con
 }
 
 bool FaceCullingSystem::geometricComparison(
-    const BlockShape& ourShape,
-    const BlockShape& neighborShape,
+    const FaceBounds& ourFace,
+    const FaceBounds& neighborFace,
     FaceDirection face
 ) {
     // ========================================================================
@@ -300,91 +306,36 @@ bool FaceCullingSystem::geometricComparison(
     //   - false = face should be culled (completely covered)
     // ========================================================================
 
-    // For partial shapes, we check:
-    // 1. Do the shapes actually touch at the face boundary?
-    // 2. Is our face area completely covered by neighbor's opposite face area?
-
-    // Get the bounding boxes in 0-1 space
-    glm::vec3 ourMin = ourShape.getMin();
-    glm::vec3 ourMax = ourShape.getMax();
-    glm::vec3 neighborMin = neighborShape.getMin();
-    glm::vec3 neighborMax = neighborShape.getMax();
+    // With face bounds already extracted, we just check:
+    // 1. Do the faces actually touch at the boundary (depth check)?
+    // 2. Is our 2D face area completely covered by neighbor's 2D face area?
 
     constexpr float EPSILON = 0.001f;
 
-    // Check if shapes touch at the face boundary AND check coverage
-    switch (face) {
-        case FaceDirection::DOWN:  // Our -Y face
-            // We're checking our bottom face (at ourMin.y)
-            // Neighbor's top face must reach up to touch us (neighborMax.y >= ourMin.y)
-            if (neighborMax.y < ourMin.y - EPSILON) {
-                return true;  // Gap between blocks, must draw
-            }
-            // Check XZ coverage
-            return (neighborMin.x > ourMin.x + EPSILON) ||
-                   (neighborMax.x < ourMax.x - EPSILON) ||
-                   (neighborMin.z > ourMin.z + EPSILON) ||
-                   (neighborMax.z < ourMax.z - EPSILON);
-
-        case FaceDirection::UP:    // Our +Y face
-            // We're checking our top face (at ourMax.y)
-            // Neighbor's bottom face must reach down to touch us (neighborMin.y <= ourMax.y)
-            if (neighborMin.y > ourMax.y + EPSILON) {
-                return true;  // Gap between blocks, must draw
-            }
-            // Check XZ coverage
-            return (neighborMin.x > ourMin.x + EPSILON) ||
-                   (neighborMax.x < ourMax.x - EPSILON) ||
-                   (neighborMin.z > ourMin.z + EPSILON) ||
-                   (neighborMax.z < ourMax.z - EPSILON);
-
-        case FaceDirection::NORTH: // Our -Z face
-            // Neighbor's +Z face must reach to touch us
-            if (neighborMax.z < ourMin.z - EPSILON) {
-                return true;  // Gap between blocks, must draw
-            }
-            // Check XY coverage
-            return (neighborMin.x > ourMin.x + EPSILON) ||
-                   (neighborMax.x < ourMax.x - EPSILON) ||
-                   (neighborMin.y > ourMin.y + EPSILON) ||
-                   (neighborMax.y < ourMax.y - EPSILON);
-
-        case FaceDirection::SOUTH: // Our +Z face
-            // Neighbor's -Z face must reach to touch us
-            if (neighborMin.z > ourMax.z + EPSILON) {
-                return true;  // Gap between blocks, must draw
-            }
-            // Check XY coverage
-            return (neighborMin.x > ourMin.x + EPSILON) ||
-                   (neighborMax.x < ourMax.x - EPSILON) ||
-                   (neighborMin.y > ourMin.y + EPSILON) ||
-                   (neighborMax.y < ourMax.y - EPSILON);
-
-        case FaceDirection::WEST:  // Our -X face
-            // Neighbor's +X face must reach to touch us
-            if (neighborMax.x < ourMin.x - EPSILON) {
-                return true;  // Gap between blocks, must draw
-            }
-            // Check YZ coverage
-            return (neighborMin.y > ourMin.y + EPSILON) ||
-                   (neighborMax.y < ourMax.y - EPSILON) ||
-                   (neighborMin.z > ourMin.z + EPSILON) ||
-                   (neighborMax.z < ourMax.z - EPSILON);
-
-        case FaceDirection::EAST:  // Our +X face
-            // Neighbor's -X face must reach to touch us
-            if (neighborMin.x > ourMax.x + EPSILON) {
-                return true;  // Gap between blocks, must draw
-            }
-            // Check YZ coverage
-            return (neighborMin.y > ourMin.y + EPSILON) ||
-                   (neighborMax.y < ourMax.y - EPSILON) ||
-                   (neighborMin.z > ourMin.z + EPSILON) ||
-                   (neighborMax.z < ourMax.z - EPSILON);
+    // Check if the faces actually touch (depth alignment)
+    // For adjacent blocks, our face and neighbor's face should be at matching depths
+    // E.g., our North face (depth=0) should touch neighbor's South face (depth=1)
+    float depthDiff = std::abs(ourFace.depth - neighborFace.depth);
+    if (depthDiff > EPSILON) {
+        // Faces don't align properly - this shouldn't normally happen for adjacent blocks
+        // but could occur with very small partial shapes
+        return true;  // Conservative: draw the face
     }
 
-    // Default: draw the face (conservative)
-    return true;
+    // Check 2D coverage: is our face rectangle completely covered by neighbor's?
+    // If ANY part of our face extends beyond neighbor's face, we must draw
+    bool exposedOnLeft = ourFace.min.x < neighborFace.min.x - EPSILON;
+    bool exposedOnRight = ourFace.max.x > neighborFace.max.x + EPSILON;
+    bool exposedOnBottom = ourFace.min.y < neighborFace.min.y - EPSILON;
+    bool exposedOnTop = ourFace.max.y > neighborFace.max.y + EPSILON;
+
+    // If any edge is exposed, must draw
+    if (exposedOnLeft || exposedOnRight || exposedOnBottom || exposedOnTop) {
+        return true;  // Some part of our face is not covered
+    }
+
+    // Our face is completely covered by neighbor's face - can cull
+    return false;
 }
 
 void FaceCullingSystem::clearCache() {

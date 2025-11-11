@@ -86,12 +86,12 @@ public:
     void clearCache();
 
 private:
-    // Geometric comparison for partial shapes
-    // Checks if our face is completely covered by neighbor's geometry
+    // Geometric comparison for partial shapes using extracted face bounds
+    // Checks if our 2D face is completely covered by neighbor's 2D face
     // Returns true if face should be drawn (NOT culled)
     bool geometricComparison(
-        const BlockShape& ourShape,
-        const BlockShape& neighborShape,
+        const FaceBounds& ourFace,
+        const FaceBounds& neighborFace,
         FaceDirection face
     );
 

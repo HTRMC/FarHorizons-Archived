@@ -15,6 +15,38 @@ enum class ShapeType : uint8_t {
     PARTIAL     // Custom geometry (slabs, stairs, etc.)
 };
 
+// Represents the 2D bounds of a face for culling comparisons
+// Like Minecraft's VoxelShape but extracted for a specific face
+struct FaceBounds {
+    glm::vec2 min;  // Minimum UV coordinates (0-1 space)
+    glm::vec2 max;  // Maximum UV coordinates (0-1 space)
+    float depth;    // Position along the face's axis (0-1 space)
+    bool isEmpty;   // True if no geometry exists on this face
+
+    bool operator==(const FaceBounds& other) const {
+        if (isEmpty && other.isEmpty) return true;
+        if (isEmpty != other.isEmpty) return false;
+        constexpr float EPSILON = 1e-6f;
+        return std::abs(min.x - other.min.x) < EPSILON &&
+               std::abs(min.y - other.min.y) < EPSILON &&
+               std::abs(max.x - other.max.x) < EPSILON &&
+               std::abs(max.y - other.max.y) < EPSILON &&
+               std::abs(depth - other.depth) < EPSILON;
+    }
+
+    size_t hash() const {
+        if (isEmpty) return 0;
+        // Simple hash combining min, max, and depth
+        size_t h = 0;
+        h ^= std::hash<float>{}(min.x) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h ^= std::hash<float>{}(min.y) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h ^= std::hash<float>{}(max.x) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h ^= std::hash<float>{}(max.y) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h ^= std::hash<float>{}(depth) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        return h;
+    }
+};
+
 // Represents a block's culling shape
 // Used to determine if adjacent faces should be rendered
 class BlockShape {
@@ -30,7 +62,11 @@ public:
     ShapeType getType() const { return m_type; }
 
     // Get the culling face shape for a specific direction
-    // For partial shapes, this returns the bounding box that touches that face
+    // Like Minecraft's BlockState.getCullingFace(direction)
+    // Extracts the 2D face geometry that's relevant for culling
+    FaceBounds getCullingFace(FaceDirection direction) const;
+
+    // For partial shapes, get the full bounding box
     const glm::vec3& getMin() const { return m_min; }
     const glm::vec3& getMax() const { return m_max; }
 
@@ -50,24 +86,19 @@ private:
 };
 
 // Cache key for geometric face culling comparisons
-// Uses identity-based hashing like Minecraft's VoxelShapePair
-// IMPORTANT: Must include face direction because culling result depends on which face we're checking
+// Like Minecraft's VoxelShapePair - stores extracted face geometries
+// NOTE: No direction needed! Direction is handled by extracting face-specific geometry beforehand
 struct ShapePair {
-    const BlockShape* first;   // Our block's shape
-    const BlockShape* second;  // Neighbor block's shape
-    FaceDirection face;        // Which face we're checking
+    FaceBounds first;   // Our block's face geometry
+    FaceBounds second;  // Neighbor block's face geometry
 
     bool operator==(const ShapePair& other) const {
-        // Identity comparison (pointer equality) + face direction
-        return first == other.first && second == other.second && face == other.face;
+        return first == other.first && second == other.second;
     }
 
     size_t hash() const {
-        // Identity-based hash (like System.identityHashCode in Java) + face direction
-        size_t h1 = first->identityHash();
-        size_t h2 = second->identityHash();
-        size_t h3 = static_cast<size_t>(face);
-        return (h1 * 31 + h2) * 31 + h3;
+        // Combine hashes of both FaceBounds
+        return first.hash() * 31 + second.hash();
     }
 };
 
