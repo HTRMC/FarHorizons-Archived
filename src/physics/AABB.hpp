@@ -193,18 +193,18 @@ public:
         if (maxDist > 0.0) {
             // Moving in positive direction
             // Entity's MAX (leading edge) will hit Block's MIN (near edge)
-            double otherMax = axis == 0 ? other.maxX : (axis == 1 ? other.maxY : other.maxZ);
-            double thisMin = axis == 0 ? this->minX : (axis == 1 ? this->minY : this->minZ);
-            double gap = thisMin - otherMax;
+            double otherMin = axis == 0 ? other.minX : (axis == 1 ? other.minY : other.minZ);
+            double thisMax = axis == 0 ? this->maxX : (axis == 1 ? this->maxY : this->maxZ);
+            double gap = otherMin - thisMax;
             if (gap < result) {
                 result = gap;
             }
         } else {
             // Moving in negative direction (falling)
             // Entity's MIN (leading edge) will hit Block's MAX (far edge)
-            double otherMin = axis == 0 ? other.minX : (axis == 1 ? other.minY : other.minZ);
-            double thisMax = axis == 0 ? this->maxX : (axis == 1 ? this->maxY : this->maxZ);
-            double gap = thisMax - otherMin;
+            double otherMax = axis == 0 ? other.maxX : (axis == 1 ? other.maxY : other.maxZ);
+            double thisMin = axis == 0 ? this->minX : (axis == 1 ? this->minY : this->minZ);
+            double gap = otherMax - thisMin;
             if (gap > result) {
                 result = gap;
             }
