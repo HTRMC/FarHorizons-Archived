@@ -10,8 +10,8 @@ namespace FarHorizon {
 // Based on Minecraft's Box.java class
 class AABB {
 public:
-    // Epsilon for floating-point comparisons (from Minecraft)
-    static constexpr double EPSILON = 1.0e-7;
+    // Epsilon for floating-point comparisons (from Minecraft MathHelper.approximatelyEquals)
+    static constexpr double EPSILON = 1.0e-5;  // Minecraft uses 1.0E-5F
 
     double minX, minY, minZ;
     double maxX, maxY, maxZ;
@@ -196,7 +196,9 @@ public:
             double otherMin = axis == 0 ? other.minX : (axis == 1 ? other.minY : other.minZ);
             double thisMax = axis == 0 ? this->maxX : (axis == 1 ? this->maxY : this->maxZ);
             double gap = otherMin - thisMax;
-            if (gap < result) {
+            // CRITICAL: Only consider blocks we're approaching (gap >= 0)
+            // Minecraft checks "if (f >= -1.0E-7)" at VoxelShape.java line 285
+            if (gap >= -EPSILON && gap < result) {
                 result = gap;
             }
         } else {
@@ -205,7 +207,9 @@ public:
             double otherMax = axis == 0 ? other.maxX : (axis == 1 ? other.maxY : other.maxZ);
             double thisMin = axis == 0 ? this->minX : (axis == 1 ? this->minY : this->minZ);
             double gap = otherMax - thisMin;
-            if (gap > result) {
+            // CRITICAL: Only consider blocks we're approaching (gap <= 0)
+            // Minecraft checks "if (f <= 1.0E-7)" at VoxelShape.java line 300
+            if (gap <= EPSILON && gap > result) {
                 result = gap;
             }
         }

@@ -2,6 +2,7 @@
 
 #include "AABB.hpp"
 #include "CollisionSystem.hpp"
+#include "util/MathHelper.hpp"
 #include <glm/glm.hpp>
 
 namespace FarHorizon {
@@ -111,10 +112,11 @@ public:
         setPos(pos + actualMovement);
 
         // Collision detection (Entity.java line 720-726)
-        bool xBlocked = std::abs(movement.x - actualMovement.x) > AABB::EPSILON;
-        bool zBlocked = std::abs(movement.z - actualMovement.z) > AABB::EPSILON;
+        // Minecraft uses approximatelyEquals for X/Z, exact comparison for Y
+        bool xBlocked = !MathHelper::approximatelyEquals(movement.x, actualMovement.x);
+        bool zBlocked = !MathHelper::approximatelyEquals(movement.z, actualMovement.z);
         horizontalCollision = xBlocked || zBlocked;
-        verticalCollision = movement.y != actualMovement.y;
+        verticalCollision = movement.y != actualMovement.y;  // EXACT comparison for Y!
         groundCollision = verticalCollision && movement.y < 0.0;
 
         // Reset velocity on collision (Entity.java line 745-746)

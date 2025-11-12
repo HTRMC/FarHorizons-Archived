@@ -2,8 +2,9 @@
 
 #include "AABB.hpp"
 #include "VoxelShape.hpp"
-#include "../world/ChunkManager.hpp"
-#include "../world/BlockState.hpp"
+#include "world/ChunkManager.hpp"
+#include "world/BlockState.hpp"
+#include "util/MathHelper.hpp"
 #include <glm/glm.hpp>
 #include <vector>
 #include <algorithm>
@@ -116,11 +117,21 @@ public:
         // - stepHeight > 0
         // - AND (yBlocked && movement.y < 0) [falling and hit ground]
         // - AND (xBlocked OR zBlocked) [horizontal movement was blocked]
+        // CRITICAL: Only step if there's ACTUAL horizontal movement attempt!
+        bool hasHorizontalMovement = std::abs(movement.x) > AABB::EPSILON || std::abs(movement.z) > AABB::EPSILON;
         bool fallingAndHitGround = yBlocked && movement.y < 0.0;
         bool horizontalBlocked = xBlocked || zBlocked;
 
-        if (stepHeight > AABB::EPSILON && fallingAndHitGround && horizontalBlocked) {
-            spdlog::debug("Stepping: trying step up");
+        // DEBUG: Log stepping checks
+        if (fallingAndHitGround) {
+            spdlog::info("STEP CHECK: mov=({:.6f},{:.6f},{:.6f}) res=({:.6f},{:.6f},{:.6f}) xBlk={} zBlk={} hasHoriz={}",
+                movement.x, movement.y, movement.z,
+                resolvedMovement.x, resolvedMovement.y, resolvedMovement.z,
+                xBlocked, zBlocked, hasHorizontalMovement);
+        }
+
+        if (stepHeight > AABB::EPSILON && fallingAndHitGround && horizontalBlocked && hasHorizontalMovement) {
+            spdlog::info("STEPPING ACTIVATED!");
             // Try stepping up
             glm::dvec3 steppedMovement = tryStepUp(entityBox, movement, resolvedMovement, stepHeight);
 
