@@ -1,6 +1,6 @@
 #pragma once
 
-#include "VoxelSet.hpp"
+#include "voxel/VoxelSet.hpp"
 #include "FaceDirection.hpp"
 #include <glm/glm.hpp>
 #include <memory>

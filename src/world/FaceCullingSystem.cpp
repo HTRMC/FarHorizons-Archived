@@ -2,10 +2,46 @@
 #include "Chunk.hpp"
 #include "BlockModel.hpp"
 #include "BlockRegistry.hpp"
-#include "VoxelSet.hpp"
 #include <spdlog/spdlog.h>
 
 namespace FarHorizon {
+
+// Helper function for voxel-level comparison (ONLY_FIRST predicate)
+// Returns true if shape1 has any voxel that shape2 doesn't have
+static bool matchesAnywhere(const VoxelSet& shape1, const VoxelSet& shape2) {
+    // Early exit: if shape1 is empty, nothing is exposed
+    if (shape1.isEmpty()) {
+        return false;
+    }
+
+    // Early exit: if shape2 is empty, shape1 is fully exposed
+    if (shape2.isEmpty()) {
+        return true;
+    }
+
+    // Get dimensions - use the maximum to cover all voxels
+    int maxX = std::max(shape1.getXSize(), shape2.getXSize());
+    int maxY = std::max(shape1.getYSize(), shape2.getYSize());
+    int maxZ = std::max(shape1.getZSize(), shape2.getZSize());
+
+    // Compare all voxel positions
+    // ONLY_FIRST predicate: shape1.contains(voxel) && !shape2.contains(voxel)
+    for (int x = 0; x < maxX; x++) {
+        for (int y = 0; y < maxY; y++) {
+            for (int z = 0; z < maxZ; z++) {
+                bool inShape1 = shape1.inBoundsAndContains(x, y, z);
+                bool inShape2 = shape2.inBoundsAndContains(x, y, z);
+
+                // Found a voxel in shape1 that's not in shape2
+                if (inShape1 && !inShape2) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
 
 // ============================================================================
 // FaceCullCache Implementation

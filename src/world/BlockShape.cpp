@@ -1,4 +1,7 @@
 #include "BlockShape.hpp"
+#include "voxel/BitSetVoxelSet.hpp"
+#include "voxel/CroppedVoxelSet.hpp"
+#include "util/Direction.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -39,7 +42,7 @@ BlockShape::BlockShape(std::shared_ptr<VoxelSet> voxels)
     // Determine type
     if (!voxels || voxels->isEmpty()) {
         m_type = Type::EMPTY;
-    } else if (voxels->getSizeX() == 1 && voxels->getSizeY() == 1 && voxels->getSizeZ() == 1) {
+    } else if (voxels->getXSize() == 1 && voxels->getYSize() == 1 && voxels->getZSize() == 1) {
         m_type = Type::FULL_CUBE;
     } else {
         m_type = Type::PARTIAL;
@@ -139,10 +142,11 @@ BlockShape BlockShape::fromBounds(const glm::vec3& min, const glm::vec3& max) {
     maxVoxelY = std::max(0, std::min(maxVoxelY, resY));
     maxVoxelZ = std::max(0, std::min(maxVoxelZ, resZ));
 
-    // Create voxel grid with PER-AXIS resolution
-    auto voxels = BitSetVoxelSet::createBox(resX, resY, resZ,
-                                            minVoxelX, minVoxelY, minVoxelZ,
-                                            maxVoxelX, maxVoxelY, maxVoxelZ);
+    // Create voxel grid with PER-AXIS resolution (BitSetVoxelSet.java line 24)
+    auto voxelSet = BitSetVoxelSet::create(resX, resY, resZ,
+                                           minVoxelX, minVoxelY, minVoxelZ,
+                                           maxVoxelX, maxVoxelY, maxVoxelZ);
+    auto voxels = std::make_shared<BitSetVoxelSet>(voxelSet);
 
     return BlockShape(voxels);
 }
@@ -180,43 +184,51 @@ std::shared_ptr<VoxelSet> BlockShape::getCullingFace(FaceDirection direction) co
     // If the shape doesn't have voxels at that boundary (e.g., top slab's DOWN face),
     // the slice will be empty, which is correct!
 
-    int sizeX = m_voxels->getSizeX();
-    int sizeY = m_voxels->getSizeY();
-    int sizeZ = m_voxels->getSizeZ();
+    int sizeX = m_voxels->getXSize();
+    int sizeY = m_voxels->getYSize();
+    int sizeZ = m_voxels->getZSize();
 
     // Determine which slice to extract based on direction
     int sliceIndex;
-    Axis axis;
+    Direction::Axis axis;
 
     switch (direction) {
         case FaceDirection::DOWN:   // -Y face (bottom boundary at y=0)
-            axis = Axis::Y;
+            axis = Direction::Axis::Y;
             sliceIndex = 0;
             break;
         case FaceDirection::UP:     // +Y face (top boundary at y=1)
-            axis = Axis::Y;
+            axis = Direction::Axis::Y;
             sliceIndex = sizeY - 1;
             break;
         case FaceDirection::NORTH:  // -Z face (back boundary at z=0)
-            axis = Axis::Z;
+            axis = Direction::Axis::Z;
             sliceIndex = 0;
             break;
         case FaceDirection::SOUTH:  // +Z face (front boundary at z=1)
-            axis = Axis::Z;
+            axis = Direction::Axis::Z;
             sliceIndex = sizeZ - 1;
             break;
         case FaceDirection::WEST:   // -X face (left boundary at x=0)
-            axis = Axis::X;
+            axis = Direction::Axis::X;
             sliceIndex = 0;
             break;
         case FaceDirection::EAST:   // +X face (right boundary at x=1)
-            axis = Axis::X;
+            axis = Direction::Axis::X;
             sliceIndex = sizeX - 1;
             break;
     }
 
-    // Create a view wrapper (no copying!) using SlicedVoxelSet
-    auto faceVoxels = std::make_shared<SlicedVoxelSet>(m_voxels, axis, sliceIndex);
+    // Create a cropped voxel set that represents just the slice
+    // CroppedVoxelSet is similar to SlicedVoxelSet but matches Minecraft's structure
+    int minX = (axis == Direction::Axis::X) ? sliceIndex : 0;
+    int minY = (axis == Direction::Axis::Y) ? sliceIndex : 0;
+    int minZ = (axis == Direction::Axis::Z) ? sliceIndex : 0;
+    int maxX = (axis == Direction::Axis::X) ? sliceIndex + 1 : sizeX;
+    int maxY = (axis == Direction::Axis::Y) ? sliceIndex + 1 : sizeY;
+    int maxZ = (axis == Direction::Axis::Z) ? sliceIndex + 1 : sizeZ;
+
+    auto faceVoxels = std::make_shared<CroppedVoxelSet>(m_voxels, minX, minY, minZ, maxX, maxY, maxZ);
 
     // Cache the result
     m_cullingFaces[dirIndex] = faceVoxels;
@@ -233,14 +245,14 @@ glm::vec3 BlockShape::getMin() const {
     }
 
     // Convert voxel coordinates to world coordinates (0-1 space)
-    int sizeX = m_voxels->getSizeX();
-    int sizeY = m_voxels->getSizeY();
-    int sizeZ = m_voxels->getSizeZ();
+    int sizeX = m_voxels->getXSize();
+    int sizeY = m_voxels->getYSize();
+    int sizeZ = m_voxels->getZSize();
 
     return glm::vec3(
-        static_cast<float>(m_voxels->getMin(Axis::X)) / sizeX,
-        static_cast<float>(m_voxels->getMin(Axis::Y)) / sizeY,
-        static_cast<float>(m_voxels->getMin(Axis::Z)) / sizeZ
+        static_cast<float>(m_voxels->getMin(Direction::Axis::X)) / sizeX,
+        static_cast<float>(m_voxels->getMin(Direction::Axis::Y)) / sizeY,
+        static_cast<float>(m_voxels->getMin(Direction::Axis::Z)) / sizeZ
     );
 }
 
@@ -254,14 +266,14 @@ glm::vec3 BlockShape::getMax() const {
     }
 
     // Convert voxel coordinates to world coordinates (0-1 space)
-    int sizeX = m_voxels->getSizeX();
-    int sizeY = m_voxels->getSizeY();
-    int sizeZ = m_voxels->getSizeZ();
+    int sizeX = m_voxels->getXSize();
+    int sizeY = m_voxels->getYSize();
+    int sizeZ = m_voxels->getZSize();
 
     return glm::vec3(
-        static_cast<float>(m_voxels->getMax(Axis::X)) / sizeX,
-        static_cast<float>(m_voxels->getMax(Axis::Y)) / sizeY,
-        static_cast<float>(m_voxels->getMax(Axis::Z)) / sizeZ
+        static_cast<float>(m_voxels->getMax(Direction::Axis::X)) / sizeX,
+        static_cast<float>(m_voxels->getMax(Direction::Axis::Y)) / sizeY,
+        static_cast<float>(m_voxels->getMax(Direction::Axis::Z)) / sizeZ
     );
 }
 

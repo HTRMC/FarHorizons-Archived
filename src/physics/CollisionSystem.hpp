@@ -1,13 +1,14 @@
 #pragma once
 
 #include "AABB.hpp"
-#include "VoxelShape.hpp"
+#include "voxel/VoxelShapes.hpp"
 #include "world/ChunkManager.hpp"
 #include "world/BlockState.hpp"
 #include "util/MathHelper.hpp"
 #include <glm/glm.hpp>
 #include <vector>
 #include <algorithm>
+#include <memory>
 #include <spdlog/spdlog.h>
 
 namespace FarHorizon {
@@ -23,8 +24,8 @@ public:
 
     // Get all block collision shapes in a region
     // Based on Minecraft's BlockCollisionSpliterator
-    std::vector<VoxelShape> getBlockCollisions(const AABB& region) const {
-        std::vector<VoxelShape> collisions;
+    std::vector<std::shared_ptr<VoxelShape>> getBlockCollisions(const AABB& region) const {
+        std::vector<std::shared_ptr<VoxelShape>> collisions;
 
         // Get integer bounds of the region
         int minX = static_cast<int>(std::floor(region.minX));
@@ -56,23 +57,12 @@ public:
                     BlockState blockState = chunk->getBlockState(localX, localY, localZ);
                     if (blockState.isAir()) continue; // Air block
 
-                    // Get collision shape from block registry
-                    VoxelShape shape = getBlockCollisionShape(blockState, x, y, z);
+                    // Get collision shape at world coordinates (BlockCollisionSpliterator.java line 88)
+                    auto shape = getBlockCollisionShape(blockState, x, y, z);
 
-                    if (shape.isEmpty()) continue;
+                    if (!shape || shape->isEmpty()) continue;
 
-                    // Fast path for full cubes
-                    if (isFullCube(shape)) {
-                        if (region.intersects(x, y, z, x + 1.0, y + 1.0, z + 1.0)) {
-                            collisions.push_back(shape.offset(x, y, z));
-                        }
-                    } else {
-                        // Complex shape - precise intersection test
-                        VoxelShape offsetShape = shape.offset(x, y, z);
-                        if (offsetShape.intersects(region)) {
-                            collisions.push_back(offsetShape);
-                        }
-                    }
+                    collisions.push_back(shape);
                 }
             }
         }
@@ -91,7 +81,7 @@ public:
 
         // Get all collisions in the swept volume
         AABB sweptBox = entityBox.stretch(movement);
-        std::vector<VoxelShape> collisions = getBlockCollisions(sweptBox);
+        auto collisions = getBlockCollisions(sweptBox);
 
         if (collisions.empty()) {
             return movement;
@@ -154,7 +144,7 @@ private:
     // Internal axis-by-axis collision resolution
     // Based on Minecraft's static adjustMovementForCollisions method
     glm::dvec3 adjustMovementForCollisionsInternal(const AABB& entityBox, const glm::dvec3& movement,
-                                                    const std::vector<VoxelShape>& collisions) const {
+                                                    const std::vector<std::shared_ptr<VoxelShape>>& collisions) const {
         glm::dvec3 result(0.0);
 
         // Determine axis processing order based on movement magnitude
@@ -170,8 +160,11 @@ private:
                 continue;
             }
 
-            // Calculate max offset on this axis
-            double offset = VoxelShapes::calculateMaxOffset(axis, currentBox, collisions, movementOnAxis);
+            // Convert axis int to Direction::Axis enum
+            Direction::Axis dirAxis = static_cast<Direction::Axis>(axis);
+
+            // Calculate max offset on this axis (VoxelShapes.java line 270)
+            double offset = VoxelShapes::calculateMaxOffset(dirAxis, currentBox, collisions, movementOnAxis);
 
             // Apply offset and update current box
             setAxisComponent(result, axis, offset);
@@ -194,7 +187,7 @@ private:
         AABB stepSweptBox = stepBox.stretch(stepUpMovement);
 
         // Get collisions for stepping
-        std::vector<VoxelShape> stepCollisions = getBlockCollisions(stepSweptBox);
+        auto stepCollisions = getBlockCollisions(stepSweptBox);
 
         // Collect all possible step heights from collision edges
         std::vector<float> possibleStepHeights = collectStepHeights(stepBox, stepCollisions, stepHeight);
@@ -226,7 +219,7 @@ private:
 
     // Collect possible step heights from collision shapes
     // Based on Minecraft's collectStepHeights method
-    std::vector<float> collectStepHeights(const AABB& box, const std::vector<VoxelShape>& collisions,
+    std::vector<float> collectStepHeights(const AABB& box, const std::vector<std::shared_ptr<VoxelShape>>& collisions,
                                          float maxStepHeight) const {
         std::set<float> stepHeights;
         stepHeights.insert(0.0f); // Always try ground level
@@ -234,8 +227,11 @@ private:
 
         // Extract Y-coordinates from collision shapes
         for (const auto& shape : collisions) {
-            std::vector<double> yCoords = shape.getYCoordinates();
-            for (double y : yCoords) {
+            if (!shape || shape->isEmpty()) continue;
+
+            // Get Y points from the shape
+            const auto& yPoints = shape->getPointPositions(Direction::Axis::Y);
+            for (double y : yPoints) {
                 float stepHeight = static_cast<float>(y - box.minY);
                 if (stepHeight >= 0.0f && stepHeight <= maxStepHeight) {
                     stepHeights.insert(stepHeight);
@@ -246,29 +242,18 @@ private:
         return std::vector<float>(stepHeights.begin(), stepHeights.end());
     }
 
-    // Get collision shape for a block
-    VoxelShape getBlockCollisionShape(BlockState blockState, int x, int y, int z) const {
-        // For now, return full cube for all solid blocks
+    // Get collision shape for a block at world coordinates
+    // Based on Block.getCollisionShape (Block.java)
+    std::shared_ptr<VoxelShape> getBlockCollisionShape(BlockState blockState, int x, int y, int z) const {
+        // For now, return full cube at world coordinates for all solid blocks
         // TODO: Get actual collision shape from block type (slabs, stairs, etc.)
         if (blockState.isAir()) {
             return VoxelShapes::empty();
         }
-        return VoxelShapes::fullCube();
-    }
 
-    // Check if shape is a full cube (optimization)
-    bool isFullCube(const VoxelShape& shape) const {
-        if (shape.isEmpty()) return false;
-        const auto& boxes = shape.getBoxes();
-        if (boxes.size() != 1) return false;
-
-        const AABB& box = boxes[0];
-        return std::abs(box.minX) < AABB::EPSILON &&
-               std::abs(box.minY) < AABB::EPSILON &&
-               std::abs(box.minZ) < AABB::EPSILON &&
-               std::abs(box.maxX - 1.0) < AABB::EPSILON &&
-               std::abs(box.maxY - 1.0) < AABB::EPSILON &&
-               std::abs(box.maxZ - 1.0) < AABB::EPSILON;
+        // Create a full cube shape at the block's world position
+        // VoxelShapes::cuboid creates shape with absolute world coordinates
+        return VoxelShapes::cuboid(x, y, z, x + 1.0, y + 1.0, z + 1.0);
     }
 
     // Helper: Get axis processing order (largest movement first)

@@ -35,7 +35,7 @@ protected:
     bool groundCollision;         // Minecraft's name for onGround
     bool collidedSoftly;
 
-    bool noClip;                  // Ghost mode (fly through blocks)
+    bool noClip;                  // Ghost mode (fly through blocks)1
 
 public:
     Entity(const glm::dvec3& position = glm::dvec3(0, 100, 0))
