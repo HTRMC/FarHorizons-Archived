@@ -81,6 +81,13 @@ public:
         return BlockShape::fullCube(); // Most blocks are full cubes
     }
 
+    // Get the collision shape for physics collision detection
+    // Based on AbstractBlock.java line 315
+    // By default, uses outline shape if solid, or empty if not solid
+    virtual BlockShape getCollisionShape(BlockState state) const {
+        return isSolid() ? getOutlineShape(state) : BlockShape::empty();
+    }
+
     // Check if a face should be invisible when adjacent to another block
     // Override in transparent blocks (glass, water, etc.) to implement special culling
     //

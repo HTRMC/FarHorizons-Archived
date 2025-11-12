@@ -29,19 +29,29 @@ protected:
     glm::dvec3 lastRenderPos;      // Position from previous tick (for interpolation)
     glm::dvec3 velocity;           // Current velocity
 
+    // Rotation (Entity.java line 210-213)
+    float yaw;                     // Horizontal rotation (degrees)
+    float pitch;                   // Vertical rotation (degrees)
+    float lastYaw;                 // Previous yaw for interpolation
+    float lastPitch;               // Previous pitch for interpolation
+
     // Collision flags (Entity.java line 722-726)
     bool horizontalCollision;
     bool verticalCollision;
     bool groundCollision;         // Minecraft's name for onGround
     bool collidedSoftly;
 
-    bool noClip;                  // Ghost mode (fly through blocks)1
+    bool noClip;                  // Ghost mode (fly through blocks)
 
 public:
     Entity(const glm::dvec3& position = glm::dvec3(0, 100, 0))
         : pos(position)
         , lastRenderPos(position)
         , velocity(0, 0, 0)
+        , yaw(0.0f)
+        , pitch(0.0f)
+        , lastYaw(0.0f)
+        , lastPitch(0.0f)
         , horizontalCollision(false)
         , verticalCollision(false)
         , groundCollision(false)
@@ -57,6 +67,8 @@ public:
     double getY() const { return pos.y; }
     double getZ() const { return pos.z; }
     const glm::dvec3& getVelocity() const { return velocity; }
+    float getYaw() const { return yaw; }
+    float getPitch() const { return pitch; }
     bool isOnGround() const { return groundCollision; }
     bool isNoClip() const { return noClip; }
 
@@ -72,6 +84,12 @@ public:
     void setPos(const glm::dvec3& position) { pos = position; }
     void setVelocity(const glm::dvec3& vel) { velocity = vel; }
     void setVelocity(double x, double y, double z) { velocity = glm::dvec3(x, y, z); }
+    void setYaw(float yawDegrees) { yaw = yawDegrees; }
+    void setPitch(float pitchDegrees) { pitch = pitchDegrees; }
+    void setRotation(float yawDegrees, float pitchDegrees) {
+        yaw = yawDegrees;
+        pitch = pitchDegrees;
+    }
     void setNoClip(bool noclip) { noClip = noclip; }
 
     // Get entity's bounding box (abstract - subclasses define dimensions)
@@ -138,6 +156,38 @@ protected:
     // Save position for interpolation (called at start of tick)
     void updateLastRenderPos() {
         lastRenderPos = pos;
+    }
+
+    // Transform movement input to velocity based on entity rotation (Entity.java line 1605)
+    // movementInput: local movement (sideways, up, forward)
+    // speed: movement speed multiplier
+    // yawDegrees: entity's yaw rotation in degrees
+    static glm::dvec3 movementInputToVelocity(const glm::dvec3& movementInput, float speed, float yawDegrees) {
+        double lengthSquared = glm::dot(movementInput, movementInput);
+
+        // Early exit for zero movement (Entity.java line 1607)
+        if (lengthSquared < 1.0E-7) {
+            return glm::dvec3(0.0);
+        }
+
+        // Normalize if length > 1.0 (Entity.java line 1610)
+        glm::dvec3 normalized = (lengthSquared > 1.0) ? glm::normalize(movementInput) : movementInput;
+        glm::dvec3 scaled = normalized * static_cast<double>(speed);
+
+        // Rotate by yaw angle (Entity.java line 1611-1613)
+        // Convert yaw from degrees to radians
+        float yawRadians = yawDegrees * (glm::pi<float>() / 180.0f);
+        float sinYaw = std::sin(yawRadians);
+        float cosYaw = std::cos(yawRadians);
+
+        // Apply rotation matrix (Entity.java line 1613)
+        // new Vec3d(vec3d.x * g - vec3d.z * f, vec3d.y, vec3d.z * g + vec3d.x * f)
+        // where f = sin(yaw), g = cos(yaw)
+        return glm::dvec3(
+            scaled.x * cosYaw - scaled.z * sinYaw,  // Rotated X
+            scaled.y,                                 // Y unchanged
+            scaled.z * cosYaw + scaled.x * sinYaw   // Rotated Z
+        );
     }
 };
 

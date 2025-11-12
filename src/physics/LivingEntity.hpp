@@ -105,9 +105,9 @@ public:
         glm::dvec3 movementInput(sidewaysSpeed, upwardSpeed, forwardSpeed);
         travel(movementInput, collisionSystem);
 
-        // Debug logging: Print every 4 ticks (5 times per second at 20 TPS)
+        // Debug logging: Print every 1 ticks (20 times per second at 20 TPS)
         static int debugTick = 0;
-        if (++debugTick >= 4) {
+        if (++debugTick >= 1) {
             debugTick = 0;
             glm::dvec3 finalVel = getVelocity();
             spdlog::info("pos({:.3f}, {:.3f}, {:.3f}) vel({:.3f}, {:.3f}, {:.3f}) onGround={}",
@@ -198,16 +198,14 @@ protected:
         return speed;
     }
 
-    // Update velocity from movement input (Entity.java line 1593)
+    // Update velocity from movement input (Entity.java line 1600)
     // Transforms local movement input to world space and adds to velocity
     virtual void updateVelocity(float speed, const glm::dvec3& movementInput) {
-        if (glm::length(movementInput) < 0.001f) return;
+        // Use Entity's movementInputToVelocity to properly rotate by yaw (Entity.java line 1601)
+        glm::dvec3 rotatedVelocity = movementInputToVelocity(movementInput, speed, yaw);
 
-        // For now, movement input is already in world space from client
-        // In full implementation, would use yaw/pitch to transform
-        velocity.x += movementInput.x * speed;
-        velocity.y += movementInput.y * speed;
-        velocity.z += movementInput.z * speed;
+        // Add to current velocity (Entity.java line 1602)
+        setVelocity(velocity + rotatedVelocity);
     }
 
     // Jump (LivingEntity.java has this as protected)

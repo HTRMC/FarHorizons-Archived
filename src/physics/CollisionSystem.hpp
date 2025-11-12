@@ -4,6 +4,8 @@
 #include "voxel/VoxelShapes.hpp"
 #include "world/ChunkManager.hpp"
 #include "world/BlockState.hpp"
+#include "world/BlockRegistry.hpp"
+#include "world/BlockShape.hpp"
 #include "util/MathHelper.hpp"
 #include <glm/glm.hpp>
 #include <vector>
@@ -245,15 +247,24 @@ private:
     // Get collision shape for a block at world coordinates
     // Based on Block.getCollisionShape (Block.java)
     std::shared_ptr<VoxelShape> getBlockCollisionShape(BlockState blockState, int x, int y, int z) const {
-        // For now, return full cube at world coordinates for all solid blocks
-        // TODO: Get actual collision shape from block type (slabs, stairs, etc.)
+        // Fast path: air blocks have no collision
         if (blockState.isAir()) {
             return VoxelShapes::empty();
         }
 
-        // Create a full cube shape at the block's world position
-        // VoxelShapes::cuboid creates shape with absolute world coordinates
-        return VoxelShapes::cuboid(x, y, z, x + 1.0, y + 1.0, z + 1.0);
+        // Get the block and ask for its collision shape
+        // This respects each block's custom collision shape (slabs, stairs, etc.)
+        Block* block = BlockRegistry::getBlock(blockState);
+        if (!block) {
+            // Fallback: if block not found, return full cube (shouldn't happen)
+            return VoxelShapes::cuboid(x, y, z, x + 1.0, y + 1.0, z + 1.0);
+        }
+
+        // Get the block's collision shape (in 0-1 block space)
+        BlockShape collisionShape = block->getCollisionShape(blockState);
+
+        // Convert BlockShape to VoxelShape at world position
+        return VoxelShapes::fromBlockShape(collisionShape, x, y, z);
     }
 
     // Helper: Get axis processing order (largest movement first)

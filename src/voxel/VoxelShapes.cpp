@@ -1,4 +1,5 @@
 #include "VoxelShapes.hpp"
+#include "world/BlockShape.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -47,6 +48,59 @@ std::shared_ptr<VoxelShape> VoxelShapes::cuboid(double minX, double minY, double
     }
 
     return create(minX, minY, minZ, maxX, maxY, maxZ);
+}
+
+// Create VoxelShape from BlockShape at world position
+std::shared_ptr<VoxelShape> VoxelShapes::fromBlockShape(const BlockShape& blockShape,
+                                                         int worldX, int worldY, int worldZ) {
+    // Fast path: empty shape
+    if (blockShape.isEmpty()) {
+        return empty();
+    }
+
+    // Fast path: full cube - use cuboid with world position
+    if (blockShape.isFullCube()) {
+        return cuboid(worldX, worldY, worldZ,
+                     worldX + 1.0, worldY + 1.0, worldZ + 1.0);
+    }
+
+    // Partial shape: preserve the voxel grid from BlockShape
+    // BlockShape stores voxels in 0-1 block space, we need to offset to world space
+    const std::shared_ptr<VoxelSet>& blockVoxels = blockShape.getVoxels();
+    if (!blockVoxels) {
+        return empty();
+    }
+
+    // Get voxel grid dimensions
+    int sizeX = blockVoxels->getXSize();
+    int sizeY = blockVoxels->getYSize();
+    int sizeZ = blockVoxels->getZSize();
+
+    // Create point arrays by offsetting block-space coordinates to world-space
+    // BlockShape voxels are in 0-1 space, we scale them to world position
+    std::vector<double> xPoints, yPoints, zPoints;
+    xPoints.reserve(sizeX + 1);
+    yPoints.reserve(sizeY + 1);
+    zPoints.reserve(sizeZ + 1);
+
+    // Generate world-space point positions
+    // Points represent the boundaries of voxels in world coordinates
+    for (int i = 0; i <= sizeX; i++) {
+        double localX = static_cast<double>(i) / sizeX;  // 0-1 space
+        xPoints.push_back(worldX + localX);              // World space
+    }
+    for (int i = 0; i <= sizeY; i++) {
+        double localY = static_cast<double>(i) / sizeY;
+        yPoints.push_back(worldY + localY);
+    }
+    for (int i = 0; i <= sizeZ; i++) {
+        double localZ = static_cast<double>(i) / sizeZ;
+        zPoints.push_back(worldZ + localZ);
+    }
+
+    // Create ArrayVoxelShape that uses the SAME voxel grid from BlockShape
+    // This preserves the detailed voxel-level collision data
+    return std::make_shared<ArrayVoxelShape>(blockVoxels, xPoints, yPoints, zPoints);
 }
 
 // Create a shape with specified bounds (VoxelShapes.java line 113)

@@ -11,6 +11,9 @@
 
 namespace FarHorizon {
 
+// Forward declarations
+class BlockShape;
+
 // Factory class for creating voxel shapes (from Minecraft's VoxelShapes.java)
 class VoxelShapes {
 private:
@@ -30,6 +33,11 @@ public:
     // Create cuboid shape (VoxelShapes.java line 56)
     static std::shared_ptr<VoxelShape> cuboid(double minX, double minY, double minZ,
                                                double maxX, double maxY, double maxZ);
+
+    // Create VoxelShape from BlockShape at world position
+    // Takes a BlockShape (in 0-1 block space) and offsets it to world coordinates
+    static std::shared_ptr<VoxelShape> fromBlockShape(const BlockShape& blockShape,
+                                                       int worldX, int worldY, int worldZ);
 
     // Calculate maximum distance for collision (VoxelShapes.java line 202)
     // This iterates through a list of voxel shapes and finds the minimum collision distance
