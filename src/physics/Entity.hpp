@@ -6,6 +6,15 @@
 
 namespace FarHorizon {
 
+// MovementType enum (from Minecraft Entity.java)
+enum class MovementType {
+    SELF,
+    PLAYER,
+    PISTON,
+    SHULKER_BOX,
+    SHULKER
+};
+
 // Base entity class with core physics
 // Based on Minecraft's Entity.java class
 class Entity {
@@ -15,97 +24,118 @@ public:
     static constexpr float TERMINAL_VELOCITY = 3.92f;  // Max fall speed
 
 protected:
-    glm::dvec3 position_;          // Position (current tick)
-    glm::dvec3 previousPosition_;  // Position from previous tick (for interpolation)
-    glm::dvec3 velocity_;          // Current velocity
-    bool onGround_;                // Standing on a surface
-    bool wasOnGround_;             // Was on ground last tick
-    bool noClip_;                  // Ghost mode (fly through blocks)
+    glm::dvec3 pos;                // Current position (Entity.java uses x, y, z)
+    glm::dvec3 lastRenderPos;      // Position from previous tick (for interpolation)
+    glm::dvec3 velocity;           // Current velocity
+
+    // Collision flags (Entity.java line 722-726)
+    bool horizontalCollision;
+    bool verticalCollision;
+    bool groundCollision;         // Minecraft's name for onGround
+    bool collidedSoftly;
+
+    bool noClip;                  // Ghost mode (fly through blocks)
 
 public:
     Entity(const glm::dvec3& position = glm::dvec3(0, 100, 0))
-        : position_(position)
-        , previousPosition_(position)
-        , velocity_(0, 0, 0)
-        , onGround_(false)
-        , wasOnGround_(false)
-        , noClip_(false)
+        : pos(position)
+        , lastRenderPos(position)
+        , velocity(0, 0, 0)
+        , horizontalCollision(false)
+        , verticalCollision(false)
+        , groundCollision(false)
+        , collidedSoftly(false)
+        , noClip(false)
     {}
 
     virtual ~Entity() = default;
 
     // Getters
-    const glm::dvec3& getPosition() const { return position_; }
-    const glm::dvec3& getVelocity() const { return velocity_; }
-    bool isOnGround() const { return onGround_; }
-    bool isNoClip() const { return noClip_; }
+    const glm::dvec3& getPos() const { return pos; }
+    double getX() const { return pos.x; }
+    double getY() const { return pos.y; }
+    double getZ() const { return pos.z; }
+    const glm::dvec3& getVelocity() const { return velocity; }
+    bool isOnGround() const { return groundCollision; }
+    bool isNoClip() const { return noClip; }
 
     // Get interpolated position for smooth rendering (Minecraft's pattern)
     // partialTick: value from 0.0 to 1.0 representing progress between ticks
-    glm::dvec3 getInterpolatedPosition(float partialTick) const {
-        return glm::mix(previousPosition_, position_, static_cast<double>(partialTick));
+    // Minecraft uses lastRenderX/Y/Z for interpolation
+    glm::dvec3 getLerpedPos(float partialTick) const {
+        return glm::mix(lastRenderPos, pos, static_cast<double>(partialTick));
     }
 
     // Setters
-    void setPosition(const glm::dvec3& pos) { position_ = pos; }
-    void setVelocity(const glm::dvec3& vel) { velocity_ = vel; }
-    void setNoClip(bool noClip) { noClip_ = noClip; }
+    void setPos(double x, double y, double z) { pos = glm::dvec3(x, y, z); }
+    void setPos(const glm::dvec3& position) { pos = position; }
+    void setVelocity(const glm::dvec3& vel) { velocity = vel; }
+    void setVelocity(double x, double y, double z) { velocity = glm::dvec3(x, y, z); }
+    void setNoClip(bool noclip) { noClip = noclip; }
 
     // Get entity's bounding box (abstract - subclasses define dimensions)
     virtual AABB getBoundingBox() const = 0;
 
-    // Physics tick - subclasses implement their own physics behavior
-    virtual void tick(CollisionSystem& collisionSystem) = 0;
-
-    // Teleport entity to a position
-    void teleport(const glm::dvec3& pos) {
-        position_ = pos;
-        previousPosition_ = pos;
-        velocity_ = glm::dvec3(0.0);
-        onGround_ = false;
+    // Main tick method - called once per game tick (Entity.java line 477)
+    // Minecraft: tick() calls baseTick()
+    virtual void tick(CollisionSystem& collisionSystem) {
+        baseTick();
     }
 
-    // Debug info
-    bool wasOnGroundLastTick() const { return wasOnGround_; }
+    // Base tick - handles basic entity updates (Entity.java line 481)
+    virtual void baseTick() {
+        // In full implementation: fire ticks, portal logic, water state, etc.
+        // For now, minimal implementation
+    }
 
-protected:
-    // Core movement with collision detection
-    // Based on Minecraft's Entity.move() method (Entity.java line 724-726)
-    // This is called by subclasses during their tick
-    void move(CollisionSystem& collisionSystem, float stepHeight) {
-        // Save position before movement for interpolation
-        previousPosition_ = position_;
-        wasOnGround_ = onGround_;
-
-        if (noClip_) {
-            // Creative flying mode - no physics, just direct movement
-            position_ += velocity_;
-            velocity_ *= 0.91f;
+    // Core movement with collision detection (Entity.java line 672)
+    // Minecraft: move(MovementType type, Vec3d movement)
+    void move(MovementType type, const glm::dvec3& movement, CollisionSystem& collisionSystem, float stepHeight) {
+        if (noClip) {
+            // Creative flying mode - no collision (Entity.java line 673-678)
+            setPos(pos + movement);
+            horizontalCollision = false;
+            verticalCollision = false;
+            groundCollision = false;
+            collidedSoftly = false;
             return;
         }
 
-        // Move entity with collision (Minecraft line 2482: this.move())
-        glm::dvec3 movement = velocity_;
+        // adjustMovementForCollisions (Entity.java line 699)
         AABB currentBox = getBoundingBox();
         glm::dvec3 actualMovement = collisionSystem.adjustMovementForCollisionsWithStepping(
             currentBox, movement, stepHeight
         );
-        position_ += actualMovement;
 
-        // Ground detection - Minecraft's exact logic (Entity.java line 724-726)
-        bool verticalCollision = std::abs(movement.y - actualMovement.y) > AABB::EPSILON;
-        onGround_ = verticalCollision && movement.y < 0.0;
+        // Update position (Entity.java line 715)
+        setPos(pos + actualMovement);
 
-        // Zero velocity if blocked
-        if (verticalCollision) {
-            velocity_.y = 0.0;
+        // Collision detection (Entity.java line 720-726)
+        bool xBlocked = std::abs(movement.x - actualMovement.x) > AABB::EPSILON;
+        bool zBlocked = std::abs(movement.z - actualMovement.z) > AABB::EPSILON;
+        horizontalCollision = xBlocked || zBlocked;
+        verticalCollision = movement.y != actualMovement.y;
+        groundCollision = verticalCollision && movement.y < 0.0;
+
+        // Reset velocity on collision (Entity.java line 745-746)
+        if (horizontalCollision) {
+            glm::dvec3 vel = getVelocity();
+            setVelocity(xBlocked ? 0.0 : vel.x, vel.y, zBlocked ? 0.0 : vel.z);
         }
-        if (std::abs(movement.x) > AABB::EPSILON && std::abs(actualMovement.x) < AABB::EPSILON) {
-            velocity_.x = 0.0;
-        }
-        if (std::abs(movement.z) > AABB::EPSILON && std::abs(actualMovement.z) < AABB::EPSILON) {
-            velocity_.z = 0.0;
-        }
+    }
+
+    // Teleport entity to a position
+    void teleport(const glm::dvec3& position) {
+        pos = position;
+        lastRenderPos = position;
+        velocity = glm::dvec3(0.0);
+        groundCollision = false;
+    }
+
+protected:
+    // Save position for interpolation (called at start of tick)
+    void updateLastRenderPos() {
+        lastRenderPos = pos;
     }
 };
 

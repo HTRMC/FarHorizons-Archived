@@ -15,7 +15,7 @@
 #include "game/InteractionManager.hpp"
 #include "render/RenderManager.hpp"
 #include "render/TextureManager.hpp"
-#include "physics/Player.hpp"
+#include "physics/PlayerEntity.hpp"
 #include "physics/CollisionSystem.hpp"
 
 namespace FarHorizon {
@@ -68,7 +68,7 @@ private:
     std::unique_ptr<Settings> settings;
 
     // Physics
-    std::unique_ptr<Player> player;
+    std::unique_ptr<PlayerEntity> player;
     std::unique_ptr<CollisionSystem> collisionSystem;
 
     // Managers

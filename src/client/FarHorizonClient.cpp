@@ -122,8 +122,8 @@ void FarHorizonClient::init() {
 
     // Initialize physics system
     collisionSystem = std::make_unique<CollisionSystem>(chunkManager.get());
-    player = std::make_unique<Player>();
-    player->setPosition(glm::dvec3(0.0, 100.0, 0.0)); // Start high up
+    player = std::make_unique<PlayerEntity>();
+    player->setPos(glm::dvec3(0.0, 100.0, 0.0)); // Start high up
     spdlog::info("Initialized physics system with collision detection");
 
     // Initialize game state manager
@@ -259,16 +259,17 @@ void FarHorizonClient::tick(float deltaTime) {
 
         for (int i = 0; i < ticksToRun; ++i) {
             // Sample movement input and apply it ONCE per tick (not per frame!)
-            glm::vec2 moveInput(0.0f);
-            if (InputSystem::isKeyPressed(KeyCode::W)) moveInput.y += 1.0f;
-            if (InputSystem::isKeyPressed(KeyCode::S)) moveInput.y -= 1.0f;
-            if (InputSystem::isKeyPressed(KeyCode::A)) moveInput.x -= 1.0f;
-            if (InputSystem::isKeyPressed(KeyCode::D)) moveInput.x += 1.0f;
+            // Minecraft's pattern: sidewaysSpeed (x), upwardSpeed (y), forwardSpeed (z)
+            float forwardSpeed = 0.0f;
+            float sidewaysSpeed = 0.0f;
+            if (InputSystem::isKeyPressed(KeyCode::W)) forwardSpeed += 1.0f;
+            if (InputSystem::isKeyPressed(KeyCode::S)) forwardSpeed -= 1.0f;
+            if (InputSystem::isKeyPressed(KeyCode::A)) sidewaysSpeed -= 1.0f;
+            if (InputSystem::isKeyPressed(KeyCode::D)) sidewaysSpeed += 1.0f;
 
-            if (glm::length(moveInput) > 0.001f) {
-                float yaw = glm::radians(camera->getYaw());
-                player->applyMovementInput(moveInput, yaw);
-            }
+            // Set movement input and yaw for this tick
+            player->setMovementInput(forwardSpeed, sidewaysSpeed);
+            player->setYaw(glm::radians(camera->getYaw()));
 
             // Handle player physics and movement (at fixed 20 ticks/second)
             player->tick(*collisionSystem);
@@ -276,9 +277,9 @@ void FarHorizonClient::tick(float deltaTime) {
 
         // Make camera follow player's eye position with sub-tick interpolation
         // This provides buttery-smooth rendering at high framerates (60Hz+) while physics runs at 20Hz
-        // Uses Minecraft's exact pattern: lerp between previousPos and currentPos using partialTick
+        // Uses Minecraft's exact pattern: lerp between lastRenderPos and pos using partialTick
         float partialTick = tickManager.getTickProgress();
-        glm::dvec3 interpolatedEyePos = player->getInterpolatedEyePosition(partialTick);
+        glm::dvec3 interpolatedEyePos = player->getLerpedEyePos(partialTick);
         camera->setPosition(glm::vec3(interpolatedEyePos));
 
         // Update chunks around player

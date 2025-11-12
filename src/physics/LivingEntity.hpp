@@ -21,141 +21,200 @@ public:
     static constexpr float VERTICAL_DRAG = 0.98f;
 
 protected:
-    float stepHeight_;             // Current step height
-    bool isSprinting_;
-    bool isSneaking_;
-    bool jumping_;                 // Jump input (set every frame, checked every tick)
-    int jumpingCooldown_;          // Cooldown to prevent jump spam (in ticks)
+    // Movement input (LivingEntity.java has these as fields)
+    float forwardSpeed;    // Forward/backward movement input
+    float sidewaysSpeed;   // Left/right movement input
+    float upwardSpeed;     // Up/down movement input
+
+    bool jumping;          // Jump input flag (LivingEntity.java line 2799)
+    int jumpingCooldown;   // Cooldown to prevent jump spam (LivingEntity.java line 2755)
+
+    bool sprinting;
+    bool sneaking;
 
 public:
     LivingEntity(const glm::dvec3& position = glm::dvec3(0, 100, 0))
         : Entity(position)
-        , stepHeight_(STEP_HEIGHT)
-        , isSprinting_(false)
-        , isSneaking_(false)
-        , jumping_(false)
-        , jumpingCooldown_(0)
+        , forwardSpeed(0.0f)
+        , sidewaysSpeed(0.0f)
+        , upwardSpeed(0.0f)
+        , jumping(false)
+        , jumpingCooldown(0)
+        , sprinting(false)
+        , sneaking(false)
     {}
 
     virtual ~LivingEntity() = default;
 
     // Getters
-    float getStepHeight() const { return stepHeight_; }
-    bool isSprinting() const { return isSprinting_; }
-    bool isSneaking() const { return isSneaking_; }
+    bool isSprinting() const { return sprinting; }
+    bool isSneaking() const { return sneaking; }
 
     // Setters
-    void setSprinting(bool sprinting) { isSprinting_ = sprinting; }
-    void setSneaking(bool sneaking) { isSneaking_ = sneaking; }
-    void setJumping(bool jumping) { jumping_ = jumping; }
+    void setSprinting(bool sprint) { sprinting = sprint; }
+    void setSneaking(bool sneak) { sneaking = sneak; }
+    void setJumping(bool jump) { jumping = jump; }
 
-    // Apply movement input (before physics)
-    // input: normalized movement direction in local space (x=strafe, z=forward)
-    // yaw: camera yaw in radians
-    // Called once per tick (not per frame!)
-    void applyMovementInput(const glm::vec2& input, float yaw) {
-        if (glm::length(input) < 0.001f) return;
+    // Set movement input (called from input system)
+    void setMovementInput(float forward, float sideways, float upward = 0.0f) {
+        forwardSpeed = forward;
+        sidewaysSpeed = sideways;
+        upwardSpeed = upward;
+    }
 
-        // Minecraft's player movement speed attribute (default = 0.1)
-        constexpr float MOVEMENT_SPEED = 0.1f;
+    // Main tick method (LivingEntity.java line 2545)
+    // Minecraft: tick() calls super.tick() then tickMovement()
+    void tick(CollisionSystem& collisionSystem) override {
+        Entity::tick(collisionSystem);  // Call super.tick() (Entity.baseTick())
+        tickMovement(collisionSystem);
+    }
 
-        // Transform input to world space
-        glm::vec2 normalizedInput = glm::normalize(input);
-        float forward = normalizedInput.y;
-        float strafe = normalizedInput.x;
+    // Main movement tick (LivingEntity.java line 2754)
+    // This is where all the movement logic happens
+    virtual void tickMovement(CollisionSystem& collisionSystem) {
+        // Decrease jumping cooldown (LivingEntity.java line 2755-2757)
+        if (jumpingCooldown > 0) {
+            jumpingCooldown--;
+        }
 
-        // Apply yaw rotation - Minecraft's exact formula (Entity.java line 1613)
-        // In Minecraft: velocityX = strafe * cos(yaw) - forward * sin(yaw)
-        //               velocityZ = forward * cos(yaw) + strafe * sin(yaw)
-        // But our coordinate system has X and Z swapped compared to Minecraft
-        float moveZ = strafe * cos(yaw) + forward * sin(yaw);
-        float moveX = forward * cos(yaw) - strafe * sin(yaw);
+        // Zero out very small velocities (LivingEntity.java line 2771-2794)
+        // IMPORTANT: Players use horizontalLengthSquared check (line 2775-2778)
+        glm::dvec3 vel = getVelocity();
 
-        // In noclip mode, use creative flying speed
-        if (noClip_) {
-            // Creative flying uses higher speed multiplier
-            float flyingSpeed = MOVEMENT_SPEED * 10.0f; // Much faster in creative
-            velocity_.x = moveX * flyingSpeed;
-            velocity_.z = moveZ * flyingSpeed;
-        } else {
-            // Minecraft's movement speed calculation
-            // Ground: movementSpeed * (0.21600002 / slipperiness^3)
-            // Air: movementSpeed * 0.1 (for players)
-            float slipperiness = GROUND_SLIPPERINESS;
-            float speed = onGround_
-                ? MOVEMENT_SPEED * (0.21600002f / (slipperiness * slipperiness * slipperiness))
-                : MOVEMENT_SPEED * 0.1f; // Air control
+        // For players: zero horizontal if combined length squared < 9.0E-6
+        double horizontalLengthSq = vel.x * vel.x + vel.z * vel.z;
+        if (horizontalLengthSq < 9.0E-6) {  // 0.003 * 0.003 = 9.0E-6
+            vel.x = 0.0;
+            vel.z = 0.0;
+        }
 
-            // Sprinting multiplier (Minecraft uses 1.3x)
-            if (isSprinting_) speed *= 1.3f;
-            if (isSneaking_) speed *= 0.3f;
+        // Always zero Y if too small
+        if (std::abs(vel.y) < 0.003) {
+            vel.y = 0.0;
+        }
 
-            // updateVelocity from Minecraft - adds to existing velocity
-            velocity_.x += moveX * speed;
-            velocity_.z += moveZ * speed;
+        setVelocity(vel);
+
+        // Jump logic (LivingEntity.java line 2809-2834)
+        if (jumping && groundCollision && jumpingCooldown == 0) {
+            jump();
+            jumpingCooldown = 10;  // 10 ticks = 0.5 seconds
+        }
+
+        // Travel with movement input (LivingEntity.java line 2851)
+        glm::dvec3 movementInput(sidewaysSpeed, upwardSpeed, forwardSpeed);
+        travel(movementInput, collisionSystem);
+
+        // Debug logging: Print every 4 ticks (5 times per second at 20 TPS)
+        static int debugTick = 0;
+        if (++debugTick >= 4) {
+            debugTick = 0;
+            glm::dvec3 finalVel = getVelocity();
+            spdlog::info("pos({:.3f}, {:.3f}, {:.3f}) vel({:.3f}, {:.3f}, {:.3f}) onGround={}",
+                pos.x, pos.y, pos.z,
+                finalVel.x, finalVel.y, finalVel.z,
+                groundCollision);
         }
     }
 
-    // Physics tick - Minecraft's exact travel() structure
-    // Based on LivingEntity.travelMidAir() lines 2309-2332
-    // Called exactly once per tick (20 times per second)
-    void tick(CollisionSystem& collisionSystem) override {
-        if (noClip_) {
-            // Creative flying mode - no physics, just direct movement
-            previousPosition_ = position_;
-            position_ += velocity_;
-            velocity_ *= 0.91f;
-            return;
-        }
-
-        // Minecraft's travelMidAir() - line 2310-2312
-        // Get block slipperiness (0.6 on ground, 1.0 in air)
-        float slipperiness = onGround_ ? GROUND_SLIPPERINESS : AIR_SLIPPERINESS;
-        float drag = slipperiness * DRAG_MULTIPLIER;  // Ground: 0.546, Air: 0.91
-
-        // Step 1: applyMovementInput() - This happens BEFORE gravity!
-        // (Movement input was already applied in applyMovementInput(), velocity is ready)
-
-        // Step 2: Move entity with collision (Minecraft line 2482: this.move())
-        move(collisionSystem, stepHeight_);
-
-        // Step 3: Apply gravity AFTER movement (Minecraft line 2319)
-        if (!onGround_) {
-            velocity_.y -= GRAVITY;
-            if (velocity_.y < -TERMINAL_VELOCITY) {
-                velocity_.y = -TERMINAL_VELOCITY;
-            }
-        }
-
-        // Step 4: Handle jump (Minecraft line 2822-2825)
-        if (jumpingCooldown_ > 0) {
-            jumpingCooldown_--;
-        }
-        if (jumping_ && onGround_ && jumpingCooldown_ == 0) {
-            jump();
-            jumpingCooldown_ = 10;
-        }
-
-        // Step 5: Apply drag to ALL axes (Minecraft line 2330)
-        // Horizontal: drag (0.546 ground, 0.91 air)
-        // Vertical: 0.98 (always, unless Flutterer)
-        velocity_.x *= drag;
-        velocity_.z *= drag;
-        velocity_.y *= VERTICAL_DRAG;
-
-        // Zero out very small velocities
-        if (std::abs(velocity_.x) < 0.003) velocity_.x = 0.0;
-        if (std::abs(velocity_.y) < 0.003) velocity_.y = 0.0;
-        if (std::abs(velocity_.z) < 0.003) velocity_.z = 0.0;
+    // Main travel method (LivingEntity.java line 2278)
+    // Decides which travel mode to use (water/lava/gliding/mid-air)
+    virtual void travel(const glm::dvec3& movementInput, CollisionSystem& collisionSystem) {
+        // For now, only implement mid-air travel
+        // Full implementation would check for water/lava/gliding
+        travelMidAir(movementInput, collisionSystem);
     }
 
 protected:
-    // Jump (can only jump when on ground)
-    // Based on Minecraft's LivingEntity.jump() method
+    // Mid-air travel (LivingEntity.java line 2309)
+    // This is the core physics for walking/flying
+    virtual void travelMidAir(const glm::dvec3& movementInput, CollisionSystem& collisionSystem) {
+        updateLastRenderPos();  // Save position for interpolation
+
+        if (noClip) {
+            // Creative flying mode (simplified)
+            glm::dvec3 vel = getVelocity();
+            setPos(pos + vel);
+            setVelocity(vel * 0.91);
+            return;
+        }
+
+        // Get block slipperiness (LivingEntity.java line 2310-2312)
+        // 0.6 on ground (default block), 1.0 in air
+        float slipperiness = groundCollision ? GROUND_SLIPPERINESS : AIR_SLIPPERINESS;
+        float drag = slipperiness * DRAG_MULTIPLIER;  // Ground: 0.546, Air: 0.91
+
+        // Apply movement input and move (LivingEntity.java line 2313)
+        // This calls updateVelocity() then move()
+        glm::dvec3 newVelocity = applyMovementInput(movementInput, slipperiness, collisionSystem);
+
+        // Apply gravity AFTER movement (LivingEntity.java line 2314-2324)
+        double yVelocity = newVelocity.y;
+        if (!groundCollision) {
+            yVelocity -= GRAVITY;
+            if (yVelocity < -TERMINAL_VELOCITY) {
+                yVelocity = -TERMINAL_VELOCITY;
+            }
+        }
+
+        // Apply drag (LivingEntity.java line 2326-2331)
+        // Horizontal drag depends on slipperiness, vertical is always 0.98
+        float verticalDrag = VERTICAL_DRAG;  // 0.98 always (unless Flutterer)
+        setVelocity(newVelocity.x * drag, yVelocity * verticalDrag, newVelocity.z * drag);
+    }
+
+    // Apply movement input (LivingEntity.java line 2479)
+    // Calls updateVelocity() then move()
+    virtual glm::dvec3 applyMovementInput(const glm::dvec3& movementInput, float slipperiness,
+                                          CollisionSystem& collisionSystem) {
+        // Calculate movement speed (LivingEntity.java line 2480)
+        float movementSpeed = getMovementSpeed(slipperiness);
+
+        // Update velocity with movement input (updateVelocity)
+        updateVelocity(movementSpeed, movementInput);
+
+        // Move with collision (LivingEntity.java line 2482)
+        move(MovementType::SELF, getVelocity(), collisionSystem, STEP_HEIGHT);
+
+        return getVelocity();
+    }
+
+    // Calculate movement speed based on slipperiness (from getMovementSpeed)
+    virtual float getMovementSpeed(float slipperiness) const {
+        // Minecraft's player movement speed attribute (default = 0.1)
+        constexpr float MOVEMENT_SPEED = 0.1f;
+
+        // Minecraft's movement speed calculation
+        // Ground: movementSpeed * (0.21600002 / slipperiness^3)
+        // Air: movementSpeed * 0.1 (for players)
+        float speed = groundCollision
+            ? MOVEMENT_SPEED * (0.21600002f / (slipperiness * slipperiness * slipperiness))
+            : MOVEMENT_SPEED * 0.1f;  // Air control
+
+        // Sprinting multiplier (Minecraft uses 1.3x)
+        if (sprinting) speed *= 1.3f;
+        if (sneaking) speed *= 0.3f;
+
+        return speed;
+    }
+
+    // Update velocity from movement input (Entity.java line 1593)
+    // Transforms local movement input to world space and adds to velocity
+    virtual void updateVelocity(float speed, const glm::dvec3& movementInput) {
+        if (glm::length(movementInput) < 0.001f) return;
+
+        // For now, movement input is already in world space from client
+        // In full implementation, would use yaw/pitch to transform
+        velocity.x += movementInput.x * speed;
+        velocity.y += movementInput.y * speed;
+        velocity.z += movementInput.z * speed;
+    }
+
+    // Jump (LivingEntity.java has this as protected)
     virtual void jump() {
-        if (onGround_ && !noClip_) {
-            velocity_.y = JUMP_VELOCITY;
-            onGround_ = false;
+        if (groundCollision && !noClip) {
+            velocity.y = JUMP_VELOCITY;
+            groundCollision = false;
         }
     }
 };
