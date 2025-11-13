@@ -130,6 +130,21 @@ public:
         return chunk->getBlockState(localX, localY, localZ);
     }
 
+    // Get chunk for collision queries (CollisionGetter: getChunkForCollisions)
+    // Returns this Level as a BlockGetter since Level already handles coordinate conversion
+    BlockGetter* getChunkForCollisions(int chunkX, int chunkZ) override {
+        // In Minecraft, this would return the specific chunk at (chunkX, chunkZ)
+        // For simplicity, we return the Level itself which already implements BlockGetter
+        // and handles world-to-chunk coordinate conversion in getBlockState()
+
+        // Check if chunk exists at this position
+        ChunkPosition pos{chunkX, 0, chunkZ};  // Y doesn't matter for 2D chunk lookup
+
+        // We could optimize by caching, but for now just return this
+        // The Level's getBlockState will handle the coordinate conversion
+        return this;
+    }
+
 private:
     // Get collision shape for a block at world coordinates
     std::shared_ptr<VoxelShape> getBlockCollisionShape(const BlockState& blockState, const glm::ivec3& pos) const {

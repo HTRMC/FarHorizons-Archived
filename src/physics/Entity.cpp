@@ -493,29 +493,42 @@ std::vector<float> Entity::collectCandidateStepUpHeights(const AABB& boundingBox
 // Collide with shapes (Entity.java line 1163)
 glm::dvec3 Entity::collideWithShapes(const glm::dvec3& movement, const AABB& boundingBox,
                                      const std::vector<std::shared_ptr<VoxelShape>>& shapes) {
-    // Minecraft: if (shapes.isEmpty()) return movement;
+    // Minecraft line 1164: if (shapes.isEmpty()) return movement;
     if (shapes.empty()) {
         return movement;
+    } else {
+        // Minecraft line 1167: Vec3 var3 = Vec3.ZERO;
+        glm::dvec3 var3(0.0, 0.0, 0.0);
+
+        // Minecraft line 1168: UnmodifiableIterator var4 = Direction.axisStepOrder(movement).iterator();
+        std::vector<Direction::Axis> axisOrder = Direction::axisStepOrder(movement);
+
+        // Minecraft line 1170: while(var4.hasNext())
+        for (Direction::Axis var5 : axisOrder) {
+            // Minecraft line 1171: Direction.Axis var5 = (Direction.Axis)var4.next();
+            // Minecraft line 1172: double var6 = movement.get(var5);
+            double var6 = Direction::choose(var5, movement.x, movement.y, movement.z);
+
+            // Minecraft line 1173: if (var6 != 0.0)
+            if (var6 != 0.0) {
+                // Minecraft line 1174: double var8 = Shapes.collide(var5, boundingBox.move(var3), shapes, var6);
+                double var8 = VoxelShapes::collide(var5, boundingBox.move(var3.x, var3.y, var3.z), shapes, var6);
+
+                // Minecraft line 1175: var3 = var3.with(var5, var8);
+                // Vec3.with() returns new Vec3 with the specified axis component replaced
+                if (var5 == Direction::Axis::X) {
+                    var3.x = var8;
+                } else if (var5 == Direction::Axis::Y) {
+                    var3.y = var8;
+                } else { // Direction::Axis::Z
+                    var3.z = var8;
+                }
+            }
+        }
+
+        // Minecraft line 1179: return var3;
+        return var3;
     }
-
-    // Minecraft: Vec3 var3 = Vec3.ZERO;
-    glm::dvec3 result(0.0, 0.0, 0.0);
-
-    // Minecraft: UnmodifiableIterator var4 = Direction.axisStepOrder(movement).iterator();
-    // TODO: Implement axisStepOrder - for now use fixed order Y, X, Z
-    // This determines which axis to resolve collisions in first
-
-    // For each axis in order:
-    // Minecraft: Direction.Axis var5 = (Direction.Axis)var4.next();
-    // Minecraft: double var6 = movement.get(var5);
-    // Minecraft: if (var6 != 0.0) {
-    //   double var8 = Shapes.collide(var5, boundingBox.move(var3), shapes, var6);
-    //   var3 = var3.with(var5, var8);
-    // }
-
-    // TODO: Implement Shapes.collide() for each axis
-    // For now, return movement as placeholder
-    return movement;
 }
 
 } // namespace FarHorizon

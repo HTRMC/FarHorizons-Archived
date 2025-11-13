@@ -1,4 +1,5 @@
 #pragma once
+#include <vector>
 
 namespace FarHorizon {
 
@@ -19,6 +20,21 @@ public:
             case Axis::Y: return y;
             case Axis::Z: return z;
             default: return x;
+        }
+    }
+
+    // Axis step order for collision resolution (Direction.java line 539)
+    // Returns the order in which to resolve collision axes based on movement direction
+    // Minecraft: public static ImmutableList<Axis> axisStepOrder(final Vec3 movement)
+    template<typename Vec3>
+    static std::vector<Axis> axisStepOrder(const Vec3& movement) {
+        // Direction.java line 540: return Math.abs(movement.x) < Math.abs(movement.z) ? YZX_AXIS_ORDER : YXZ_AXIS_ORDER;
+        // YZX_AXIS_ORDER = [Y, Z, X] - use when Z movement is larger
+        // YXZ_AXIS_ORDER = [Y, X, Z] - use when X movement is larger or equal
+        if (std::abs(movement.x) < std::abs(movement.z)) {
+            return {Axis::Y, Axis::Z, Axis::X};  // YZX
+        } else {
+            return {Axis::Y, Axis::X, Axis::Z};  // YXZ
         }
     }
 };

@@ -48,6 +48,23 @@ struct ChunkPosition {
     ChunkPosition getNeighbor(int dx, int dy, int dz) const {
         return {x + dx, y + dy, z + dz};
     }
+
+    // Convert block coordinate to chunk coordinate (Minecraft: SectionPos.blockToSectionCoord)
+    // Divides by 16 and floors for negative numbers
+    static int32_t blockToSectionCoord(int blockCoord) {
+        return blockCoord >> 4;  // Equivalent to floor(blockCoord / 16) for both positive and negative
+    }
+
+    // Pack chunk coordinates into a single long (Minecraft: ChunkPos.asLong)
+    // Used for caching chunk lookups
+    static int64_t asLong(int32_t chunkX, int32_t chunkZ) {
+        return (static_cast<int64_t>(chunkX) & 0xFFFFFFFFL) | ((static_cast<int64_t>(chunkZ) & 0xFFFFFFFFL) << 32);
+    }
+
+    // Create ChunkPosition from block coordinates
+    static ChunkPosition fromBlockCoords(int blockX, int blockY, int blockZ) {
+        return {blockToSectionCoord(blockX), blockToSectionCoord(blockY), blockToSectionCoord(blockZ)};
+    }
 };
 
 struct ChunkPositionHash {

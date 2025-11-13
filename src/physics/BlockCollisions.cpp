@@ -5,6 +5,7 @@
 #include "../voxel/BooleanOp.hpp"
 #include "CollisionContext.hpp"
 #include "BlockGetter.hpp"
+#include "world/Chunk.hpp"
 #include <cmath>
 
 namespace FarHorizon {
@@ -41,16 +42,28 @@ BlockCollisions::BlockCollisions(CollisionGetter* collisionGetter, CollisionCont
 
 // Get chunk at position (Minecraft: private BlockGetter getChunk(int x, int z))
 BlockGetter* BlockCollisions::getChunk(int x, int z) {
-    // TODO: Implement chunk caching with SectionPos and ChunkPos
-    // For now, just return the CollisionGetter as BlockGetter
-    // Full implementation would:
-    // 1. Convert x, z to section coordinates (SectionPos::blockToSectionCoord)
-    // 2. Calculate ChunkPos::asLong(sectionX, sectionZ)
-    // 3. Check if cached (cachedBlockGetterPos == chunkPos)
-    // 4. If not cached, call collisionGetter_->getChunkForCollisions(sectionX, sectionZ)
-    // 5. Update cache
+    // Minecraft implementation (BlockCollisions.java line private @Nullable BlockGetter getChunk):
+    // int var3 = SectionPos.blockToSectionCoord(x);
+    int var3 = ChunkPosition::blockToSectionCoord(x);
+    // int var4 = SectionPos.blockToSectionCoord(z);
+    int var4 = ChunkPosition::blockToSectionCoord(z);
+    // long var5 = ChunkPos.asLong(var3, var4);
+    int64_t var5 = ChunkPosition::asLong(var3, var4);
 
-    return nullptr;  // Placeholder
+    // if (this.cachedBlockGetter != null && this.cachedBlockGetterPos == var5)
+    if (cachedBlockGetter_ != nullptr && cachedBlockGetterPos_ == var5) {
+        // return this.cachedBlockGetter;
+        return cachedBlockGetter_;
+    } else {
+        // BlockGetter var7 = this.collisionGetter.getChunkForCollisions(var3, var4);
+        BlockGetter* var7 = collisionGetter_->getChunkForCollisions(var3, var4);
+        // this.cachedBlockGetter = var7;
+        cachedBlockGetter_ = var7;
+        // this.cachedBlockGetterPos = var5;
+        cachedBlockGetterPos_ = var5;
+        // return var7;
+        return var7;
+    }
 }
 
 // Compute the next colliding block (Minecraft: protected BlockPos computeNext())
