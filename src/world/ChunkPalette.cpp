@@ -5,45 +5,45 @@ namespace FarHorizon {
 
 ChunkPalette::ChunkPalette() {
     // Initialize with AIR at index 0
-    m_palette.push_back(0);
-    m_indexMap[0] = 0;
+    palette_.push_back(0);
+    indexMap_[0] = 0;
 }
 
 uint16_t ChunkPalette::getStateId(uint8_t index) const {
-    if (index >= m_palette.size()) {
+    if (index >= palette_.size()) {
         spdlog::error("ChunkPaletteNew::getStateId - index {} out of bounds (size: {})",
-                      index, m_palette.size());
+                      index, palette_.size());
         return 0; // Return AIR on error
     }
-    return m_palette[index];
+    return palette_[index];
 }
 
 uint8_t ChunkPalette::getOrAddIndex(uint16_t stateId) {
     // Check if state is already in palette
-    auto it = m_indexMap.find(stateId);
-    if (it != m_indexMap.end()) {
+    auto it = indexMap_.find(stateId);
+    if (it != indexMap_.end()) {
         return it->second;
     }
 
     // Add new state to palette
-    if (m_palette.size() >= 256) {
+    if (palette_.size() >= 256) {
         spdlog::error("ChunkPaletteNew::getOrAddIndex - palette full! Cannot add state {}", stateId);
         return 0; // Return AIR index on overflow
     }
 
-    uint8_t newIndex = static_cast<uint8_t>(m_palette.size());
-    m_palette.push_back(stateId);
-    m_indexMap[stateId] = newIndex;
+    uint8_t newIndex = static_cast<uint8_t>(palette_.size());
+    palette_.push_back(stateId);
+    indexMap_[stateId] = newIndex;
     return newIndex;
 }
 
 void ChunkPalette::clear() {
-    m_palette.clear();
-    m_indexMap.clear();
+    palette_.clear();
+    indexMap_.clear();
 
     // Re-initialize with AIR
-    m_palette.push_back(0);
-    m_indexMap[0] = 0;
+    palette_.push_back(0);
+    indexMap_[0] = 0;
 }
 
 } // namespace FarHorizon

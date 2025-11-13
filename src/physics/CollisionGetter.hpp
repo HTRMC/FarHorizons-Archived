@@ -5,6 +5,7 @@
 #include <optional>
 
 #include "Entity.hpp"
+#include "world/BlockState.hpp"
 
 namespace FarHorizon {
 

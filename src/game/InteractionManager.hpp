@@ -38,8 +38,8 @@ public:
     bool placeBlock(const BlockHitResult& hitResult, Block* block, const glm::vec3& cameraForward);
 
 private:
-    ChunkManager& m_chunkManager;
-    AudioManager& m_audioManager;
+    ChunkManager& chunkManager_;
+    AudioManager& audioManager_;
 
     /**
      * Calculate the appropriate BlockState for placing a stair block.

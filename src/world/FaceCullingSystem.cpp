@@ -48,41 +48,41 @@ static bool matchesAnywhere(const VoxelSet& shape1, const VoxelSet& shape2) {
 // ============================================================================
 
 std::optional<bool> FaceCullCache::get(const ShapePair& key) {
-    auto it = m_map.find(key);
-    if (it != m_map.end()) {
+    auto it = map_.find(key);
+    if (it != map_.end()) {
         // Move to front (most recently used)
-        m_list.splice(m_list.begin(), m_list, it->second);
+        list_.splice(list_.begin(), list_, it->second);
         return it->second->second;  // Return cached result
     }
     return std::nullopt;  // Cache miss
 }
 
 void FaceCullCache::put(const ShapePair& key, bool shouldCull) {
-    auto it = m_map.find(key);
+    auto it = map_.find(key);
 
-    if (it != m_map.end()) {
+    if (it != map_.end()) {
         // Update existing entry and move to front
         it->second->second = shouldCull;
-        m_list.splice(m_list.begin(), m_list, it->second);
+        list_.splice(list_.begin(), list_, it->second);
     } else {
         // New entry
-        if (m_map.size() >= MAX_SIZE) {
+        if (map_.size() >= MAX_SIZE) {
             // Evict least recently used (back of list)
-            auto last = m_list.end();
+            auto last = list_.end();
             --last;
-            m_map.erase(last->first);
-            m_list.pop_back();
+            map_.erase(last->first);
+            list_.pop_back();
         }
 
         // Insert at front
-        m_list.push_front({key, shouldCull});
-        m_map[key] = m_list.begin();
+        list_.push_front({key, shouldCull});
+        map_[key] = list_.begin();
     }
 }
 
 void FaceCullCache::clear() {
-    m_map.clear();
-    m_list.clear();
+    map_.clear();
+    list_.clear();
 }
 
 // ============================================================================
@@ -233,27 +233,27 @@ BlockState FaceCullingSystem::getNeighborBlockState(
 
 const BlockShape& FaceCullingSystem::getBlockShape(BlockState state, const BlockModel* model) {
     // Check cache first (O(1) lookup)
-    auto it = m_shapeCache.find(state.id);
-    if (it != m_shapeCache.end()) {
+    auto it = shapeCache_.find(state.id);
+    if (it != shapeCache_.end()) {
         return it->second;
     }
 
     // Cache miss - compute shape and store it
     // Use Block's getOutlineShape() for culling logic
     if (state.isAir()) {
-        m_shapeCache[state.id] = BlockShape::empty();
-        return m_shapeCache[state.id];
+        shapeCache_[state.id] = BlockShape::empty();
+        return shapeCache_[state.id];
     }
 
     // Get the block and ask for its outline shape
     // This respects each block's custom shape definition (slabs, stairs, etc.)
     Block* block = BlockRegistry::getBlock(state);
     if (block) {
-        m_shapeCache[state.id] = block->getOutlineShape(state);
+        shapeCache_[state.id] = block->getOutlineShape(state);
     } else {
         // Fallback: compute from model if block not found (shouldn't happen in normal operation)
         if (!model || model->elements.empty()) {
-            m_shapeCache[state.id] = BlockShape::empty();
+            shapeCache_[state.id] = BlockShape::empty();
         } else {
             // Compute bounding box from all model elements
             glm::vec3 minBounds(16.0f);
@@ -268,16 +268,16 @@ const BlockShape& FaceCullingSystem::getBlockShape(BlockState state, const Block
             minBounds /= 16.0f;
             maxBounds /= 16.0f;
 
-            m_shapeCache[state.id] = BlockShape::fromBounds(minBounds, maxBounds);
+            shapeCache_[state.id] = BlockShape::fromBounds(minBounds, maxBounds);
         }
     }
 
-    return m_shapeCache[state.id];
+    return shapeCache_[state.id];
 }
 
 void FaceCullingSystem::precacheAllShapes(const std::unordered_map<uint16_t, const BlockModel*>& stateToModel) {
-    m_shapeCache.clear();
-    m_shapeCache.reserve(stateToModel.size());
+    shapeCache_.clear();
+    shapeCache_.reserve(stateToModel.size());
 
     spdlog::info("Pre-caching BlockShapes for {} BlockStates...", stateToModel.size());
 
@@ -290,18 +290,18 @@ void FaceCullingSystem::precacheAllShapes(const std::unordered_map<uint16_t, con
 
         // Compute shape using Block's getOutlineShape()
         if (state.isAir()) {
-            m_shapeCache[stateId] = BlockShape::empty();
+            shapeCache_[stateId] = BlockShape::empty();
             emptyShapes++;
             continue;
         }
 
         Block* block = BlockRegistry::getBlock(state);
         if (block) {
-            m_shapeCache[stateId] = block->getOutlineShape(state);
+            shapeCache_[stateId] = block->getOutlineShape(state);
         } else {
             // Fallback: compute from model
             if (!model || model->elements.empty()) {
-                m_shapeCache[stateId] = BlockShape::empty();
+                shapeCache_[stateId] = BlockShape::empty();
                 emptyShapes++;
                 continue;
             }
@@ -319,13 +319,13 @@ void FaceCullingSystem::precacheAllShapes(const std::unordered_map<uint16_t, con
             minBounds /= 16.0f;
             maxBounds /= 16.0f;
 
-            m_shapeCache[stateId] = BlockShape::fromBounds(minBounds, maxBounds);
+            shapeCache_[stateId] = BlockShape::fromBounds(minBounds, maxBounds);
         }
 
         // Count shape types
-        if (m_shapeCache[stateId].isEmpty()) {
+        if (shapeCache_[stateId].isEmpty()) {
             emptyShapes++;
-        } else if (m_shapeCache[stateId].isFullCube()) {
+        } else if (shapeCache_[stateId].isFullCube()) {
             fullCubes++;
         } else {
             partialShapes++;
@@ -333,7 +333,7 @@ void FaceCullingSystem::precacheAllShapes(const std::unordered_map<uint16_t, con
     }
 
     spdlog::info("BlockShape cache built: {} full cubes, {} partial, {} empty (total: {})",
-                 fullCubes, partialShapes, emptyShapes, m_shapeCache.size());
+                 fullCubes, partialShapes, emptyShapes, shapeCache_.size());
 }
 
 bool FaceCullingSystem::geometricComparison(
@@ -370,7 +370,7 @@ bool FaceCullingSystem::geometricComparison(
 
 void FaceCullingSystem::clearCache() {
     s_cache.clear();
-    m_shapeCache.clear();
+    shapeCache_.clear();
 }
 
 } // namespace FarHorizon

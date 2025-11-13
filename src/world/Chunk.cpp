@@ -7,10 +7,10 @@
 namespace FarHorizon {
 
 Chunk::Chunk(const ChunkPosition& position)
-    : m_position(position)
+    : position_(position)
 {
     // Initialize all blocks to AIR (palette index 0)
-    std::memset(m_data.data(), 0, CHUNK_VOLUME * sizeof(uint8_t));
+    std::memset(data_.data(), 0, CHUNK_VOLUME * sizeof(uint8_t));
 }
 
 uint32_t Chunk::getBlockIndex(uint32_t x, uint32_t y, uint32_t z) const {
@@ -20,26 +20,26 @@ uint32_t Chunk::getBlockIndex(uint32_t x, uint32_t y, uint32_t z) const {
 // BlockState methods
 BlockState Chunk::getBlockState(uint32_t x, uint32_t y, uint32_t z) const {
     uint32_t index = getBlockIndex(x, y, z);
-    uint8_t paletteIndex = m_data[index];
-    uint16_t stateId = m_palette.getStateId(paletteIndex);
+    uint8_t paletteIndex = data_[index];
+    uint16_t stateId = palette_.getStateId(paletteIndex);
     return BlockState(stateId);
 }
 
 void Chunk::setBlockState(uint32_t x, uint32_t y, uint32_t z, BlockState state) {
     uint32_t index = getBlockIndex(x, y, z);
-    uint8_t paletteIndex = m_palette.getOrAddIndex(state.id);
-    m_data[index] = paletteIndex;
+    uint8_t paletteIndex = palette_.getOrAddIndex(state.id);
+    data_[index] = paletteIndex;
 
     if (state.id != 0) {
-        m_isEmpty = false;
+        isEmpty_ = false;
     }
 }
 
 void Chunk::generate() {
     glm::vec3 chunkWorldPos(
-        m_position.x * static_cast<int32_t>(CHUNK_SIZE),
-        m_position.y * static_cast<int32_t>(CHUNK_SIZE),
-        m_position.z * static_cast<int32_t>(CHUNK_SIZE)
+        position_.x * static_cast<int32_t>(CHUNK_SIZE),
+        position_.y * static_cast<int32_t>(CHUNK_SIZE),
+        position_.z * static_cast<int32_t>(CHUNK_SIZE)
     );
 
     bool hasBlocks = false;
@@ -79,7 +79,7 @@ void Chunk::generate() {
     }
 
     if (hasBlocks) {
-        m_isEmpty = false;
+        isEmpty_ = false;
     }
 }
 

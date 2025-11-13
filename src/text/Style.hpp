@@ -19,52 +19,52 @@ public:
         Builder() = default;
 
         Builder& color(const glm::vec4& c) {
-            m_color = c;
+            color_ = c;
             return *this;
         }
 
         Builder& color(const glm::vec3& rgb) {
-            m_color = glm::vec4(rgb, 1.0f);
+            color_ = glm::vec4(rgb, 1.0f);
             return *this;
         }
 
         Builder& bold(bool value = true) {
-            m_bold = value;
+            bold_ = value;
             return *this;
         }
 
         Builder& italic(bool value = true) {
-            m_italic = value;
+            italic_ = value;
             return *this;
         }
 
         Builder& underline(bool value = true) {
-            m_underline = value;
+            underline_ = value;
             return *this;
         }
 
         Builder& strikethrough(bool value = true) {
-            m_strikethrough = value;
+            strikethrough_ = value;
             return *this;
         }
 
         Builder& obfuscated(bool value = true) {
-            m_obfuscated = value;
+            obfuscated_ = value;
             return *this;
         }
 
         Builder& shadow(bool value = true) {
-            m_shadow = value;
+            shadow_ = value;
             return *this;
         }
 
         Builder& shadowColor(const glm::vec4& c) {
-            m_shadowColor = c;
+            shadowColor_ = c;
             return *this;
         }
 
         Builder& font(const std::string& fontName) {
-            m_font = fontName;
+            font_ = fontName;
             return *this;
         }
 
@@ -75,15 +75,15 @@ public:
     private:
         friend class Style;
 
-        glm::vec4 m_color{1.0f, 1.0f, 1.0f, 1.0f};
-        glm::vec4 m_shadowColor{0.25f, 0.25f, 0.25f, 1.0f};
-        std::string m_font = "default";
-        bool m_bold = false;
-        bool m_italic = false;
-        bool m_underline = false;
-        bool m_strikethrough = false;
-        bool m_obfuscated = false;
-        bool m_shadow = true;
+        glm::vec4 color_{1.0f, 1.0f, 1.0f, 1.0f};
+        glm::vec4 shadowColor_{0.25f, 0.25f, 0.25f, 1.0f};
+        std::string font_ = "default";
+        bool bold_ = false;
+        bool italic_ = false;
+        bool underline_ = false;
+        bool strikethrough_ = false;
+        bool obfuscated_ = false;
+        bool shadow_ = true;
     };
 
     // Default constructor - white color, default font, with shadow
@@ -108,67 +108,67 @@ public:
     static Style white() { return Builder().color(glm::vec3(1.0f, 1.0f, 1.0f)).build(); }
 
     // Getters
-    const glm::vec4& getColor() const { return m_color; }
-    const glm::vec4& getShadowColor() const { return m_shadowColor; }
-    const std::string& getFont() const { return m_font; }
-    bool isBold() const { return m_bold; }
-    bool isItalic() const { return m_italic; }
-    bool isUnderline() const { return m_underline; }
-    bool isStrikethrough() const { return m_strikethrough; }
-    bool isObfuscated() const { return m_obfuscated; }
-    bool hasShadow() const { return m_shadow; }
+    const glm::vec4& getColor() const { return color_; }
+    const glm::vec4& getShadowColor() const { return shadowColor_; }
+    const std::string& getFont() const { return font_; }
+    bool isBold() const { return bold_; }
+    bool isItalic() const { return italic_; }
+    bool isUnderline() const { return underline_; }
+    bool isStrikethrough() const { return strikethrough_; }
+    bool isObfuscated() const { return obfuscated_; }
+    bool hasShadow() const { return shadow_; }
 
     // Modify current style (returns new style)
     Style withColor(const glm::vec4& color) const {
         Builder builder;
-        builder.m_color = color;
-        builder.m_shadowColor = m_shadowColor;
-        builder.m_font = m_font;
-        builder.m_bold = m_bold;
-        builder.m_italic = m_italic;
-        builder.m_underline = m_underline;
-        builder.m_strikethrough = m_strikethrough;
-        builder.m_obfuscated = m_obfuscated;
-        builder.m_shadow = m_shadow;
+        builder.color_ = color;
+        builder.shadowColor_ = shadowColor_;
+        builder.font_ = font_;
+        builder.bold_ = bold_;
+        builder.italic_ = italic_;
+        builder.underline_ = underline_;
+        builder.strikethrough_ = strikethrough_;
+        builder.obfuscated_ = obfuscated_;
+        builder.shadow_ = shadow_;
         return Style(builder);
     }
 
     Style withBold(bool bold) const {
         Builder builder;
-        builder.m_color = m_color;
-        builder.m_shadowColor = m_shadowColor;
-        builder.m_font = m_font;
-        builder.m_bold = bold;
-        builder.m_italic = m_italic;
-        builder.m_underline = m_underline;
-        builder.m_strikethrough = m_strikethrough;
-        builder.m_obfuscated = m_obfuscated;
-        builder.m_shadow = m_shadow;
+        builder.color_ = color_;
+        builder.shadowColor_ = shadowColor_;
+        builder.font_ = font_;
+        builder.bold_ = bold;
+        builder.italic_ = italic_;
+        builder.underline_ = underline_;
+        builder.strikethrough_ = strikethrough_;
+        builder.obfuscated_ = obfuscated_;
+        builder.shadow_ = shadow_;
         return Style(builder);
     }
 
 private:
     explicit Style(const Builder& builder)
-        : m_color(builder.m_color)
-        , m_shadowColor(builder.m_shadowColor)
-        , m_font(builder.m_font)
-        , m_bold(builder.m_bold)
-        , m_italic(builder.m_italic)
-        , m_underline(builder.m_underline)
-        , m_strikethrough(builder.m_strikethrough)
-        , m_obfuscated(builder.m_obfuscated)
-        , m_shadow(builder.m_shadow)
+        : color_(builder.color_)
+        , shadowColor_(builder.shadowColor_)
+        , font_(builder.font_)
+        , bold_(builder.bold_)
+        , italic_(builder.italic_)
+        , underline_(builder.underline_)
+        , strikethrough_(builder.strikethrough_)
+        , obfuscated_(builder.obfuscated_)
+        , shadow_(builder.shadow_)
     {}
 
-    glm::vec4 m_color;
-    glm::vec4 m_shadowColor;
-    std::string m_font;
-    bool m_bold;
-    bool m_italic;
-    bool m_underline;
-    bool m_strikethrough;
-    bool m_obfuscated;
-    bool m_shadow;
+    glm::vec4 color_;
+    glm::vec4 shadowColor_;
+    std::string font_;
+    bool bold_;
+    bool italic_;
+    bool underline_;
+    bool strikethrough_;
+    bool obfuscated_;
+    bool shadow_;
 };
 
 } // namespace FarHorizon

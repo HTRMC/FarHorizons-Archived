@@ -117,8 +117,8 @@ BlockModelManager::BlockModelManager() {
 }
 
 void BlockModelManager::initialize() {
-    m_assetsPath = "assets";
-    spdlog::info("Initializing BlockModelManager with assets path: {}", m_assetsPath);
+    assetsPath_ = "assets";
+    spdlog::info("Initializing BlockModelManager with assets path: {}", assetsPath_);
 }
 
 const BlockModel* BlockModelManager::loadModel(const std::string& modelName) {
@@ -137,13 +137,13 @@ const BlockModel* BlockModelManager::loadModel(const std::string& modelName) {
     std::string normalizedName = normalizeResourceName(modelName);
 
     // Check if already loaded
-    auto it = m_models.find(normalizedName);
-    if (it != m_models.end()) {
+    auto it = models_.find(normalizedName);
+    if (it != models_.end()) {
         return it->second.get();
     }
 
     // Construct file path: assets/{namespace}/models/{path}.json
-    std::string fullPath = m_assetsPath + "/" + namespaceName + "/models/" + modelPath + ".json";
+    std::string fullPath = assetsPath_ + "/" + namespaceName + "/models/" + modelPath + ".json";
 
     // Load the model
     auto model = loadModelFromFile(fullPath);
@@ -154,7 +154,7 @@ const BlockModel* BlockModelManager::loadModel(const std::string& modelName) {
 
     // Store the model
     BlockModel* modelPtr = model.get();
-    m_models[normalizedName] = std::move(model);
+    models_[normalizedName] = std::move(model);
 
     // Resolve parent hierarchy
     resolveModel(modelPtr);
@@ -326,14 +326,14 @@ void BlockModelManager::resolveModel(BlockModel* model) {
 
 void BlockModelManager::registerTexture(const std::string& textureName, uint32_t textureIndex) {
     std::string normalized = normalizeTextureName(textureName);
-    m_textureMap[normalized] = textureIndex;
+    textureMap_[normalized] = textureIndex;
     spdlog::debug("Registered texture '{}' with index {}", normalized, textureIndex);
 }
 
 uint32_t BlockModelManager::getTextureIndex(const std::string& textureName) const {
     std::string normalized = normalizeTextureName(textureName);
-    auto it = m_textureMap.find(normalized);
-    if (it != m_textureMap.end()) {
+    auto it = textureMap_.find(normalized);
+    if (it != textureMap_.end()) {
         return it->second;
     }
     spdlog::warn("Texture '{}' not found in texture map, using default index 0", normalized);
@@ -348,7 +348,7 @@ std::vector<std::string> BlockModelManager::getAllTextureNames() const {
     std::unordered_set<std::string> uniqueTextures;
 
     // Extract textures from all models that are actually used by blockstates
-    for (const auto& [stateId, model] : m_stateToModel) {
+    for (const auto& [stateId, model] : stateToModel_) {
         if (!model || !model->isResolved) {
             continue;
         }
@@ -377,7 +377,7 @@ std::unordered_map<std::string, BlockModelManager::VariantData> BlockModelManage
     std::unordered_map<std::string, VariantData> variantToData;
 
     // Construct path: assets/minecraft/blockstates/{blockName}.json
-    std::string blockstatesPath = m_assetsPath + "/minecraft/blockstates/" + blockName + ".json";
+    std::string blockstatesPath = assetsPath_ + "/minecraft/blockstates/" + blockName + ".json";
 
     // Check if file exists
     if (!std::filesystem::exists(blockstatesPath)) {
@@ -476,25 +476,25 @@ void BlockModelManager::preloadBlockStateModels() {
         if (block->getRenderType(block->getDefaultState()) == BlockRenderType::INVISIBLE) {
             // Cache null for all states of invisible blocks
             for (size_t i = 0; i < block->getStateCount(); ++i) {
-                uint16_t stateId = block->m_baseStateId + i;
-                m_stateToModel[stateId] = nullptr;
+                uint16_t stateId = block->baseStateId_ + i;
+                stateToModel_[stateId] = nullptr;
             }
-            spdlog::debug("Skipped model loading for invisible block: {}", block->m_name);
+            spdlog::debug("Skipped model loading for invisible block: {}", block->name_);
             continue;
         }
 
         auto properties = block->getProperties();
-        auto variants = loadBlockstatesFile(block->m_name);
+        auto variants = loadBlockstatesFile(block->name_);
 
         if (variants.empty() && properties.empty()) {
             // Simple block with no properties and no blockstates file
             // Use default model: block/{blockName}.json
             for (size_t i = 0; i < block->getStateCount(); ++i) {
-                uint16_t stateId = block->m_baseStateId + i;
-                const BlockModel* model = loadModel("block/" + block->m_name);
-                m_stateToModel[stateId] = model;
+                uint16_t stateId = block->baseStateId_ + i;
+                const BlockModel* model = loadModel("block/" + block->name_);
+                stateToModel_[stateId] = model;
                 if (model) {
-                    spdlog::trace("Cached model for state {} ({})", stateId, block->m_name);
+                    spdlog::trace("Cached model for state {} ({})", stateId, block->name_);
                 }
             }
         } else if (!variants.empty() && properties.empty()) {
@@ -503,10 +503,10 @@ void BlockModelManager::preloadBlockStateModels() {
             if (!variants.empty()) {
                 const BlockModel* model = loadModel(variants.begin()->second.modelName);
                 for (size_t i = 0; i < block->getStateCount(); ++i) {
-                    uint16_t stateId = block->m_baseStateId + i;
-                    m_stateToModel[stateId] = model;
+                    uint16_t stateId = block->baseStateId_ + i;
+                    stateToModel_[stateId] = model;
                     if (model) {
-                        spdlog::trace("Cached model for state {} ({} -> {})", stateId, block->m_name, variants.begin()->second.modelName);
+                        spdlog::trace("Cached model for state {} ({} -> {})", stateId, block->name_, variants.begin()->second.modelName);
                     }
                 }
             }
@@ -546,7 +546,7 @@ void BlockModelManager::preloadBlockStateModels() {
                     auto it = propValues.find(prop->name);
                     if (it == propValues.end()) {
                         spdlog::warn("Property '{}' not found in variant key '{}' for block {}",
-                                     prop->name, variantKey, block->m_name);
+                                     prop->name, variantKey, block->name_);
                         allPropertiesFound = false;
                         break;
                     }
@@ -554,7 +554,7 @@ void BlockModelManager::preloadBlockStateModels() {
                     auto valueIndexOpt = prop->getValueIndexByName(it->second);
                     if (!valueIndexOpt) {
                         spdlog::warn("Value '{}' not found in property '{}' for block {}",
-                                     it->second, prop->name, block->m_name);
+                                     it->second, prop->name, block->name_);
                         allPropertiesFound = false;
                         break;
                     }
@@ -567,11 +567,11 @@ void BlockModelManager::preloadBlockStateModels() {
                     continue;
                 }
 
-                uint16_t stateId = block->m_baseStateId + stateIndex;
+                uint16_t stateId = block->baseStateId_ + stateIndex;
 
                 // Load and cache the model with rotation data
                 const BlockModel* model = loadModel(variantData.modelName);
-                m_stateToModel[stateId] = model;
+                stateToModel_[stateId] = model;
 
                 // Store variant data with rotation info
                 BlockStateVariant variant;
@@ -579,7 +579,7 @@ void BlockModelManager::preloadBlockStateModels() {
                 variant.rotationX = variantData.rotationX;
                 variant.rotationY = variantData.rotationY;
                 variant.uvlock = variantData.uvlock;
-                m_stateToVariant[stateId] = variant;
+                stateToVariant_[stateId] = variant;
 
                 if (model) {
                     spdlog::trace("Cached model for state {} ({} -> {} with rot x={} y={})",
@@ -591,12 +591,12 @@ void BlockModelManager::preloadBlockStateModels() {
         }
     }
 
-    spdlog::info("Preloaded {} blockstate models", m_stateToModel.size());
+    spdlog::info("Preloaded {} blockstate models", stateToModel_.size());
 }
 
 const BlockStateVariant* BlockModelManager::getVariantByStateId(uint16_t stateId) const {
-    auto it = m_stateToVariant.find(stateId);
-    if (it != m_stateToVariant.end()) {
+    auto it = stateToVariant_.find(stateId);
+    if (it != stateToVariant_.end()) {
         return &(it->second);
     }
 
@@ -605,8 +605,8 @@ const BlockStateVariant* BlockModelManager::getVariantByStateId(uint16_t stateId
 }
 
 const BlockModel* BlockModelManager::getModelByStateId(uint16_t stateId) const {
-    auto it = m_stateToModel.find(stateId);
-    if (it != m_stateToModel.end()) {
+    auto it = stateToModel_.find(stateId);
+    if (it != stateToModel_.end()) {
         return it->second;
     }
 
@@ -623,7 +623,7 @@ void BlockModelManager::cacheTextureIndices() {
 
     // Only cache texture indices for models actually used by blockstates
     // (not parent/template models which may have unresolved texture variables)
-    for (const auto& [stateId, model] : m_stateToModel) {
+    for (const auto& [stateId, model] : stateToModel_) {
         if (!model || !model->isResolved) {
             continue;
         }

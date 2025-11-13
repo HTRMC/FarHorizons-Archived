@@ -44,40 +44,40 @@ struct PanelVertex {
 class Panel {
 public:
     Panel(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color)
-        : m_position(position)
-        , m_size(size)
-        , m_color(color) {}
+        : position_(position)
+        , size_(size)
+        , color_(color) {}
 
     // Generate vertices for a quad (two triangles)
     std::vector<PanelVertex> generateVertices(uint32_t screenWidth, uint32_t screenHeight) const {
         // Convert screen coordinates to NDC (-1 to 1)
-        float x1 = (m_position.x / screenWidth) * 2.0f - 1.0f;
-        float y1 = (m_position.y / screenHeight) * 2.0f - 1.0f;
-        float x2 = ((m_position.x + m_size.x) / screenWidth) * 2.0f - 1.0f;
-        float y2 = ((m_position.y + m_size.y) / screenHeight) * 2.0f - 1.0f;
+        float x1 = (position_.x / screenWidth) * 2.0f - 1.0f;
+        float y1 = (position_.y / screenHeight) * 2.0f - 1.0f;
+        float x2 = ((position_.x + size_.x) / screenWidth) * 2.0f - 1.0f;
+        float y2 = ((position_.y + size_.y) / screenHeight) * 2.0f - 1.0f;
 
         // Create quad as two triangles (6 vertices)
         return {
             // Triangle 1
-            {{x1, y1}, m_color},  // Top-left
-            {{x2, y1}, m_color},  // Top-right
-            {{x1, y2}, m_color},  // Bottom-left
+            {{x1, y1}, color_},  // Top-left
+            {{x2, y1}, color_},  // Top-right
+            {{x1, y2}, color_},  // Bottom-left
 
             // Triangle 2
-            {{x2, y1}, m_color},  // Top-right
-            {{x2, y2}, m_color},  // Bottom-right
-            {{x1, y2}, m_color}   // Bottom-left
+            {{x2, y1}, color_},  // Top-right
+            {{x2, y2}, color_},  // Bottom-right
+            {{x1, y2}, color_}   // Bottom-left
         };
     }
 
     // Getters/Setters
-    void setPosition(const glm::vec2& pos) { m_position = pos; }
-    void setSize(const glm::vec2& size) { m_size = size; }
-    void setColor(const glm::vec4& color) { m_color = color; }
+    void setPosition(const glm::vec2& pos) { position_ = pos; }
+    void setSize(const glm::vec2& size) { size_ = size; }
+    void setColor(const glm::vec4& color) { color_ = color; }
 
-    const glm::vec2& getPosition() const { return m_position; }
-    const glm::vec2& getSize() const { return m_size; }
-    const glm::vec4& getColor() const { return m_color; }
+    const glm::vec2& getPosition() const { return position_; }
+    const glm::vec2& getSize() const { return size_; }
+    const glm::vec4& getColor() const { return color_; }
 
     // Helper to create semi-transparent overlay
     static Panel createOverlay(uint32_t screenWidth, uint32_t screenHeight, float alpha = 0.5f) {
@@ -98,9 +98,9 @@ public:
     }
 
 private:
-    glm::vec2 m_position;
-    glm::vec2 m_size;
-    glm::vec4 m_color;
+    glm::vec2 position_;
+    glm::vec2 size_;
+    glm::vec4 color_;
 };
 
 } // namespace FarHorizon

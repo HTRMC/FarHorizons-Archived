@@ -9,13 +9,13 @@ namespace FarHorizon {
 // Stores the width and height of an entity and can create bounding boxes
 class EntityDimensions {
 public:
-    const float width;
-    const float height;
-    const bool fixed;  // If true, dimensions don't scale with entity scale
+    const float width_;
+    const float height_;
+    const bool fixed_;  // If true, dimensions don't scale with entity scale
 
     // Constructor (EntityDimensions.java constructor)
     EntityDimensions(float width, float height, bool fixed)
-        : width(width), height(height), fixed(fixed) {}
+        : width_(width), height_(height), fixed_(fixed) {}
 
     // Create bounding box from Vec3 position (EntityDimensions.java)
     AABB makeBoundingBox(const glm::dvec3& position) const {
@@ -25,8 +25,8 @@ public:
     // Create bounding box from x, y, z coordinates (EntityDimensions.java)
     // The box is centered on x/z and starts at y
     AABB makeBoundingBox(double x, double y, double z) const {
-        float halfWidth = this->width / 2.0f;
-        float height = this->height;
+        float halfWidth = this->width_ / 2.0f;
+        float height = this->height_;
         return AABB(
             x - static_cast<double>(halfWidth),
             y,

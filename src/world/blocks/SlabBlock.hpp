@@ -48,7 +48,7 @@ public:
 
     // Helper to get specific state
     BlockState withType(SlabType type) const {
-        return BlockState(m_baseStateId + static_cast<uint16_t>(type));
+        return BlockState(baseStateId_ + static_cast<uint16_t>(type));
     }
 
     // Override outline shape for slabs
@@ -70,7 +70,7 @@ public:
 private:
     // Decode slab type from state ID
     SlabType getSlabType(BlockState state) const {
-        int offset = state.id - m_baseStateId;
+        int offset = state.id - baseStateId_;
         return static_cast<SlabType>(offset);
     }
 };

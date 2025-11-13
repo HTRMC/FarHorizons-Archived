@@ -35,13 +35,13 @@ public:
 
     // Helper to get state with specific snowy value
     BlockState withSnowy(bool snowy) const {
-        return BlockState(m_baseStateId + (snowy ? 1 : 0));
+        return BlockState(baseStateId_ + (snowy ? 1 : 0));
     }
 
 protected:
     // Decode snowy state from BlockState
     bool isSnowy(BlockState state) const {
-        int offset = state.id - m_baseStateId;
+        int offset = state.id - baseStateId_;
         return offset == 1;
     }
 };

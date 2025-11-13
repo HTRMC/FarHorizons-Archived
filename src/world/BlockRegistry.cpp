@@ -12,9 +12,9 @@ Block* BlockRegistry::OAK_STAIRS = nullptr;
 Block* BlockRegistry::GRASS_BLOCK = nullptr;
 Block* BlockRegistry::GLASS = nullptr;
 
-uint16_t BlockRegistry::m_nextStateId = 0;
-std::unordered_map<std::string, std::unique_ptr<Block>> BlockRegistry::m_blocks;
-std::unordered_map<const Block*, const BlockSoundGroup*> BlockRegistry::m_soundGroups;
+uint16_t BlockRegistry::nextStateId_ = 0;
+std::unordered_map<std::string, std::unique_ptr<Block>> BlockRegistry::blocks_;
+std::unordered_map<const Block*, const BlockSoundGroup*> BlockRegistry::soundGroups_;
 
 void BlockRegistry::init() {
     spdlog::info("Initializing BlockRegistry...");
@@ -28,19 +28,19 @@ void BlockRegistry::init() {
     GLASS = registerBlock<TransparentBlock>("glass", BlockSoundGroup::GLASS);
 
     spdlog::info("Registered {} blocks with {} total states",
-                 m_blocks.size(), m_nextStateId);
+                 blocks_.size(), nextStateId_);
 }
 
 void BlockRegistry::cleanup() {
-    m_blocks.clear();
-    m_soundGroups.clear();
+    blocks_.clear();
+    soundGroups_.clear();
 }
 
 const BlockSoundGroup& BlockRegistry::getSoundGroup(BlockState state) {
     Block* block = getBlock(state);
     if (block) {
-        auto it = m_soundGroups.find(block);
-        if (it != m_soundGroups.end()) {
+        auto it = soundGroups_.find(block);
+        if (it != soundGroups_.end()) {
             return *it->second;
         }
     }
@@ -49,7 +49,7 @@ const BlockSoundGroup& BlockRegistry::getSoundGroup(BlockState state) {
 }
 
 Block* BlockRegistry::getBlock(BlockState state) {
-    for (auto& [name, block] : m_blocks) {
+    for (auto& [name, block] : blocks_) {
         if (block->hasState(state.id)) {
             return block.get();
         }
@@ -58,8 +58,8 @@ Block* BlockRegistry::getBlock(BlockState state) {
 }
 
 Block* BlockRegistry::getBlock(const std::string& name) {
-    auto it = m_blocks.find(name);
-    return (it != m_blocks.end()) ? it->second.get() : nullptr;
+    auto it = blocks_.find(name);
+    return (it != blocks_.end()) ? it->second.get() : nullptr;
 }
 
 bool BlockRegistry::isFaceOpaque(BlockState state, Face face) {
@@ -78,7 +78,7 @@ bool BlockRegistry::isFullCube(BlockState state) {
 }
 
 const std::unordered_map<std::string, std::unique_ptr<Block>>& BlockRegistry::getAllBlocks() {
-    return m_blocks;
+    return blocks_;
 }
 
 } // namespace FarHorizon

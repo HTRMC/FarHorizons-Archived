@@ -37,19 +37,19 @@ public:
     void reset();
 
     // Getters
-    VkBuffer getBuffer() const { return m_buffer.getBuffer(); }
-    VkDeviceSize getSize() const { return m_buffer.getSize(); }
-    VkDeviceSize getCurrentOffset() const { return m_currentOffset; }
-    VkDeviceAddress getDeviceAddress() const { return m_buffer.getDeviceAddress(); }
+    VkBuffer getBuffer() const { return buffer_.getBuffer(); }
+    VkDeviceSize getSize() const { return buffer_.getSize(); }
+    VkDeviceSize getCurrentOffset() const { return currentOffset_; }
+    VkDeviceAddress getDeviceAddress() const { return buffer_.getDeviceAddress(); }
 
 private:
-    Buffer m_buffer;
-    VkDeviceSize m_currentOffset = 0;
-    VkDeviceSize m_alignment = 256;
+    Buffer buffer_;
+    VkDeviceSize currentOffset_ = 0;
+    VkDeviceSize alignment_ = 256;
 
     // Helper to align offset
     VkDeviceSize alignOffset(VkDeviceSize offset) const {
-        return (offset + m_alignment - 1) & ~(m_alignment - 1);
+        return (offset + alignment_ - 1) & ~(alignment_ - 1);
     }
 };
 

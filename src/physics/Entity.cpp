@@ -6,17 +6,17 @@
 namespace FarHorizon {
 
 void Entity::updateLastRenderPos() {
-    lastRenderPos = position;
+    lastRenderPos_ = position_;
 }
     
 // Get yaw rotation (Entity.java: public float getYRot())
 float Entity::getYRot() const {
-    return yaw;
+    return yaw_;
 }
 
 // Get pitch rotation (Entity.java: public float getXRot())
 float Entity::getXRot() const {
-    return pitch;
+    return pitch_;
 }
 
 // Kill the entity (Entity.java: public void kill(ServerLevel level))
@@ -51,13 +51,13 @@ void Entity::setPos(double x, double y, double z) {
 
 // Create bounding box from current position and dimensions (Entity.java: protected AABB makeBoundingBox())
 AABB Entity::makeBoundingBox() const {
-    return dimensions_.makeBoundingBox(position);
+    return dimensions_.makeBoundingBox(position_);
 }
 
 // Reapply position to update bounding box (Entity.java: protected void reapplyPosition())
 void Entity::reapplyPosition() {
     lastKnownPosition_ = std::nullopt;
-    setPos(position.x, position.y, position.z);
+    setPos(position_.x, position_.y, position_.z);
 }
 
 // Turn entity based on mouse input (Entity.java: public void turn(double xo, double yo))
@@ -132,13 +132,13 @@ void Entity::setOnGround(bool onGround) {
 
 // Set on ground with movement (Entity.java: public void setOnGroundWithMovement(boolean onGround, Vec3 movement))
 void Entity::setOnGroundWithMovement(bool onGround, const glm::dvec3& movement) {
-    setOnGroundWithMovement(onGround, m_horizontalCollision, movement);
+    setOnGroundWithMovement(onGround, horizontalCollision_, movement);
 }
 
 // Set on ground with movement (3-parameter version)
 void Entity::setOnGroundWithMovement(bool onGround, bool horizontalCollision, const glm::dvec3& movement) {
     m_onGround = onGround;
-    m_horizontalCollision = horizontalCollision;
+    horizontalCollision_ = horizontalCollision;
     checkSupportingBlock(onGround, &movement);
 }
 
@@ -206,16 +206,16 @@ void Entity::teleport(const glm::dvec3& position) {
 
 // Private collision method (Entity.java line 1076)
 // This is the core collision logic that handles both basic collision and stepping
-glm::dvec3 Entity::collide(const glm::dvec3& movement, CollisionSystem& collisionSystem) {
+glm::dvec3 Entity::collide(const glm::dvec3& movement, Level* level) {
     AABB entityBox = getBoundingBox();
 
-    // Get entity collisions (for now empty - Entity.java line 1078)
-    std::vector<std::shared_ptr<VoxelShape>> entityCollisions;
+    // Get entity collisions (Entity.java line 1078)
+    std::vector<std::shared_ptr<VoxelShape>> entityCollisions = level->getEntityCollisions(this, entityBox.expandTowards(movement));
 
     // First try basic collision resolution (Entity.java line 1079)
-    glm::dvec3 resolvedMovement = (glm::length(movement) == 0.0)
+    glm::dvec3 resolvedMovement = (movement.x * movement.x + movement.y * movement.y + movement.z * movement.z == 0.0)
         ? movement
-        : collisionSystem.collideBoundingBox(entityBox, movement, entityCollisions);
+        : collideBoundingBox(this, movement, entityBox, level, entityCollisions);
 
     // Check if movement was blocked (Entity.java line 1080-1083)
     bool xBlocked = movement.x != resolvedMovement.x;
@@ -232,28 +232,28 @@ glm::dvec3 Entity::collide(const glm::dvec3& movement, CollisionSystem& collisio
 
         // Create starting box for step attempt (Entity.java line 1085)
         AABB stepBox = fallingAndHitGround
-            ? entityBox.offset(0.0, resolvedMovement.y, 0.0)
+            ? entityBox.move(0.0, resolvedMovement.y, 0.0)
             : entityBox;
 
         // Expand box for step attempt (Entity.java line 1086-1088)
-        AABB stepSweptBox = stepBox.expand(movement.x, stepHeight, movement.z);
+        AABB stepSweptBox = stepBox.expandTowards(movement.x, stepHeight, movement.z);
         if (!fallingAndHitGround) {
-            stepSweptBox = stepSweptBox.expand(0.0, -9.999999747378752E-6, 0.0);
+            stepSweptBox = stepSweptBox.expandTowards(0.0, -9.999999747378752E-6, 0.0);
         }
 
         // Get all colliders for stepping (Entity.java line 1091)
-        auto stepCollisions = collisionSystem.collectAllColliders(stepSweptBox, entityCollisions);
+        auto stepCollisions = collectColliders(this, level, entityCollisions, stepSweptBox);
 
         // Collect candidate step heights (Entity.java line 1093)
         float currentY = static_cast<float>(resolvedMovement.y);
-        std::vector<float> candidateHeights = collisionSystem.collectCandidateStepUpHeights(
+        std::vector<float> candidateHeights = collectCandidateStepUpHeights(
             stepBox, stepCollisions, stepHeight, currentY
         );
 
         // Try each step height (Entity.java line 1097-1104)
         for (float tryHeight : candidateHeights) {
             glm::dvec3 tryMovement(movement.x, tryHeight, movement.z);
-            glm::dvec3 result = collisionSystem.collideWithShapes(tryMovement, stepBox, stepCollisions);
+            glm::dvec3 result = collideWithShapes(tryMovement, stepBox, stepCollisions);
 
             // Check if this gives better horizontal movement (Entity.java line 1100)
             if (result.x * result.x + result.z * result.z >
@@ -270,73 +270,73 @@ glm::dvec3 Entity::collide(const glm::dvec3& movement, CollisionSystem& collisio
 }
 
 // Main movement method (Entity.java line 672)
-void Entity::move(MovementType type, const glm::dvec3& movement, CollisionSystem& collisionSystem) {
-    if (noClip) {
+void Entity::move(MovementType type, const glm::dvec3& movement, Level* level) {
+    if (m_noClip) {
         // Creative flying mode - no collision (Entity.java line 728-733)
-        setPos(position + movement);
-        m_horizontalCollision = false;
-        verticalCollision = false;
-        verticalCollisionBelow = false;
-        minorHorizontalCollision = false;
+        setPos(m_position + movement);
+        horizontalCollision_ = false;
+        m_verticalCollision = false;
+        m_verticalCollisionBelow = false;
+        m_minorHorizontalCollision = false;
         this->m_onGround = false;
         return;
     }
 
     // Call our private collide() method (Entity.java line 754)
-    glm::dvec3 actualMovement = collide(movement, collisionSystem);
+    glm::dvec3 actualMovement = collide(movement, level);
 
     // Update position (Entity.java line 769)
-    setPos(position + actualMovement);
+    setPos(m_position + actualMovement);
 
     // Update collision flags (Entity.java line 774-787)
     bool xBlocked = !MathHelper::approximatelyEquals(movement.x, actualMovement.x);
     bool zBlocked = !MathHelper::approximatelyEquals(movement.z, actualMovement.z);
-    m_horizontalCollision = xBlocked || zBlocked;
+    horizontalCollision_ = xBlocked || zBlocked;
 
     // Vertical collision (Entity.java line 777-781)
     if (std::abs(movement.y) > 0.0) {
-        verticalCollision = (movement.y != actualMovement.y);
-        verticalCollisionBelow = verticalCollision && movement.y < 0.0;
+        m_verticalCollision = (movement.y != actualMovement.y);
+        m_verticalCollisionBelow = m_verticalCollision && movement.y < 0.0;
 
         // setOnGroundWithMovement (simplified - Entity.java line 780)
-        this->m_onGround = verticalCollisionBelow;
+        this->m_onGround = m_verticalCollisionBelow;
     }
     // If movement.y == 0, keep previous collision flags
 
     // minorHorizontalCollision check (Entity.java line 783-787)
-    if (m_horizontalCollision) {
+    if (horizontalCollision_) {
         // For now, always set to false (full implementation checks collision amount)
-        minorHorizontalCollision = false;
+        m_minorHorizontalCollision = false;
     } else {
-        minorHorizontalCollision = false;
+        m_minorHorizontalCollision = false;
     }
 
     // Reset velocity on collision (Entity.java line 799-800)
     glm::dvec3 vel = getVelocity();
-    if (m_horizontalCollision) {
+    if (horizontalCollision_) {
         setVelocity(xBlocked ? 0.0 : vel.x, vel.y, zBlocked ? 0.0 : vel.z);
     }
 }
 
 // Check if entity is colliding with a specific block (Entity.java line 339)
 // Minecraft: state.getCollisionShape(level, pos, CollisionContext.of(this)).move(pos)
-bool Entity::isColliding(const glm::ivec3& blockPos, const BlockState& blockState,
-                         CollisionSystem& collisionSystem) const {
+bool Entity::isColliding(const glm::ivec3& blockPos, const BlockState& blockState, Level* level) const {
     // Get entity's current bounding box (Entity.java: Shapes.create(this.getBoundingBox()))
     AABB entityBox = getBoundingBox();
 
     // Get the block's collision shape (Entity.java line 340)
     // state.getCollisionShape(level, pos, CollisionContext.of(this)).move(pos)
-    auto blockShape = collisionSystem.getBlockCollisionShape(blockState, blockPos);
+    // TODO: Implement when BlockState has getCollisionShape() method
+    // auto blockShape = blockState.getCollisionShape(level, blockPos, CollisionContext::of(this));
 
-    // If block has no collision shape, no collision
-    if (!blockShape || blockShape->isEmpty()) {
-        return false;
-    }
+    // TODO: Move shape to block position
+    // blockShape = blockShape->move(blockPos);
 
-    // Check intersection (Entity.java line 341)
+    // TODO: Check intersection
     // Shapes.joinIsNotEmpty(var3, Shapes.create(this.getBoundingBox()), BooleanOp.AND)
-    return blockShape->intersects(entityBox);
+    // return Shapes::joinIsNotEmpty(blockShape, Shapes::create(entityBox), BooleanOp::AND);
+
+    return false;  // Placeholder
 }
 
 // Transform movement input to velocity based on entity rotation (Entity.java line 1605)
@@ -362,6 +362,108 @@ glm::dvec3 Entity::movementInputToVelocity(const glm::dvec3& movementInput, floa
         scaled.y,                                 // Y unchanged
         scaled.z * cosYaw + scaled.x * sinYaw   // Rotated Z
     );
+}
+
+// Static collision methods (Entity.java lines 1137-1180)
+
+// Collide bounding box with world (Entity.java line 1137)
+glm::dvec3 Entity::collideBoundingBox(const Entity* source, const glm::dvec3& movement, const AABB& boundingBox,
+                                      Level* level, const std::vector<std::shared_ptr<VoxelShape>>& entityColliders) {
+    // Minecraft: List var5 = collectColliders(source, level, entityColliders, boundingBox.expandTowards(movement));
+    // Minecraft: return collideWithShapes(movement, boundingBox, var5);
+
+    auto colliders = collectColliders(source, level, entityColliders, boundingBox.expandTowards(movement));
+    return collideWithShapes(movement, boundingBox, colliders);
+}
+
+// Collect all colliders in bounding box (Entity.java line 1142)
+std::vector<std::shared_ptr<VoxelShape>> Entity::collectAllColliders(const Entity* source, Level* level, const AABB& boundingBox) {
+    // Minecraft: List var3 = level.getEntityCollisions(source, boundingBox);
+    // Minecraft: return collectColliders(source, level, var3, boundingBox);
+
+    auto entityCollisions = level->getEntityCollisions(source, boundingBox);
+    return collectColliders(source, level, entityCollisions, boundingBox);
+}
+
+// Collect colliders (Entity.java line 1147)
+std::vector<std::shared_ptr<VoxelShape>> Entity::collectColliders(const Entity* source, Level* level,
+                                                                   const std::vector<std::shared_ptr<VoxelShape>>& entityColliders,
+                                                                   const AABB& boundingBox) {
+    // Minecraft: ImmutableList.Builder var4 = ImmutableList.builderWithExpectedSize(entityColliders.size() + 1);
+    std::vector<std::shared_ptr<VoxelShape>> colliders;
+    colliders.reserve(entityColliders.size() + 1);
+
+    // Minecraft: if (!entityColliders.isEmpty()) var4.addAll(entityColliders);
+    if (!entityColliders.empty()) {
+        colliders.insert(colliders.end(), entityColliders.begin(), entityColliders.end());
+    }
+
+    // Minecraft: WorldBorder var5 = level.getWorldBorder();
+    // Minecraft: boolean var6 = source != null && var5.isInsideCloseToBorder(source, boundingBox);
+    // Minecraft: if (var6) var4.add(var5.getCollisionShape());
+    // TODO: Add world border collision when WorldBorder is implemented
+
+    // Minecraft: var4.addAll(level.getBlockCollisions(source, boundingBox));
+    auto blockCollisions = level->getBlockCollisions(source, boundingBox);
+    colliders.insert(colliders.end(), blockCollisions.begin(), blockCollisions.end());
+
+    // Minecraft: return var4.build();
+    return colliders;
+}
+
+// Collect candidate step up heights (Entity.java line 1110)
+std::vector<float> Entity::collectCandidateStepUpHeights(const AABB& boundingBox,
+                                                          const std::vector<std::shared_ptr<VoxelShape>>& colliders,
+                                                          float maxStepHeight, float stepHeightToSkip) {
+    // Minecraft: FloatArraySet var4 = new FloatArraySet(4);
+    std::vector<float> heights;
+    heights.reserve(4);
+
+    // Minecraft: Iterator var5 = colliders.iterator();
+    for (const auto& shape : colliders) {
+        // TODO: Implement when VoxelShape has getCoords(Axis.Y)
+        // Minecraft: DoubleList var7 = var6.getCoords(Direction.Axis.Y);
+        // For each Y coordinate:
+        //   float var11 = (float)(var9 - boundingBox.minY);
+        //   if (!(var11 < 0.0F) && var11 != stepHeightToSkip) {
+        //     if (var11 > maxStepHeight) break;
+        //     var4.add(var11);
+        //   }
+    }
+
+    // Minecraft: float[] var12 = var4.toFloatArray();
+    // Minecraft: FloatArrays.unstableSort(var12);
+    // TODO: Sort the heights array
+
+    return heights;  // Placeholder
+}
+
+// Collide with shapes (Entity.java line 1163)
+glm::dvec3 Entity::collideWithShapes(const glm::dvec3& movement, const AABB& boundingBox,
+                                     const std::vector<std::shared_ptr<VoxelShape>>& shapes) {
+    // Minecraft: if (shapes.isEmpty()) return movement;
+    if (shapes.empty()) {
+        return movement;
+    }
+
+    // Minecraft: Vec3 var3 = Vec3.ZERO;
+    glm::dvec3 result(0.0, 0.0, 0.0);
+
+    // Minecraft: UnmodifiableIterator var4 = Direction.axisStepOrder(movement).iterator();
+    // TODO: Implement axisStepOrder - for now use fixed order Y, X, Z
+    // This determines which axis to resolve collisions in first
+
+    // For each axis in order:
+    // Minecraft: Direction.Axis var5 = (Direction.Axis)var4.next();
+    // Minecraft: double var6 = movement.get(var5);
+    // Minecraft: if (var6 != 0.0) {
+    //   double var8 = Shapes.collide(var5, boundingBox.move(var3), shapes, var6);
+    //   var3 = var3.with(var5, var8);
+    // }
+
+    // TODO: Implement Shapes.collide() for each axis
+    // For now, return movement as placeholder
+    return movement;
 }
 
 } // namespace FarHorizon

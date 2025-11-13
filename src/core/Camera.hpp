@@ -23,10 +23,10 @@ public:
     void setKeybinds(const std::unordered_map<std::string, std::string>& keybinds);
 
     // Set mouse sensitivity
-    void setMouseSensitivity(float sensitivity) { m_mouseSensitivity = sensitivity; }
+    void setMouseSensitivity(float sensitivity) { mouseSensitivity_ = sensitivity; }
 
     // Set mouse capture system (optional - if not set, uses InputSystem directly)
-    void setMouseCapture(MouseCapture* mouseCapture) { m_mouseCapture = mouseCapture; }
+    void setMouseCapture(MouseCapture* mouseCapture) { mouseCapture_ = mouseCapture; }
 
     // Update camera (call each frame with delta time)
     void update(float deltaTime);
@@ -36,31 +36,31 @@ public:
     void rotate(float yaw, float pitch); // In degrees
 
     // Setters
-    void setPosition(const glm::vec3& position) { m_position = position; updateViewMatrix(); }
-    void setAspectRatio(float aspectRatio) { m_aspectRatio = aspectRatio; updateProjectionMatrix(); }
-    void setFov(float fov) { m_fov = fov; updateProjectionMatrix(); }
-    void setMoveSpeed(float speed) { m_moveSpeed = speed; }
-    void setRotationSpeed(float speed) { m_rotationSpeed = speed; }
+    void setPosition(const glm::vec3& position) { position_ = position; updateViewMatrix(); }
+    void setAspectRatio(float aspectRatio) { aspectRatio_ = aspectRatio; updateProjectionMatrix(); }
+    void setFov(float fov) { fov_ = fov; updateProjectionMatrix(); }
+    void setMoveSpeed(float speed) { moveSpeed_ = speed; }
+    void setRotationSpeed(float speed) { rotationSpeed_ = speed; }
 
     // Getters
-    const glm::vec3& getPosition() const { return m_position; }
-    const glm::vec3& getForward() const { return m_forward; }
-    const glm::vec3& getRight() const { return m_right; }
-    const glm::vec3& getUp() const { return m_up; }
-    const glm::mat4& getViewMatrix() const { return m_viewMatrix; }
-    const glm::mat4& getProjectionMatrix() const { return m_projectionMatrix; }
-    glm::mat4 getViewProjectionMatrix() const { return m_projectionMatrix * m_viewMatrix; }
+    const glm::vec3& getPosition() const { return position_; }
+    const glm::vec3& getForward() const { return forward_; }
+    const glm::vec3& getRight() const { return right_; }
+    const glm::vec3& getUp() const { return up_; }
+    const glm::mat4& getViewMatrix() const { return viewMatrix_; }
+    const glm::mat4& getProjectionMatrix() const { return projectionMatrix_; }
+    glm::mat4 getViewProjectionMatrix() const { return projectionMatrix_ * viewMatrix_; }
 
     // Get rotation-only view-projection matrix for camera-relative rendering
     // (translation is handled by subtracting camera position in shader)
     glm::mat4 getRotationOnlyViewProjectionMatrix() const {
-        glm::mat4 rotationOnlyView = glm::lookAt(glm::vec3(0.0f), m_forward, m_up);
-        return m_projectionMatrix * rotationOnlyView;
+        glm::mat4 rotationOnlyView = glm::lookAt(glm::vec3(0.0f), forward_, up_);
+        return projectionMatrix_ * rotationOnlyView;
     }
 
-    float getYaw() const { return m_yaw; }
-    float getPitch() const { return m_pitch; }
-    float getFov() const { return m_fov; }
+    float getYaw() const { return yaw_; }
+    float getPitch() const { return pitch_; }
+    float getFov() const { return fov_; }
 
 private:
     void updateViewMatrix();
@@ -69,40 +69,40 @@ private:
 
 private:
     // Camera position and orientation
-    glm::vec3 m_position = glm::vec3(0.0f, 0.0f, 0.0f);
-    glm::vec3 m_forward = glm::vec3(0.0f, 0.0f, -1.0f);
-    glm::vec3 m_right = glm::vec3(1.0f, 0.0f, 0.0f);
-    glm::vec3 m_up = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 position_ = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 forward_ = glm::vec3(0.0f, 0.0f, -1.0f);
+    glm::vec3 right_ = glm::vec3(1.0f, 0.0f, 0.0f);
+    glm::vec3 up_ = glm::vec3(0.0f, 1.0f, 0.0f);
 
     // Euler angles (in degrees)
-    float m_yaw = -90.0f;   // Looking towards -Z
-    float m_pitch = 0.0f;
+    float yaw_ = -90.0f;   // Looking towards -Z
+    float pitch_ = 0.0f;
 
     // Projection parameters
-    float m_fov = 70.0f;
-    float m_aspectRatio = 16.0f / 9.0f;
-    float m_nearPlane = 0.1f;
-    float m_farPlane = 1000.0f;
+    float fov_ = 70.0f;
+    float aspectRatio_ = 16.0f / 9.0f;
+    float nearPlane_ = 0.1f;
+    float farPlane_ = 1000.0f;
 
     // Movement parameters
-    float m_moveSpeed = 5.0f;        // Units per second
-    float m_rotationSpeed = 90.0f;   // Degrees per second
-    float m_mouseSensitivity = 0.1f; // Mouse sensitivity multiplier
+    float moveSpeed_ = 5.0f;        // Units per second
+    float rotationSpeed_ = 90.0f;   // Degrees per second
+    float mouseSensitivity_ = 0.1f; // Mouse sensitivity multiplier
 
     // Matrices
-    glm::mat4 m_viewMatrix = glm::mat4(1.0f);
-    glm::mat4 m_projectionMatrix = glm::mat4(1.0f);
+    glm::mat4 viewMatrix_ = glm::mat4(1.0f);
+    glm::mat4 projectionMatrix_ = glm::mat4(1.0f);
 
     // Parsed keybinds (for fast lookup during update)
-    KeyCode m_keyForward = KeyCode::W;
-    KeyCode m_keyBack = KeyCode::S;
-    KeyCode m_keyLeft = KeyCode::A;
-    KeyCode m_keyRight = KeyCode::D;
-    KeyCode m_keyJump = KeyCode::Space;
-    KeyCode m_keySneak = KeyCode::LeftShift;
+    KeyCode keyForward_ = KeyCode::W;
+    KeyCode keyBack_ = KeyCode::S;
+    KeyCode keyLeft_ = KeyCode::A;
+    KeyCode keyRight_ = KeyCode::D;
+    KeyCode keyJump_ = KeyCode::Space;
+    KeyCode keySneak_ = KeyCode::LeftShift;
 
     // Mouse capture system (optional - if not set, uses InputSystem)
-    MouseCapture* m_mouseCapture = nullptr;
+    MouseCapture* mouseCapture_ = nullptr;
 };
 
 } // namespace FarHorizon

@@ -4,43 +4,43 @@
 namespace FarHorizon {
 
 MouseCapture::MouseCapture(GLFWwindow* window)
-    : m_window(window) {
+    : window_(window) {
     // Get initial window dimensions
-    glfwGetWindowSize(window, &m_windowWidth, &m_windowHeight);
+    glfwGetWindowSize(window, &windowWidth_, &windowHeight_);
 
     // Get initial cursor position
-    glfwGetCursorPos(window, &m_cursorX, &m_cursorY);
+    glfwGetCursorPos(window, &cursorX_, &cursorY_);
 
-    spdlog::debug("MouseCapture initialized ({}x{})", m_windowWidth, m_windowHeight);
+    spdlog::debug("MouseCapture initialized ({}x{})", windowWidth_, windowHeight_);
 }
 
 void MouseCapture::lockCursor() {
     // Only lock if window is focused
-    if (!m_windowFocused) {
+    if (!windowFocused_) {
         spdlog::debug("Cannot lock cursor: window not focused");
         return;
     }
 
-    if (!m_cursorLocked) {
-        m_cursorLocked = true;
+    if (!cursorLocked_) {
+        cursorLocked_ = true;
 
         // Center cursor position
         centerCursor();
 
         // Set GLFW cursor mode to disabled (hidden and locked)
-        glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
         // Enable raw mouse input if supported and enabled
-        if (m_rawMouseInput && isRawMouseInputSupported()) {
-            glfwSetInputMode(m_window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+        if (rawMouseInput_ && isRawMouseInputSupported()) {
+            glfwSetInputMode(window_, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
         }
 
         // Mark resolution changed to skip first delta (prevents spike)
-        m_resolutionChanged = true;
+        resolutionChanged_ = true;
 
         // Reset deltas
-        m_cursorDeltaX = 0.0;
-        m_cursorDeltaY = 0.0;
+        cursorDeltaX_ = 0.0;
+        cursorDeltaY_ = 0.0;
 
         spdlog::debug("Cursor locked");
         notifyStateChange();
@@ -48,23 +48,23 @@ void MouseCapture::lockCursor() {
 }
 
 void MouseCapture::unlockCursor() {
-    if (m_cursorLocked) {
-        m_cursorLocked = false;
+    if (cursorLocked_) {
+        cursorLocked_ = false;
 
         // Center cursor before unlocking
         centerCursor();
 
         // Set GLFW cursor mode to normal (visible and free)
-        glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
         // Disable raw mouse input
         if (isRawMouseInputSupported()) {
-            glfwSetInputMode(m_window, GLFW_RAW_MOUSE_MOTION, GLFW_FALSE);
+            glfwSetInputMode(window_, GLFW_RAW_MOUSE_MOTION, GLFW_FALSE);
         }
 
         // Reset deltas
-        m_cursorDeltaX = 0.0;
-        m_cursorDeltaY = 0.0;
+        cursorDeltaX_ = 0.0;
+        cursorDeltaY_ = 0.0;
 
         spdlog::debug("Cursor unlocked");
         notifyStateChange();
@@ -72,9 +72,9 @@ void MouseCapture::unlockCursor() {
 }
 
 void MouseCapture::onWindowFocusChanged(bool focused) {
-    m_windowFocused = focused;
+    windowFocused_ = focused;
 
-    if (!focused && m_cursorLocked) {
+    if (!focused && cursorLocked_) {
         // Unlock cursor when window loses focus
         spdlog::debug("Window lost focus, unlocking cursor");
         unlockCursor();
@@ -82,12 +82,12 @@ void MouseCapture::onWindowFocusChanged(bool focused) {
 }
 
 void MouseCapture::onWindowResized(int width, int height) {
-    m_windowWidth = width;
-    m_windowHeight = height;
+    windowWidth_ = width;
+    windowHeight_ = height;
 
     // Mark resolution changed to prevent delta spike
-    if (m_cursorLocked) {
-        m_resolutionChanged = true;
+    if (cursorLocked_) {
+        resolutionChanged_ = true;
         centerCursor();
     }
 
@@ -95,41 +95,41 @@ void MouseCapture::onWindowResized(int width, int height) {
 }
 
 void MouseCapture::updateCursorPosition(double x, double y) {
-    if (m_resolutionChanged) {
+    if (resolutionChanged_) {
         // Skip first update after resolution change to prevent delta spike
-        m_cursorX = x;
-        m_cursorY = y;
-        m_cursorDeltaX = 0.0;
-        m_cursorDeltaY = 0.0;
-        m_resolutionChanged = false;
+        cursorX_ = x;
+        cursorY_ = y;
+        cursorDeltaX_ = 0.0;
+        cursorDeltaY_ = 0.0;
+        resolutionChanged_ = false;
     } else {
         // Calculate delta only if window is focused
-        if (m_windowFocused && m_cursorLocked) {
-            m_cursorDeltaX += (x - m_cursorX);
-            m_cursorDeltaY += (y - m_cursorY);
+        if (windowFocused_ && cursorLocked_) {
+            cursorDeltaX_ += (x - cursorX_);
+            cursorDeltaY_ += (y - cursorY_);
         }
 
-        m_cursorX = x;
-        m_cursorY = y;
+        cursorX_ = x;
+        cursorY_ = y;
     }
 }
 
 void MouseCapture::resetDeltas() {
-    m_cursorDeltaX = 0.0;
-    m_cursorDeltaY = 0.0;
+    cursorDeltaX_ = 0.0;
+    cursorDeltaY_ = 0.0;
 }
 
 void MouseCapture::centerCursor() {
-    if (m_windowWidth > 0 && m_windowHeight > 0) {
-        m_cursorX = m_windowWidth / 2.0;
-        m_cursorY = m_windowHeight / 2.0;
-        glfwSetCursorPos(m_window, m_cursorX, m_cursorY);
+    if (windowWidth_ > 0 && windowHeight_ > 0) {
+        cursorX_ = windowWidth_ / 2.0;
+        cursorY_ = windowHeight_ / 2.0;
+        glfwSetCursorPos(window_, cursorX_, cursorY_);
     }
 }
 
 void MouseCapture::notifyStateChange() {
-    if (m_cursorStateCallback) {
-        m_cursorStateCallback(m_cursorLocked);
+    if (cursorStateCallback_) {
+        cursorStateCallback_(cursorLocked_);
     }
 }
 
@@ -139,11 +139,11 @@ bool MouseCapture::isRawMouseInputSupported() {
 }
 
 void MouseCapture::setRawMouseInput(bool enabled) {
-    m_rawMouseInput = enabled;
+    rawMouseInput_ = enabled;
 
     // Apply immediately if cursor is locked
-    if (m_cursorLocked && isRawMouseInputSupported()) {
-        glfwSetInputMode(m_window, GLFW_RAW_MOUSE_MOTION,
+    if (cursorLocked_ && isRawMouseInputSupported()) {
+        glfwSetInputMode(window_, GLFW_RAW_MOUSE_MOTION,
                         enabled ? GLFW_TRUE : GLFW_FALSE);
         spdlog::debug("Raw mouse input: {}", enabled ? "enabled" : "disabled");
     }

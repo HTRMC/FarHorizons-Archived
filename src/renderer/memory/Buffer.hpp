@@ -39,18 +39,18 @@ public:
     void copyData(const void* data, size_t size, size_t offset = 0);
 
     // Getters
-    VkBuffer getBuffer() const { return m_buffer; }
-    VmaAllocation getAllocation() const { return m_allocation; }
-    VkDeviceSize getSize() const { return m_size; }
-    VkDeviceAddress getDeviceAddress() const { return m_deviceAddress; }
+    VkBuffer getBuffer() const { return buffer_; }
+    VmaAllocation getAllocation() const { return allocation_; }
+    VkDeviceSize getSize() const { return size_; }
+    VkDeviceAddress getDeviceAddress() const { return deviceAddress_; }
 
 private:
-    VmaAllocator m_allocator = VK_NULL_HANDLE;
-    VkBuffer m_buffer = VK_NULL_HANDLE;
-    VmaAllocation m_allocation = VK_NULL_HANDLE;
-    VkDeviceSize m_size = 0;
-    VkDeviceAddress m_deviceAddress = 0;
-    void* m_mappedData = nullptr;
+    VmaAllocator allocator_ = VK_NULL_HANDLE;
+    VkBuffer buffer_ = VK_NULL_HANDLE;
+    VmaAllocation allocation_ = VK_NULL_HANDLE;
+    VkDeviceSize size_ = 0;
+    VkDeviceAddress deviceAddress_ = 0;
+    void* mappedData_ = nullptr;
 };
 
 } // namespace FarHorizon

@@ -8,30 +8,30 @@
 namespace FarHorizon {
 
 VulkanContext::VulkanContext(VulkanContext&& other) noexcept
-    : m_instance(other.m_instance)
-    , m_surface(other.m_surface)
-    , m_debugMessenger(std::move(other.m_debugMessenger))
-    , m_device(std::move(other.m_device))
-    , m_allocator(other.m_allocator)
+    : instance_(other.instance_)
+    , surface_(other.surface_)
+    , debugMessenger_(std::move(other.debugMessenger_))
+    , device_(std::move(other.device_))
+    , allocator_(other.allocator_)
 {
-    other.m_instance = VK_NULL_HANDLE;
-    other.m_surface = VK_NULL_HANDLE;
-    other.m_allocator = VK_NULL_HANDLE;
+    other.instance_ = VK_NULL_HANDLE;
+    other.surface_ = VK_NULL_HANDLE;
+    other.allocator_ = VK_NULL_HANDLE;
 }
 
 VulkanContext& VulkanContext::operator=(VulkanContext&& other) noexcept {
     if (this != &other) {
         shutdown();
 
-        m_instance = other.m_instance;
-        m_surface = other.m_surface;
-        m_debugMessenger = std::move(other.m_debugMessenger);
-        m_device = std::move(other.m_device);
-        m_allocator = other.m_allocator;
+        instance_ = other.instance_;
+        surface_ = other.surface_;
+        debugMessenger_ = std::move(other.debugMessenger_);
+        device_ = std::move(other.device_);
+        allocator_ = other.allocator_;
 
-        other.m_instance = VK_NULL_HANDLE;
-        other.m_surface = VK_NULL_HANDLE;
-        other.m_allocator = VK_NULL_HANDLE;
+        other.instance_ = VK_NULL_HANDLE;
+        other.surface_ = VK_NULL_HANDLE;
+        other.allocator_ = VK_NULL_HANDLE;
     }
     return *this;
 }
@@ -40,44 +40,44 @@ void VulkanContext::init(GLFWwindow* window, const std::string& appName) {
     spdlog::info("[VulkanContext] Initializing...");
 
     createInstance(appName);
-    m_debugMessenger.init(m_instance);
+    debugMessenger_.init(instance_);
     createSurface(window);
-    m_device.pickPhysicalDevice(m_instance, m_surface);
-    m_device.createLogicalDevice();
+    device_.pickPhysicalDevice(instance_, surface_);
+    device_.createLogicalDevice();
     createAllocator();
 
     spdlog::info("[VulkanContext] Initialization complete");
 }
 
 void VulkanContext::shutdown() {
-    if (m_instance != VK_NULL_HANDLE) {
+    if (instance_ != VK_NULL_HANDLE) {
         waitIdle();
 
-        if (m_allocator != VK_NULL_HANDLE) {
-            vmaDestroyAllocator(m_allocator);
+        if (allocator_ != VK_NULL_HANDLE) {
+            vmaDestroyAllocator(allocator_);
             spdlog::info("[VulkanContext] VMA allocator destroyed");
-            m_allocator = VK_NULL_HANDLE;
+            allocator_ = VK_NULL_HANDLE;
         }
 
-        m_device.shutdown();
+        device_.shutdown();
 
-        if (m_surface != VK_NULL_HANDLE) {
-            vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+        if (surface_ != VK_NULL_HANDLE) {
+            vkDestroySurfaceKHR(instance_, surface_, nullptr);
             spdlog::info("[VulkanContext] Surface destroyed");
-            m_surface = VK_NULL_HANDLE;
+            surface_ = VK_NULL_HANDLE;
         }
 
-        m_debugMessenger.shutdown(m_instance);
+        debugMessenger_.shutdown(instance_);
 
-        vkDestroyInstance(m_instance, nullptr);
+        vkDestroyInstance(instance_, nullptr);
         spdlog::info("[VulkanContext] Instance destroyed");
-        m_instance = VK_NULL_HANDLE;
+        instance_ = VK_NULL_HANDLE;
     }
 }
 
 void VulkanContext::waitIdle() const {
-    if (m_device.getLogicalDevice() != VK_NULL_HANDLE) {
-        vkDeviceWaitIdle(m_device.getLogicalDevice());
+    if (device_.getLogicalDevice() != VK_NULL_HANDLE) {
+        vkDeviceWaitIdle(device_.getLogicalDevice());
     }
 }
 
@@ -110,23 +110,23 @@ void VulkanContext::createInstance(const std::string& appName) {
     createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
     createInfo.ppEnabledLayerNames = validationLayers.data();
 
-    VK_CHECK(vkCreateInstance(&createInfo, nullptr, &m_instance));
+    VK_CHECK(vkCreateInstance(&createInfo, nullptr, &instance_));
     spdlog::info("[VulkanContext] Instance created");
 }
 
 void VulkanContext::createSurface(GLFWwindow* window) {
-    VK_CHECK(glfwCreateWindowSurface(m_instance, window, nullptr, &m_surface));
+    VK_CHECK(glfwCreateWindowSurface(instance_, window, nullptr, &surface_));
     spdlog::info("[VulkanContext] Surface created");
 }
 
 void VulkanContext::createAllocator() {
     VmaAllocatorCreateInfo allocatorInfo{};
     allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
-    allocatorInfo.instance = m_instance;
-    allocatorInfo.physicalDevice = m_device.getPhysicalDevice();
-    allocatorInfo.device = m_device.getLogicalDevice();
+    allocatorInfo.instance = instance_;
+    allocatorInfo.physicalDevice = device_.getPhysicalDevice();
+    allocatorInfo.device = device_.getLogicalDevice();
 
-    VK_CHECK(vmaCreateAllocator(&allocatorInfo, &m_allocator));
+    VK_CHECK(vmaCreateAllocator(&allocatorInfo, &allocator_));
     spdlog::info("[VulkanContext] VMA allocator created");
 }
 

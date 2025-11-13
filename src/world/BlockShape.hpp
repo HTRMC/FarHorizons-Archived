@@ -36,24 +36,24 @@ public:
     std::shared_ptr<VoxelSet> getCullingFace(FaceDirection direction) const;
 
     // Get the underlying voxel set
-    const std::shared_ptr<VoxelSet>& getVoxels() const { return m_voxels; }
+    const std::shared_ptr<VoxelSet>& getVoxels() const { return voxels_; }
 
     // Get bounding box (for outline rendering, etc.)
     glm::vec3 getMin() const;
     glm::vec3 getMax() const;
 
 private:
-    std::shared_ptr<VoxelSet> m_voxels;
+    std::shared_ptr<VoxelSet> voxels_;
 
     // Cache the type for fast path checks
     enum class Type : uint8_t {
         EMPTY,
         FULL_CUBE,
         PARTIAL
-    } m_type;
+    } type_;
 
     // Cached culling faces
-    mutable std::shared_ptr<VoxelSet> m_cullingFaces[6];  // One per FaceDirection
+    mutable std::shared_ptr<VoxelSet> cullingFaces_[6];  // One per FaceDirection
 };
 
 // ============================================================================

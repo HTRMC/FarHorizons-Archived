@@ -12,25 +12,25 @@ GameStateManager::GameStateManager(
     Settings* settings,
     AudioManager* audioManager
 )
-    : m_state(State::MainMenu)
-    , m_mainMenu(windowWidth, windowHeight)
-    , m_pauseMenu(windowWidth, windowHeight, settings)
-    , m_optionsMenu(windowWidth, windowHeight, camera, chunkManager, settings, audioManager)
-    , m_mouseCapture(mouseCapture)
-    , m_camera(camera)
-    , m_chunkManager(chunkManager)
-    , m_settings(settings)
-    , m_audioManager(audioManager)
-    , m_aspectRatio(static_cast<float>(windowWidth) / static_cast<float>(windowHeight))
+    : state_(State::MainMenu)
+    , mainMenu_(windowWidth, windowHeight)
+    , pauseMenu_(windowWidth, windowHeight, settings)
+    , optionsMenu_(windowWidth, windowHeight, camera, chunkManager, settings, audioManager)
+    , mouseCapture_(mouseCapture)
+    , camera_(camera)
+    , chunkManager_(chunkManager)
+    , settings_(settings)
+    , audioManager_(audioManager)
+    , aspectRatio_(static_cast<float>(windowWidth) / static_cast<float>(windowHeight))
 {
     // Start in main menu with cursor unlocked
-    m_mouseCapture->unlockCursor();
+    mouseCapture_->unlockCursor();
 }
 
 bool GameStateManager::update(float deltaTime) {
-    switch (m_state) {
+    switch (state_) {
         case State::MainMenu: {
-            auto action = m_mainMenu.update(deltaTime);
+            auto action = mainMenu_.update(deltaTime);
             switch (action) {
                 case MainMenu::Action::Singleplayer:
                     setState(State::Playing);
@@ -54,7 +54,7 @@ bool GameStateManager::update(float deltaTime) {
             return false;
 
         case State::Paused: {
-            auto action = m_pauseMenu.update(deltaTime);
+            auto action = pauseMenu_.update(deltaTime);
             switch (action) {
                 case PauseMenu::Action::Resume:
                     setState(State::Playing);
@@ -75,18 +75,18 @@ bool GameStateManager::update(float deltaTime) {
         }
 
         case State::Options: {
-            auto action = m_optionsMenu.update(deltaTime);
+            auto action = optionsMenu_.update(deltaTime);
             if (action == OptionsMenu::Action::Back) {
                 setState(State::Paused);
                 spdlog::info("Returning to pause menu");
             }
             // Update chunk manager to apply render distance changes
-            m_chunkManager->update(m_camera->getPosition());
+            chunkManager_->update(camera_->getPosition());
             return false;
         }
 
         case State::OptionsFromMain: {
-            auto action = m_optionsMenu.update(deltaTime);
+            auto action = optionsMenu_.update(deltaTime);
             if (action == OptionsMenu::Action::Back) {
                 setState(State::MainMenu);
                 spdlog::info("Returning to main menu");
@@ -100,56 +100,56 @@ bool GameStateManager::update(float deltaTime) {
 }
 
 void GameStateManager::onResize(uint32_t width, uint32_t height) {
-    m_aspectRatio = static_cast<float>(width) / static_cast<float>(height);
-    m_mainMenu.onResize(width, height);
-    m_pauseMenu.onResize(width, height);
-    m_optionsMenu.onResize(width, height);
+    aspectRatio_ = static_cast<float>(width) / static_cast<float>(height);
+    mainMenu_.onResize(width, height);
+    pauseMenu_.onResize(width, height);
+    optionsMenu_.onResize(width, height);
 }
 
 void GameStateManager::openPauseMenu() {
-    if (m_state == State::Playing) {
+    if (state_ == State::Playing) {
         setState(State::Paused);
     }
 }
 
 bool GameStateManager::needsTextureReload() const {
-    return m_optionsMenu.needsTextureReload();
+    return optionsMenu_.needsTextureReload();
 }
 
 void GameStateManager::clearTextureReloadFlag() {
-    m_optionsMenu.clearTextureReloadFlag();
+    optionsMenu_.clearTextureReloadFlag();
 }
 
 void GameStateManager::setState(State newState) {
-    State oldState = m_state;
-    m_state = newState;
+    State oldState = state_;
+    state_ = newState;
 
     // Handle cursor lock/unlock based on state transitions
     if (newState == State::Playing) {
-        m_mouseCapture->lockCursor();
+        mouseCapture_->lockCursor();
     } else if (oldState == State::Playing) {
-        m_mouseCapture->unlockCursor();
+        mouseCapture_->unlockCursor();
     }
 
     // Reset menus when entering them
     if (newState == State::Paused) {
-        m_pauseMenu.reset();
+        pauseMenu_.reset();
     } else if (newState == State::Options || newState == State::OptionsFromMain) {
-        m_optionsMenu.reset();
+        optionsMenu_.reset();
     }
 }
 
 void GameStateManager::resetWorld() {
     // Clear world state
-    m_chunkManager->clearAllChunks();
+    chunkManager_->clearAllChunks();
 
     // Reset camera to spawn position (preserve FOV, keybinds, and mouse sensitivity from settings)
-    m_camera->init(glm::vec3(0.0f, 20.0f, 0.0f), m_aspectRatio, m_settings->fov);
-    m_camera->setKeybinds(m_settings->keybinds);
-    m_camera->setMouseSensitivity(m_settings->mouseSensitivity);
+    camera_->init(glm::vec3(0.0f, 20.0f, 0.0f), aspectRatio_, settings_->fov);
+    camera_->setKeybinds(settings_->keybinds);
+    camera_->setMouseSensitivity(settings_->mouseSensitivity);
 
     // Reset main menu
-    m_mainMenu.reset();
+    mainMenu_.reset();
 }
 
 } // namespace FarHorizon

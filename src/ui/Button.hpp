@@ -16,31 +16,31 @@ namespace FarHorizon {
 class Button {
 public:
     Button(const std::string& label, const glm::vec2& position, const glm::vec2& size)
-        : m_label(label)
-        , m_position(position)
-        , m_size(size)
-        , m_hovered(false)
-        , m_selected(false)
-        , m_enabled(true) {}
+        : label_(label)
+        , position_(position)
+        , size_(size)
+        , hovered_(false)
+        , selected_(false)
+        , enabled_(true) {}
 
     // Set callback function for button click
     void setOnClick(std::function<void()> callback) {
-        m_onClickCallback = callback;
+        onClickCallback_ = callback;
     }
 
     // Update button state with mouse position and click
     bool update(const glm::vec2& mousePos, bool mouseClicked) {
-        if (!m_enabled) {
-            m_hovered = false;
+        if (!enabled_) {
+            hovered_ = false;
             return false;
         }
 
         // Always update hover state based on current mouse position
-        m_hovered = isMouseOver(mousePos);
+        hovered_ = isMouseOver(mousePos);
 
-        if (m_hovered && mouseClicked) {
-            if (m_onClickCallback) {
-                m_onClickCallback();
+        if (hovered_ && mouseClicked) {
+            if (onClickCallback_) {
+                onClickCallback_();
             }
             return true;
         }
@@ -49,8 +49,8 @@ public:
 
     // Activate button (for keyboard navigation)
     void activate() {
-        if (m_enabled && m_onClickCallback) {
-            m_onClickCallback();
+        if (enabled_ && onClickCallback_) {
+            onClickCallback_();
         }
     }
 
@@ -63,62 +63,62 @@ public:
     ) const {
         // Choose style based on button state (color changes on hover, no bold)
         Style style;
-        if (!m_enabled) {
+        if (!enabled_) {
             style = Style::darkGray();
-        } else if (m_selected) {
+        } else if (selected_) {
             style = Style::yellow();
-        } else if (m_hovered) {
+        } else if (hovered_) {
             style = Style::yellow();  // Yellow on hover
         } else {
             style = Style::white();   // White by default
         }
 
         // Create text with style
-        auto text = Text::literal(m_label, style);
+        auto text = Text::literal(label_, style);
 
         // Calculate centered position with larger scale
         float scale = 3.0f * guiScale;
         float textWidth = textRenderer.calculateTextWidth(text, scale);
         float textHeight = textRenderer.calculateTextHeight(text, scale);
 
-        glm::vec2 textPos = m_position + glm::vec2(
-            (m_size.x - textWidth) * 0.5f,
-            (m_size.y - textHeight) * 0.5f
+        glm::vec2 textPos = position_ + glm::vec2(
+            (size_.x - textWidth) * 0.5f,
+            (size_.y - textHeight) * 0.5f
         );
 
         return textRenderer.generateVertices(text, textPos, scale, screenWidth, screenHeight);
     }
 
     // Getters/Setters
-    void setPosition(const glm::vec2& pos) { m_position = pos; }
-    void setSize(const glm::vec2& size) { m_size = size; }
-    void setLabel(const std::string& label) { m_label = label; }
-    void setSelected(bool selected) { m_selected = selected; }
-    void setEnabled(bool enabled) { m_enabled = enabled; }
-    void setHovered(bool hovered) { m_hovered = hovered; }
+    void setPosition(const glm::vec2& pos) { position_ = pos; }
+    void setSize(const glm::vec2& size) { size_ = size; }
+    void setLabel(const std::string& label) { label_ = label; }
+    void setSelected(bool selected) { selected_ = selected; }
+    void setEnabled(bool enabled) { enabled_ = enabled; }
+    void setHovered(bool hovered) { hovered_ = hovered; }
 
-    const glm::vec2& getPosition() const { return m_position; }
-    const glm::vec2& getSize() const { return m_size; }
-    const std::string& getLabel() const { return m_label; }
-    bool isSelected() const { return m_selected; }
-    bool isHovered() const { return m_hovered; }
-    bool isEnabled() const { return m_enabled; }
+    const glm::vec2& getPosition() const { return position_; }
+    const glm::vec2& getSize() const { return size_; }
+    const std::string& getLabel() const { return label_; }
+    bool isSelected() const { return selected_; }
+    bool isHovered() const { return hovered_; }
+    bool isEnabled() const { return enabled_; }
 
 private:
     bool isMouseOver(const glm::vec2& mousePos) const {
-        return mousePos.x >= m_position.x &&
-               mousePos.x <= m_position.x + m_size.x &&
-               mousePos.y >= m_position.y &&
-               mousePos.y <= m_position.y + m_size.y;
+        return mousePos.x >= position_.x &&
+               mousePos.x <= position_.x + size_.x &&
+               mousePos.y >= position_.y &&
+               mousePos.y <= position_.y + size_.y;
     }
 
-    std::string m_label;
-    glm::vec2 m_position;
-    glm::vec2 m_size;
-    bool m_hovered;
-    bool m_selected;
-    bool m_enabled;
-    std::function<void()> m_onClickCallback;
+    std::string label_;
+    glm::vec2 position_;
+    glm::vec2 size_;
+    bool hovered_;
+    bool selected_;
+    bool enabled_;
+    std::function<void()> onClickCallback_;
 };
 
 } // namespace FarHorizon

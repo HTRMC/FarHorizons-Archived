@@ -41,11 +41,11 @@ public:
     void close();
 
     // Window state
-    uint32_t getWidth() const { return m_width; }
-    uint32_t getHeight() const { return m_height; }
-    float getAspectRatio() const { return static_cast<float>(m_width) / static_cast<float>(m_height); }
-    bool isMinimized() const { return m_minimized; }
-    bool isFocused() const { return m_focused; }
+    uint32_t getWidth() const { return width_; }
+    uint32_t getHeight() const { return height_; }
+    float getAspectRatio() const { return static_cast<float>(width_) / static_cast<float>(height_); }
+    bool isMinimized() const { return minimized_; }
+    bool isFocused() const { return focused_; }
 
     // Window manipulation
     void setTitle(const std::string& title);
@@ -61,15 +61,15 @@ public:
     void setCursorPos(double x, double y);
 
     // Mouse capture system
-    MouseCapture* getMouseCapture() const { return m_mouseCapture.get(); }
+    MouseCapture* getMouseCapture() const { return mouseCapture_.get(); }
 
     // Callbacks
-    void setResizeCallback(ResizeCallback callback) { m_resizeCallback = callback; }
-    void setCloseCallback(CloseCallback callback) { m_closeCallback = callback; }
-    void setFocusCallback(FocusCallback callback) { m_focusCallback = callback; }
+    void setResizeCallback(ResizeCallback callback) { resizeCallback_ = callback; }
+    void setCloseCallback(CloseCallback callback) { closeCallback_ = callback; }
+    void setFocusCallback(FocusCallback callback) { focusCallback_ = callback; }
 
     // GLFW access
-    GLFWwindow* getNativeWindow() const { return m_window; }
+    GLFWwindow* getNativeWindow() const { return window_; }
 
 private:
     void init();
@@ -83,21 +83,21 @@ private:
     static void windowIconifyCallback(GLFWwindow* window, int iconified);
 
 private:
-    GLFWwindow* m_window = nullptr;
-    WindowProperties m_properties;
+    GLFWwindow* window_ = nullptr;
+    WindowProperties properties_;
 
-    uint32_t m_width;
-    uint32_t m_height;
-    bool m_minimized = false;
-    bool m_focused = true;
+    uint32_t width_;
+    uint32_t height_;
+    bool minimized_ = false;
+    bool focused_ = true;
 
     // User callbacks
-    ResizeCallback m_resizeCallback;
-    CloseCallback m_closeCallback;
-    FocusCallback m_focusCallback;
+    ResizeCallback resizeCallback_;
+    CloseCallback closeCallback_;
+    FocusCallback focusCallback_;
 
     // Mouse capture system
-    std::unique_ptr<MouseCapture> m_mouseCapture;
+    std::unique_ptr<MouseCapture> mouseCapture_;
 };
 
 } // namespace FarHorizon

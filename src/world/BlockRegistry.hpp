@@ -46,26 +46,26 @@ public:
     static const std::unordered_map<std::string, std::unique_ptr<Block>>& getAllBlocks();
 
 private:
-    static uint16_t m_nextStateId;
-    static std::unordered_map<std::string, std::unique_ptr<Block>> m_blocks;
+    static uint16_t nextStateId_;
+    static std::unordered_map<std::string, std::unique_ptr<Block>> blocks_;
 
     // Map from block pointer to sound group (compile-time lookup, no virtual calls!)
-    static std::unordered_map<const Block*, const BlockSoundGroup*> m_soundGroups;
+    static std::unordered_map<const Block*, const BlockSoundGroup*> soundGroups_;
 
     // Register a block and assign state IDs
     template<typename T>
     static Block* registerBlock(const std::string& name, const BlockSoundGroup& soundGroup) {
         auto block = std::make_unique<T>(name);
-        block->m_baseStateId = m_nextStateId;
+        block->baseStateId_ = nextStateId_;
 
         // Reserve state IDs for this block
-        m_nextStateId += static_cast<uint16_t>(block->getStateCount());
+        nextStateId_ += static_cast<uint16_t>(block->getStateCount());
 
         Block* blockPtr = block.get();
-        m_blocks[name] = std::move(block);
+        blocks_[name] = std::move(block);
 
         // Register sound group (no virtual call needed at runtime!)
-        m_soundGroups[blockPtr] = &soundGroup;
+        soundGroups_[blockPtr] = &soundGroup;
 
         return blockPtr;
     }

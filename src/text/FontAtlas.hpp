@@ -37,10 +37,10 @@ public:
     void initGrid(uint32_t textureWidth, uint32_t textureHeight,
                   uint32_t charsPerRow, uint32_t charsPerCol,
                   uint32_t firstChar = 32) {
-        m_textureWidth = textureWidth;
-        m_textureHeight = textureHeight;
-        m_charsPerRow = charsPerRow;
-        m_charsPerCol = charsPerCol;
+        textureWidth_ = textureWidth;
+        textureHeight_ = textureHeight;
+        charsPerRow_ = charsPerRow;
+        charsPerCol_ = charsPerCol;
 
         float charWidth = static_cast<float>(textureWidth) / charsPerRow;
         float charHeight = static_cast<float>(textureHeight) / charsPerCol;
@@ -69,30 +69,30 @@ public:
             info.offset = glm::vec2(0.0f, 0.0f);
             info.advance = charWidth;
 
-            m_characters[charCode] = info;
+            characters_[charCode] = info;
         }
 
-        m_lineHeight = charHeight;
+        lineHeight_ = charHeight;
     }
 
     /**
      * Add or update a character in the atlas.
      */
     void addCharacter(uint32_t charCode, const CharInfo& info) {
-        m_characters[charCode] = info;
+        characters_[charCode] = info;
     }
 
     /**
      * Get character info for a specific character.
      */
     const CharInfo* getCharacter(uint32_t charCode) const {
-        auto it = m_characters.find(charCode);
-        if (it != m_characters.end()) {
+        auto it = characters_.find(charCode);
+        if (it != characters_.end()) {
             return &it->second;
         }
         // Return space character or first character as fallback
-        auto fallback = m_characters.find(32);
-        return fallback != m_characters.end() ? &fallback->second : nullptr;
+        auto fallback = characters_.find(32);
+        return fallback != characters_.end() ? &fallback->second : nullptr;
     }
 
     /**
@@ -109,19 +109,19 @@ public:
         return width;
     }
 
-    float getLineHeight() const { return m_lineHeight; }
-    void setLineHeight(float height) { m_lineHeight = height; }
+    float getLineHeight() const { return lineHeight_; }
+    void setLineHeight(float height) { lineHeight_ = height; }
 
-    uint32_t getTextureWidth() const { return m_textureWidth; }
-    uint32_t getTextureHeight() const { return m_textureHeight; }
+    uint32_t getTextureWidth() const { return textureWidth_; }
+    uint32_t getTextureHeight() const { return textureHeight_; }
 
 private:
-    std::unordered_map<uint32_t, CharInfo> m_characters;
-    uint32_t m_textureWidth = 0;
-    uint32_t m_textureHeight = 0;
-    uint32_t m_charsPerRow = 0;
-    uint32_t m_charsPerCol = 0;
-    float m_lineHeight = 16.0f;
+    std::unordered_map<uint32_t, CharInfo> characters_;
+    uint32_t textureWidth_ = 0;
+    uint32_t textureHeight_ = 0;
+    uint32_t charsPerRow_ = 0;
+    uint32_t charsPerCol_ = 0;
+    float lineHeight_ = 16.0f;
 };
 
 } // namespace FarHorizon

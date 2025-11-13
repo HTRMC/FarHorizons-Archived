@@ -92,12 +92,12 @@ public:
 
     // Get the complete state-to-variant mapping
     const std::unordered_map<uint16_t, BlockStateVariant>& getStateToVariantMap() const {
-        return m_stateToVariant;
+        return stateToVariant_;
     }
 
     // Get the complete state-to-model mapping (for pre-caching BlockShapes)
     const std::unordered_map<uint16_t, const BlockModel*>& getStateToModelMap() const {
-        return m_stateToModel;
+        return stateToModel_;
     }
 
 private:
@@ -109,11 +109,11 @@ private:
         bool uvlock = false;
     };
 
-    std::string m_assetsPath;  // Base assets path (e.g., "assets")
-    std::unordered_map<std::string, std::unique_ptr<BlockModel>> m_models;
-    std::unordered_map<std::string, uint32_t> m_textureMap;
-    std::unordered_map<uint16_t, const BlockModel*> m_stateToModel;  // Blockstate ID -> Model cache (for legacy code)
-    std::unordered_map<uint16_t, BlockStateVariant> m_stateToVariant;  // Blockstate ID -> Variant (model + rotation) cache
+    std::string assetsPath_;  // Base assets path (e.g., "assets")
+    std::unordered_map<std::string, std::unique_ptr<BlockModel>> models_;
+    std::unordered_map<std::string, uint32_t> textureMap_;
+    std::unordered_map<uint16_t, const BlockModel*> stateToModel_;  // Blockstate ID -> Model cache (for legacy code)
+    std::unordered_map<uint16_t, BlockStateVariant> stateToVariant_;  // Blockstate ID -> Variant (model + rotation) cache
 
     // Load model from JSON file
     std::unique_ptr<BlockModel> loadModelFromFile(const std::string& modelPath);

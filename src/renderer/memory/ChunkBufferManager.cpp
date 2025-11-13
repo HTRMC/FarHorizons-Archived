@@ -4,11 +4,11 @@
 namespace FarHorizon {
 
 void ChunkBufferManager::init(VmaAllocator allocator, size_t maxFaces, size_t maxDrawCommands) {
-    m_maxFaces = maxFaces;
-    m_maxDrawCommands = maxDrawCommands;
+    maxFaces_ = maxFaces;
+    maxDrawCommands_ = maxDrawCommands;
 
     // FaceData buffer (8 bytes per face, used as SSBO)
-    m_faceBuffer.init(
+    faceBuffer_.init(
         allocator,
         maxFaces * sizeof(FaceData),
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -17,7 +17,7 @@ void ChunkBufferManager::init(VmaAllocator allocator, size_t maxFaces, size_t ma
     );
 
     // Lighting buffer (16 bytes per face)
-    m_lightingBuffer.init(
+    lightingBuffer_.init(
         allocator,
         maxFaces * sizeof(PackedLighting),
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -26,7 +26,7 @@ void ChunkBufferManager::init(VmaAllocator allocator, size_t maxFaces, size_t ma
     );
 
     // Indirect draw buffer (non-indexed instanced drawing)
-    m_indirectBuffer.init(
+    indirectBuffer_.init(
         allocator,
         maxDrawCommands * sizeof(VkDrawIndirectCommand),
         VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
@@ -35,7 +35,7 @@ void ChunkBufferManager::init(VmaAllocator allocator, size_t maxFaces, size_t ma
     );
 
     // ChunkData buffer (per-chunk metadata, indexed by gl_BaseInstance)
-    m_chunkDataBuffer.init(
+    chunkDataBuffer.init(
         allocator,
         maxDrawCommands * sizeof(ChunkData),
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -44,28 +44,28 @@ void ChunkBufferManager::init(VmaAllocator allocator, size_t maxFaces, size_t ma
     );
 
     // Reserve space for chunk data array
-    m_chunkDataArray.reserve(maxDrawCommands);
+    chunkDataArray_.reserve(maxDrawCommands);
 
     spdlog::info("ChunkBufferManager initialized: {} max faces, {} max draw commands", maxFaces, maxDrawCommands);
 }
 
 void ChunkBufferManager::cleanup() {
-    m_chunkDataBuffer.cleanup();
-    m_indirectBuffer.cleanup();
-    m_lightingBuffer.cleanup();
-    m_faceBuffer.cleanup();
-    m_meshCache.clear();
-    m_allocations.clear();
-    m_chunkDataArray.clear();
+    chunkDataBuffer.cleanup();
+    indirectBuffer_.cleanup();
+    lightingBuffer_.cleanup();
+    faceBuffer_.cleanup();
+    meshCache_.clear();
+    allocations_.clear();
+    chunkDataArray_.clear();
 }
 
 void ChunkBufferManager::clear() {
-    m_meshCache.clear();
-    m_allocations.clear();
-    m_chunkDataArray.clear();
-    m_currentFaceOffset = 0;
-    m_currentLightingOffset = 0;
-    m_drawCommandCount = 0;
+    meshCache_.clear();
+    allocations_.clear();
+    chunkDataArray_.clear();
+    currentFaceOffset_ = 0;
+    currentLightingOffset_ = 0;
+    drawCommandCount_ = 0;
     spdlog::info("Cleared all chunk meshes from GPU buffers");
 }
 
@@ -77,22 +77,22 @@ bool ChunkBufferManager::addMeshes(std::vector<CompactChunkMesh>& meshes, size_t
     bool needsDrawCommandRebuild = false;
 
     // Map buffers once for all updates
-    void* faceData = m_faceBuffer.map();
-    void* lightingData = m_lightingBuffer.map();
-    void* indirectData = m_indirectBuffer.map();
-    void* chunkData = m_chunkDataBuffer.map();
+    void* faceData = faceBuffer_.map();
+    void* lightingData = lightingBuffer_.map();
+    void* indirectData = indirectBuffer_.map();
+    void* chunkData = chunkDataBuffer.map();
 
     for (size_t i = 0; i < processCount; i++) {
         CompactChunkMesh& mesh = meshes[i];
 
         // Check if this chunk already has a mesh (update case)
-        auto existingIt = m_allocations.find(mesh.position);
-        bool isUpdate = (existingIt != m_allocations.end());
+        auto existingIt = allocations_.find(mesh.position);
+        bool isUpdate = (existingIt != allocations_.end());
 
         // If updating and new mesh is empty, mark old allocation as unused and remove from cache
         if (isUpdate && mesh.faces.empty()) {
-            m_allocations.erase(existingIt);
-            m_meshCache.erase(mesh.position);
+            allocations_.erase(existingIt);
+            meshCache_.erase(mesh.position);
             actualProcessed++;
             needsDrawCommandRebuild = true;
             continue;
@@ -106,39 +106,39 @@ bool ChunkBufferManager::addMeshes(std::vector<CompactChunkMesh>& meshes, size_t
 
         // If updating, remove old allocation first (we'll add the new one below)
         if (isUpdate) {
-            m_allocations.erase(existingIt);
-            m_meshCache.erase(mesh.position);
+            allocations_.erase(existingIt);
+            meshCache_.erase(mesh.position);
             needsDrawCommandRebuild = true;
         }
 
         // Check if we have space
-        if (m_currentFaceOffset + mesh.faces.size() > m_maxFaces ||
-            m_drawCommandCount >= m_maxDrawCommands) {
+        if (currentFaceOffset_ + mesh.faces.size() > maxFaces_ ||
+            drawCommandCount_ >= maxDrawCommands_) {
             spdlog::warn("Buffer full, cannot add more meshes");
             break;
         }
 
         // Write FaceData: copy then adjust lightIndex from local to global
-        FaceData* destFaces = static_cast<FaceData*>(faceData) + m_currentFaceOffset;
+        FaceData* destFaces = static_cast<FaceData*>(faceData) + currentFaceOffset_;
         memcpy(destFaces, mesh.faces.data(), mesh.faces.size() * sizeof(FaceData));
 
         // Adjust lightIndex from local (chunk-relative) to global (buffer-relative)
         for (size_t j = 0; j < mesh.faces.size(); j++) {
             uint32_t localLightIndex = (destFaces[j].packed1 >> 16) & 0xFFFF;
-            uint32_t globalLightIndex = m_currentLightingOffset + localLightIndex;
+            uint32_t globalLightIndex = currentLightingOffset_ + localLightIndex;
             destFaces[j].packed1 = (destFaces[j].packed1 & 0xFFFF) | (globalLightIndex << 16);
         }
 
         // Write lighting data
-        memcpy(static_cast<uint8_t*>(lightingData) + m_currentLightingOffset * sizeof(PackedLighting),
+        memcpy(static_cast<uint8_t*>(lightingData) + currentLightingOffset_ * sizeof(PackedLighting),
                mesh.lighting.data(),
                mesh.lighting.size() * sizeof(PackedLighting));
 
         // Create and store ChunkData (indexed by gl_BaseInstance = drawCommandIndex)
         // faceOffset == lightingOffset since they're both incremented by the same amount
-        ChunkData chunkMetadata = ChunkData::create(mesh.position, m_currentFaceOffset);
-        m_chunkDataArray.push_back(chunkMetadata);
-        memcpy(static_cast<uint8_t*>(chunkData) + m_drawCommandCount * sizeof(ChunkData),
+        ChunkData chunkMetadata = ChunkData::create(mesh.position, currentFaceOffset_);
+        chunkDataArray_.push_back(chunkMetadata);
+        memcpy(static_cast<uint8_t*>(chunkData) + drawCommandCount_ * sizeof(ChunkData),
                &chunkMetadata,
                sizeof(ChunkData));
 
@@ -147,49 +147,49 @@ bool ChunkBufferManager::addMeshes(std::vector<CompactChunkMesh>& meshes, size_t
         cmd.vertexCount = 6;  // 2 triangles per quad (6 vertices total)
         cmd.instanceCount = static_cast<uint32_t>(mesh.faces.size());  // One instance per face
         cmd.firstVertex = 0;
-        cmd.firstInstance = m_drawCommandCount;  // Chunk ID for gl_BaseInstance (indexes into ChunkData buffer)
+        cmd.firstInstance = drawCommandCount_;  // Chunk ID for gl_BaseInstance (indexes into ChunkData buffer)
 
-        memcpy(static_cast<uint8_t*>(indirectData) + m_drawCommandCount * sizeof(VkDrawIndirectCommand),
+        memcpy(static_cast<uint8_t*>(indirectData) + drawCommandCount_ * sizeof(VkDrawIndirectCommand),
                &cmd,
                sizeof(VkDrawIndirectCommand));
 
         // Store allocation info
         ChunkBufferAllocation allocation;
-        allocation.faceOffset = m_currentFaceOffset;
+        allocation.faceOffset = currentFaceOffset_;
         allocation.faceCount = static_cast<uint32_t>(mesh.faces.size());
-        allocation.lightingOffset = m_currentLightingOffset;
-        allocation.drawCommandIndex = m_drawCommandCount;
+        allocation.lightingOffset = currentLightingOffset_;
+        allocation.drawCommandIndex = drawCommandCount_;
 
-        m_allocations[mesh.position] = allocation;
+        allocations_[mesh.position] = allocation;
 
         // Important: increment lighting offset by number of unique lighting values, not faces!
         uint32_t lightingCount = static_cast<uint32_t>(mesh.lighting.size());
-        m_currentFaceOffset += allocation.faceCount;
-        m_currentLightingOffset += lightingCount;  // Number of unique lighting values
-        m_drawCommandCount++;
+        currentFaceOffset_ += allocation.faceCount;
+        currentLightingOffset_ += lightingCount;  // Number of unique lighting values
+        drawCommandCount_++;
         actualProcessed++;
 
-        m_meshCache[mesh.position] = std::move(mesh);
+        meshCache_[mesh.position] = std::move(mesh);
     }
 
-    m_lightingBuffer.unmap();
-    m_chunkDataBuffer.unmap();
-    m_faceBuffer.unmap();
-    m_indirectBuffer.unmap();
+    lightingBuffer_.unmap();
+    chunkDataBuffer.unmap();
+    faceBuffer_.unmap();
+    indirectBuffer_.unmap();
 
     // Rebuild draw commands if any chunks were removed/updated
     if (needsDrawCommandRebuild) {
         rebuildDrawCommands();
     }
 
-    spdlog::trace("Added {} chunks to buffer ({} total)", actualProcessed, m_meshCache.size());
+    spdlog::trace("Added {} chunks to buffer ({} total)", actualProcessed, meshCache_.size());
     return true;
 }
 
 void ChunkBufferManager::removeUnloadedChunks(const ChunkManager& chunkManager) {
     std::vector<ChunkPosition> toRemove;
 
-    for (const auto& [pos, allocation] : m_allocations) {
+    for (const auto& [pos, allocation] : allocations_) {
         if (!chunkManager.hasChunk(pos)) {
             toRemove.push_back(pos);
         }
@@ -197,8 +197,8 @@ void ChunkBufferManager::removeUnloadedChunks(const ChunkManager& chunkManager) 
 
     if (!toRemove.empty()) {
         for (const auto& pos : toRemove) {
-            m_meshCache.erase(pos);
-            m_allocations.erase(pos);
+            meshCache_.erase(pos);
+            allocations_.erase(pos);
         }
         spdlog::debug("Removed {} unloaded chunks from buffer", toRemove.size());
 
@@ -210,14 +210,14 @@ void ChunkBufferManager::removeUnloadedChunks(const ChunkManager& chunkManager) 
 void ChunkBufferManager::compactIfNeeded(const std::unordered_map<ChunkPosition, CompactChunkMesh, ChunkPositionHash>& meshCache) {
     // Calculate active space
     size_t totalActiveFaces = 0;
-    for (const auto& [pos, allocation] : m_allocations) {
+    for (const auto& [pos, allocation] : allocations_) {
         totalActiveFaces += allocation.faceCount;
     }
 
     // Check if compaction is needed
     bool needsCompaction = false;
-    if (m_currentFaceOffset > m_maxFaces * 0.7f) {
-        float faceFragmentation = 1.0f - (static_cast<float>(totalActiveFaces) / m_currentFaceOffset);
+    if (currentFaceOffset_ > maxFaces_ * 0.7f) {
+        float faceFragmentation = 1.0f - (static_cast<float>(totalActiveFaces) / currentFaceOffset_);
 
         if (faceFragmentation > 0.3f) {
             needsCompaction = true;
@@ -232,42 +232,42 @@ void ChunkBufferManager::compactIfNeeded(const std::unordered_map<ChunkPosition,
 }
 
 void ChunkBufferManager::fullRebuild() {
-    m_currentFaceOffset = 0;
-    m_currentLightingOffset = 0;
-    m_drawCommandCount = 0;
-    m_chunkDataArray.clear();
+    currentFaceOffset_ = 0;
+    currentLightingOffset_ = 0;
+    drawCommandCount_ = 0;
+    chunkDataArray_.clear();
 
-    void* faceData = m_faceBuffer.map();
-    void* lightingData = m_lightingBuffer.map();
-    void* indirectData = m_indirectBuffer.map();
-    void* chunkData = m_chunkDataBuffer.map();
+    void* faceData = faceBuffer_.map();
+    void* lightingData = lightingBuffer_.map();
+    void* indirectData = indirectBuffer_.map();
+    void* chunkData = chunkDataBuffer.map();
 
     std::unordered_map<ChunkPosition, ChunkBufferAllocation, ChunkPositionHash> newAllocations;
 
-    for (const auto& [pos, mesh] : m_meshCache) {
+    for (const auto& [pos, mesh] : meshCache_) {
         if (mesh.faces.empty()) continue;
 
         // Write FaceData: copy then adjust lightIndex from local to global
-        FaceData* destFaces = static_cast<FaceData*>(faceData) + m_currentFaceOffset;
+        FaceData* destFaces = static_cast<FaceData*>(faceData) + currentFaceOffset_;
         memcpy(destFaces, mesh.faces.data(), mesh.faces.size() * sizeof(FaceData));
 
         // Adjust lightIndex from local (chunk-relative) to global (buffer-relative)
         for (size_t j = 0; j < mesh.faces.size(); j++) {
             uint32_t localLightIndex = (destFaces[j].packed1 >> 16) & 0xFFFF;
-            uint32_t globalLightIndex = m_currentLightingOffset + localLightIndex;
+            uint32_t globalLightIndex = currentLightingOffset_ + localLightIndex;
             destFaces[j].packed1 = (destFaces[j].packed1 & 0xFFFF) | (globalLightIndex << 16);
         }
 
         // Write lighting data
-        memcpy(static_cast<uint8_t*>(lightingData) + m_currentLightingOffset * sizeof(PackedLighting),
+        memcpy(static_cast<uint8_t*>(lightingData) + currentLightingOffset_ * sizeof(PackedLighting),
                mesh.lighting.data(),
                mesh.lighting.size() * sizeof(PackedLighting));
 
         // Create and store ChunkData (indexed by gl_BaseInstance = drawCommandIndex)
         // faceOffset == lightingOffset since they're both incremented by the same amount
-        ChunkData chunkMetadata = ChunkData::create(mesh.position, m_currentFaceOffset);
-        m_chunkDataArray.push_back(chunkMetadata);
-        memcpy(static_cast<uint8_t*>(chunkData) + m_drawCommandCount * sizeof(ChunkData),
+        ChunkData chunkMetadata = ChunkData::create(mesh.position, currentFaceOffset_);
+        chunkDataArray_.push_back(chunkMetadata);
+        memcpy(static_cast<uint8_t*>(chunkData) + drawCommandCount_ * sizeof(ChunkData),
                &chunkMetadata,
                sizeof(ChunkData));
 
@@ -276,37 +276,37 @@ void ChunkBufferManager::fullRebuild() {
         cmd.vertexCount = 6;
         cmd.instanceCount = static_cast<uint32_t>(mesh.faces.size());
         cmd.firstVertex = 0;
-        cmd.firstInstance = m_drawCommandCount;  // Chunk ID for gl_BaseInstance (indexes into ChunkData buffer)
+        cmd.firstInstance = drawCommandCount_;  // Chunk ID for gl_BaseInstance (indexes into ChunkData buffer)
 
-        memcpy(static_cast<uint8_t*>(indirectData) + m_drawCommandCount * sizeof(VkDrawIndirectCommand),
+        memcpy(static_cast<uint8_t*>(indirectData) + drawCommandCount_ * sizeof(VkDrawIndirectCommand),
                &cmd,
                sizeof(VkDrawIndirectCommand));
 
         // Store allocation
         ChunkBufferAllocation allocation;
-        allocation.faceOffset = m_currentFaceOffset;
+        allocation.faceOffset = currentFaceOffset_;
         allocation.faceCount = static_cast<uint32_t>(mesh.faces.size());
-        allocation.lightingOffset = m_currentLightingOffset;
-        allocation.drawCommandIndex = m_drawCommandCount;
+        allocation.lightingOffset = currentLightingOffset_;
+        allocation.drawCommandIndex = drawCommandCount_;
 
         newAllocations[pos] = allocation;
 
         // Important: increment lighting offset by number of unique lighting values, not faces!
         uint32_t lightingCount = static_cast<uint32_t>(mesh.lighting.size());
-        m_currentFaceOffset += allocation.faceCount;
-        m_currentLightingOffset += lightingCount;  // Number of unique lighting values
-        m_drawCommandCount++;
+        currentFaceOffset_ += allocation.faceCount;
+        currentLightingOffset_ += lightingCount;  // Number of unique lighting values
+        drawCommandCount_++;
     }
 
-    m_allocations = std::move(newAllocations);
+    allocations_ = std::move(newAllocations);
 
-    m_lightingBuffer.unmap();
-    m_chunkDataBuffer.unmap();
-    m_faceBuffer.unmap();
-    m_indirectBuffer.unmap();
+    lightingBuffer_.unmap();
+    chunkDataBuffer.unmap();
+    faceBuffer_.unmap();
+    indirectBuffer_.unmap();
 
     spdlog::debug("Buffer compacted: {} chunks, {} faces",
-                 m_meshCache.size(), m_currentFaceOffset);
+                 meshCache_.size(), currentFaceOffset_);
 }
 
 void ChunkBufferManager::rebuildDrawCommands() {
@@ -314,46 +314,46 @@ void ChunkBufferManager::rebuildDrawCommands() {
     // Face data and lighting data remain in place (potentially fragmented)
     // This is MUCH faster than fullRebuild() when unloading chunks
 
-    m_drawCommandCount = 0;
-    m_chunkDataArray.clear();
+    drawCommandCount_ = 0;
+    chunkDataArray_.clear();
 
-    void* indirectData = m_indirectBuffer.map();
-    void* chunkData = m_chunkDataBuffer.map();
+    void* indirectData = indirectBuffer_.map();
+    void* chunkData = chunkDataBuffer.map();
 
     // Rebuild draw commands for remaining allocations
-    for (auto& [pos, allocation] : m_allocations) {
+    for (auto& [pos, allocation] : allocations_) {
         // Create draw command pointing to existing face/lighting data
         VkDrawIndirectCommand cmd{};
         cmd.vertexCount = 6;
         cmd.instanceCount = allocation.faceCount;
         cmd.firstVertex = 0;
-        cmd.firstInstance = m_drawCommandCount;  // New sequential index
+        cmd.firstInstance = drawCommandCount_;  // New sequential index
 
-        memcpy(static_cast<uint8_t*>(indirectData) + m_drawCommandCount * sizeof(VkDrawIndirectCommand),
+        memcpy(static_cast<uint8_t*>(indirectData) + drawCommandCount_ * sizeof(VkDrawIndirectCommand),
                &cmd,
                sizeof(VkDrawIndirectCommand));
 
         // Create chunk metadata pointing to existing face data
         ChunkData chunkMetadata = ChunkData::create(pos, allocation.faceOffset);
-        m_chunkDataArray.push_back(chunkMetadata);
-        memcpy(static_cast<uint8_t*>(chunkData) + m_drawCommandCount * sizeof(ChunkData),
+        chunkDataArray_.push_back(chunkMetadata);
+        memcpy(static_cast<uint8_t*>(chunkData) + drawCommandCount_ * sizeof(ChunkData),
                &chunkMetadata,
                sizeof(ChunkData));
 
         // Update allocation with new draw command index
-        allocation.drawCommandIndex = m_drawCommandCount;
-        m_drawCommandCount++;
+        allocation.drawCommandIndex = drawCommandCount_;
+        drawCommandCount_++;
     }
 
-    m_indirectBuffer.unmap();
-    m_chunkDataBuffer.unmap();
+    indirectBuffer_.unmap();
+    chunkDataBuffer.unmap();
 
     // spdlog::debug("Rebuilt draw commands: {} chunks (face/lighting data unchanged)",
     //              m_drawCommandCount);
 }
 
 bool ChunkBufferManager::hasAllocation(const ChunkPosition& pos) const {
-    return m_allocations.find(pos) != m_allocations.end();
+    return allocations_.find(pos) != allocations_.end();
 }
 
 } // namespace FarHorizon

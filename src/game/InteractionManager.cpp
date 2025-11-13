@@ -5,11 +5,11 @@
 namespace FarHorizon {
 
 InteractionManager::InteractionManager(ChunkManager& chunkManager, AudioManager& audioManager)
-    : m_chunkManager(chunkManager), m_audioManager(audioManager) {}
+    : chunkManager_(chunkManager), audioManager_(audioManager) {}
 
 bool InteractionManager::breakBlock(const BlockHitResult& hitResult) {
-    ChunkPosition chunkPos = m_chunkManager.worldToChunkPos(glm::vec3(hitResult.blockPos));
-    Chunk* chunk = m_chunkManager.getChunk(chunkPos);
+    ChunkPosition chunkPos = chunkManager_.worldToChunkPos(glm::vec3(hitResult.blockPos));
+    Chunk* chunk = chunkManager_.getChunk(chunkPos);
 
     if (!chunk) {
         return false;
@@ -26,10 +26,10 @@ bool InteractionManager::breakBlock(const BlockHitResult& hitResult) {
 
     // Set to air
     chunk->setBlockState(localPos.x, localPos.y, localPos.z, BlockRegistry::AIR->getDefaultState());
-    m_chunkManager.queueChunkRemesh(chunkPos);
+    chunkManager_.queueChunkRemesh(chunkPos);
 
     // Play break sound
-    m_audioManager.playSoundEvent(soundGroup.getBreakSound(), soundGroup.getVolume(), soundGroup.getPitch());
+    audioManager_.playSoundEvent(soundGroup.getBreakSound(), soundGroup.getVolume(), soundGroup.getPitch());
 
     // Remesh neighbors if on chunk boundary
     queueRemeshIfNeeded(chunkPos, localPos);
@@ -40,8 +40,8 @@ bool InteractionManager::breakBlock(const BlockHitResult& hitResult) {
 bool InteractionManager::placeBlock(const BlockHitResult& hitResult, Block* block, const glm::vec3& cameraForward) {
     // Place block adjacent to the hit face
     glm::ivec3 placePos = hitResult.blockPos + hitResult.normal;
-    ChunkPosition chunkPos = m_chunkManager.worldToChunkPos(glm::vec3(placePos));
-    Chunk* chunk = m_chunkManager.getChunk(chunkPos);
+    ChunkPosition chunkPos = chunkManager_.worldToChunkPos(glm::vec3(placePos));
+    Chunk* chunk = chunkManager_.getChunk(chunkPos);
 
     if (!chunk) {
         return false;
@@ -70,11 +70,11 @@ bool InteractionManager::placeBlock(const BlockHitResult& hitResult, Block* bloc
 
     // Place the block
     chunk->setBlockState(localPos.x, localPos.y, localPos.z, placedState);
-    m_chunkManager.queueChunkRemesh(chunkPos);
+    chunkManager_.queueChunkRemesh(chunkPos);
 
     // Play place sound
     const BlockSoundGroup& soundGroup = BlockRegistry::getSoundGroup(placedState);
-    m_audioManager.playSoundEvent(soundGroup.getPlaceSound(), soundGroup.getVolume(), soundGroup.getPitch());
+    audioManager_.playSoundEvent(soundGroup.getPlaceSound(), soundGroup.getVolume(), soundGroup.getPitch());
 
     // Remesh neighbors if on chunk boundary
     queueRemeshIfNeeded(chunkPos, localPos);
@@ -151,8 +151,8 @@ StairShape InteractionManager::calculateStairShape(
     if (leftLocalPos.x < 0 || leftLocalPos.x >= CHUNK_SIZE ||
         leftLocalPos.y < 0 || leftLocalPos.y >= CHUNK_SIZE ||
         leftLocalPos.z < 0 || leftLocalPos.z >= CHUNK_SIZE) {
-        ChunkPosition leftChunkPos = m_chunkManager.worldToChunkPos(glm::vec3(leftWorldPos));
-        leftChunk = m_chunkManager.getChunk(leftChunkPos);
+        ChunkPosition leftChunkPos = chunkManager_.worldToChunkPos(glm::vec3(leftWorldPos));
+        leftChunk = chunkManager_.getChunk(leftChunkPos);
         if (leftChunk) {
             leftLocalPos = glm::ivec3(
                 leftWorldPos.x - leftChunkPos.x * CHUNK_SIZE,
@@ -173,7 +173,7 @@ StairShape InteractionManager::calculateStairShape(
             StairBlock* leftStair = static_cast<StairBlock*>(leftBlock);
 
             // Decode properties from state ID
-            int offset = leftState.id - leftStair->m_baseStateId;
+            int offset = leftState.id - leftStair->baseStateId_;
             StairFacing leftFacing = static_cast<StairFacing>(offset % 4);
             BlockHalf leftHalf = static_cast<BlockHalf>((offset / 4) % 2);
 
@@ -204,8 +204,8 @@ StairShape InteractionManager::calculateStairShape(
     if (rightLocalPos.x < 0 || rightLocalPos.x >= CHUNK_SIZE ||
         rightLocalPos.y < 0 || rightLocalPos.y >= CHUNK_SIZE ||
         rightLocalPos.z < 0 || rightLocalPos.z >= CHUNK_SIZE) {
-        ChunkPosition rightChunkPos = m_chunkManager.worldToChunkPos(glm::vec3(rightWorldPos));
-        rightChunk = m_chunkManager.getChunk(rightChunkPos);
+        ChunkPosition rightChunkPos = chunkManager_.worldToChunkPos(glm::vec3(rightWorldPos));
+        rightChunk = chunkManager_.getChunk(rightChunkPos);
         if (rightChunk) {
             rightLocalPos = glm::ivec3(
                 rightWorldPos.x - rightChunkPos.x * CHUNK_SIZE,
@@ -226,7 +226,7 @@ StairShape InteractionManager::calculateStairShape(
             StairBlock* rightStair = static_cast<StairBlock*>(rightBlock);
 
             // Decode properties from state ID
-            int offset = rightState.id - rightStair->m_baseStateId;
+            int offset = rightState.id - rightStair->baseStateId_;
             StairFacing rightFacing = static_cast<StairFacing>(offset % 4);
             BlockHalf rightHalf = static_cast<BlockHalf>((offset / 4) % 2);
 
@@ -294,7 +294,7 @@ void InteractionManager::queueRemeshIfNeeded(const ChunkPosition& chunkPos, cons
     if (localPos.x == 0 || localPos.x == CHUNK_SIZE - 1 ||
         localPos.y == 0 || localPos.y == CHUNK_SIZE - 1 ||
         localPos.z == 0 || localPos.z == CHUNK_SIZE - 1) {
-        m_chunkManager.queueNeighborRemesh(chunkPos);
+        chunkManager_.queueNeighborRemesh(chunkPos);
     }
 }
 

@@ -12,10 +12,10 @@ namespace FarHorizon {
 // Block base class - defines game logic behavior
 class Block {
 public:
-    std::string m_name;
-    uint16_t m_baseStateId;
+    std::string name_;
+    uint16_t baseStateId_;
 
-    Block(const std::string& name) : m_name(name), m_baseStateId(0) {}
+    Block(const std::string& name) : name_(name), baseStateId_(0) {}
     virtual ~Block() = default;
 
     // Game logic queries - override in subclasses
@@ -42,12 +42,12 @@ public:
 
     // Get the default state (base state with all properties at default)
     BlockState getDefaultState() const {
-        return BlockState(m_baseStateId);
+        return BlockState(baseStateId_);
     }
 
     // Check if a state ID belongs to this block
     bool hasState(uint16_t stateId) const {
-        return stateId >= m_baseStateId && stateId < m_baseStateId + getStateCount();
+        return stateId >= baseStateId_ && stateId < baseStateId_ + getStateCount();
     }
 
     // Override to define properties (called during registration)

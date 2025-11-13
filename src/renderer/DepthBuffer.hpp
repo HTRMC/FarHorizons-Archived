@@ -11,15 +11,15 @@ public:
     void cleanup(VkDevice device, VmaAllocator allocator);
     void resize(VmaAllocator allocator, VkDevice device, uint32_t width, uint32_t height);
 
-    VkImage getImage() const { return m_image; }
-    VkImageView getImageView() const { return m_imageView; }
-    VkFormat getFormat() const { return m_format; }
+    VkImage getImage() const { return image_; }
+    VkImageView getImageView() const { return imageView_; }
+    VkFormat getFormat() const { return format_; }
 
 private:
-    VkImage m_image = VK_NULL_HANDLE;
-    VkImageView m_imageView = VK_NULL_HANDLE;
-    VmaAllocation m_allocation = VK_NULL_HANDLE;
-    VkFormat m_format = VK_FORMAT_D32_SFLOAT;
+    VkImage image_ = VK_NULL_HANDLE;
+    VkImageView imageView_ = VK_NULL_HANDLE;
+    VmaAllocation allocation_ = VK_NULL_HANDLE;
+    VkFormat format_ = VK_FORMAT_D32_SFLOAT;
 };
 
 } // namespace FarHorizon

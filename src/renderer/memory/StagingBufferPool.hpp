@@ -40,9 +40,9 @@ private:
         bool inUse = false;
     };
 
-    VmaAllocator m_allocator = VK_NULL_HANDLE;
-    VkDeviceSize m_defaultBufferSize = 0;
-    std::vector<PoolEntry> m_pool;
+    VmaAllocator allocator_ = VK_NULL_HANDLE;
+    VkDeviceSize defaultBufferSize_ = 0;
+    std::vector<PoolEntry> pool_;
 };
 
 } // namespace FarHorizon

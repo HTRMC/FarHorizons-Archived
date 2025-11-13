@@ -20,7 +20,7 @@ public:
      * Initialize the font manager with a texture manager.
      */
     void init(BindlessTextureManager* textureManager) {
-        m_textureManager = textureManager;
+        textureManager_ = textureManager;
     }
 
     /**
@@ -42,7 +42,7 @@ public:
                           uint32_t charsPerRow = 16,
                           uint32_t charsPerCol = 16,
                           uint32_t firstChar = 0) {
-        if (!m_textureManager) {
+        if (!textureManager_) {
             spdlog::error("FontManager not initialized with texture manager");
             return 0;
         }
@@ -57,7 +57,7 @@ public:
         }
 
         // Load the texture into GPU
-        uint32_t textureIndex = m_textureManager->loadTexture(texturePath, uploadCmd, false);
+        uint32_t textureIndex = textureManager_->loadTexture(texturePath, uploadCmd, false);
         if (textureIndex == 0) {
             spdlog::error("Failed to load font texture: {}", texturePath);
             return 0;
@@ -96,8 +96,8 @@ public:
             }
         }
 
-        m_fonts[fontName] = atlas;
-        m_fontTextures[fontName] = textureIndex;
+        fonts_[fontName] = atlas;
+        fontTextures_[fontName] = textureIndex;
 
         spdlog::info("Loaded font '{}' from {} (texture index: {}) with variable widths",
                      fontName, texturePath, textureIndex);
@@ -109,14 +109,14 @@ public:
      * Get a font atlas by name.
      */
     FontAtlas* getFont(const std::string& fontName) {
-        auto it = m_fonts.find(fontName);
-        if (it != m_fonts.end()) {
+        auto it = fonts_.find(fontName);
+        if (it != fonts_.end()) {
             return it->second.get();
         }
 
         // Try to return default font
-        auto defaultIt = m_fonts.find("default");
-        if (defaultIt != m_fonts.end()) {
+        auto defaultIt = fonts_.find("default");
+        if (defaultIt != fonts_.end()) {
             return defaultIt->second.get();
         }
 
@@ -127,14 +127,14 @@ public:
      * Get the texture index for a font.
      */
     uint32_t getFontTexture(const std::string& fontName) const {
-        auto it = m_fontTextures.find(fontName);
-        if (it != m_fontTextures.end()) {
+        auto it = fontTextures_.find(fontName);
+        if (it != fontTextures_.end()) {
             return it->second;
         }
 
         // Try to return default font texture
-        auto defaultIt = m_fontTextures.find("default");
-        if (defaultIt != m_fontTextures.end()) {
+        auto defaultIt = fontTextures_.find("default");
+        if (defaultIt != fontTextures_.end()) {
             return defaultIt->second;
         }
 
@@ -145,7 +145,7 @@ public:
      * Check if a font is loaded.
      */
     bool hasFont(const std::string& fontName) const {
-        return m_fonts.find(fontName) != m_fonts.end();
+        return fonts_.find(fontName) != fonts_.end();
     }
 
 private:
@@ -187,9 +187,9 @@ private:
         return 0;
     }
 
-    BindlessTextureManager* m_textureManager = nullptr;
-    std::unordered_map<std::string, std::shared_ptr<FontAtlas>> m_fonts;
-    std::unordered_map<std::string, uint32_t> m_fontTextures;
+    BindlessTextureManager* textureManager_ = nullptr;
+    std::unordered_map<std::string, std::shared_ptr<FontAtlas>> fonts_;
+    std::unordered_map<std::string, uint32_t> fontTextures_;
 };
 
 } // namespace FarHorizon

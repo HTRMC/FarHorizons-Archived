@@ -31,8 +31,8 @@ public:
                              const glm::vec2 uvs[4],
                              uint32_t textureSlot);
 
-    const std::vector<QuadInfo>& getQuads() const { return m_quads; }
-    void clear() { m_quads.clear(); m_quadMap.clear(); }
+    const std::vector<QuadInfo>& getQuads() const { return quads_; }
+    void clear() { quads_.clear(); quadMap_.clear(); }
 
 private:
     struct QuadKey {
@@ -48,8 +48,8 @@ private:
         size_t operator()(const QuadKey& key) const;
     };
 
-    std::vector<QuadInfo> m_quads;
-    std::unordered_map<QuadKey, uint32_t, QuadKeyHash> m_quadMap;
+    std::vector<QuadInfo> quads_;
+    std::unordered_map<QuadKey, uint32_t, QuadKeyHash> quadMap_;
 };
 
 class ChunkManager {
@@ -65,7 +65,7 @@ public:
     void precacheBlockShapes();  // Pre-compute all BlockShapes (call after models are loaded)
 
     void setRenderDistance(int32_t distance);
-    int32_t getRenderDistance() const { return m_renderDistance; }
+    int32_t getRenderDistance() const { return renderDistance_; }
 
     void update(const glm::vec3& cameraPosition);
     void clearAllChunks();
@@ -77,7 +77,7 @@ public:
     bool hasChunk(const ChunkPosition& pos) const;
 
     const std::unordered_map<ChunkPosition, std::unique_ptr<Chunk>, ChunkPositionHash>& getChunks() const {
-        return m_chunks;
+        return chunks_;
     }
 
     CompactChunkMesh generateChunkMesh(const Chunk* chunk) const;
@@ -92,26 +92,26 @@ public:
     void queueNeighborRemesh(const ChunkPosition& pos);
 
     // Get the global QuadInfo buffer (shared across all chunks)
-    const std::vector<QuadInfo>& getQuadInfos() const { return m_quadLibrary.getQuads(); }
+    const std::vector<QuadInfo>& getQuadInfos() const { return quadLibrary_.getQuads(); }
 
 private:
-    std::unordered_map<ChunkPosition, std::unique_ptr<Chunk>, ChunkPositionHash> m_chunks;
-    int32_t m_renderDistance = 8;
-    ChunkPosition m_lastCameraChunkPos = {INT32_MAX, INT32_MAX, INT32_MAX};
-    bool m_renderDistanceChanged = false;
+    std::unordered_map<ChunkPosition, std::unique_ptr<Chunk>, ChunkPositionHash> chunks_;
+    int32_t renderDistance_ = 8;
+    ChunkPosition lastCameraChunkPos_ = {INT32_MAX, INT32_MAX, INT32_MAX};
+    bool renderDistanceChanged_ = false;
 
-    mutable BlockModelManager m_modelManager;
-    mutable FaceCullingSystem m_cullingSystem;  // Face culling system
-    mutable QuadInfoLibrary m_quadLibrary;  // Shared quad geometry library
+    mutable BlockModelManager modelManager_;
+    mutable FaceCullingSystem cullingSystem_;  // Face culling system
+    mutable QuadInfoLibrary quadLibrary_;  // Shared quad geometry library
 
-    std::vector<std::thread> m_workerThreads;
-    std::queue<ChunkPosition> m_meshQueue;
-    std::queue<CompactChunkMesh> m_readyMeshes;
-    mutable std::mutex m_chunksMutex;
-    std::mutex m_queueMutex;
-    mutable std::mutex m_readyMutex;
-    std::condition_variable m_queueCV;
-    std::atomic<bool> m_running{true};
+    std::vector<std::thread> workerThreads_;
+    std::queue<ChunkPosition> meshQueue_;
+    std::queue<CompactChunkMesh> readyMeshes_;
+    mutable std::mutex chunksMutex_;
+    std::mutex queueMutex_;
+    mutable std::mutex readyMutex_;
+    std::condition_variable queueCV_;
+    std::atomic<bool> running_{true};
 
     void loadChunksAroundPosition(const ChunkPosition& centerPos);
     void unloadDistantChunks(const ChunkPosition& centerPos);

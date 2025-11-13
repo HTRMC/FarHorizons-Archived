@@ -63,34 +63,34 @@ class Chunk {
 public:
     Chunk(const ChunkPosition& position);
 
-    const ChunkPosition& getPosition() const { return m_position; }
+    const ChunkPosition& getPosition() const { return position_; }
 
     // BlockState methods
     BlockState getBlockState(uint32_t x, uint32_t y, uint32_t z) const;
     void setBlockState(uint32_t x, uint32_t y, uint32_t z, BlockState state);
 
-    const uint8_t* getData() const { return m_data.data(); }
+    const uint8_t* getData() const { return data_.data(); }
 
     void generate();
 
-    bool isEmpty() const { return m_palette.isEmpty(); }
-    void markEmpty() { m_isEmpty = true; }
-    void markNonEmpty() { m_isEmpty = false; }
+    bool isEmpty() const { return palette_.isEmpty(); }
+    void markEmpty() { isEmpty_ = true; }
+    void markNonEmpty() { isEmpty_ = false; }
 
     // Mesh dirty flag - tracks if chunk needs remeshing
-    bool isDirty() const { return m_isDirty; }
-    void markDirty() { m_isDirty = true; }
-    void clearDirty() { m_isDirty = false; }
+    bool isDirty() const { return isDirty_; }
+    void markDirty() { isDirty_ = true; }
+    void clearDirty() { isDirty_ = false; }
 
     // Access to palette
-    const ChunkPalette& getPalette() const { return m_palette; }
+    const ChunkPalette& getPalette() const { return palette_; }
 
 private:
-    ChunkPosition m_position;
-    ChunkPalette m_palette;  // Maps local indices to global blockstate IDs
-    std::array<uint8_t, CHUNK_VOLUME> m_data;  // Each uint8_t stores a palette index
-    bool m_isEmpty = true;
-    bool m_isDirty = false;  // Tracks if chunk needs remeshing
+    ChunkPosition position_;
+    ChunkPalette palette_;  // Maps local indices to global blockstate IDs
+    std::array<uint8_t, CHUNK_VOLUME> data_;  // Each uint8_t stores a palette index
+    bool isEmpty_ = true;
+    bool isDirty_ = false;  // Tracks if chunk needs remeshing
 
     uint32_t getBlockIndex(uint32_t x, uint32_t y, uint32_t z) const;
 };

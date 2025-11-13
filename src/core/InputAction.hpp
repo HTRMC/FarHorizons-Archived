@@ -47,53 +47,53 @@ using AxisCallback = std::function<void(float)>;
 // Input action (discrete button press)
 class InputAction {
 public:
-    InputAction(const std::string& name) : m_name(name) {}
+    InputAction(const std::string& name) : name_(name) {}
 
     void addBinding(const InputBinding& binding) {
-        m_bindings.push_back(binding);
+        bindings_.push_back(binding);
     }
 
     void bind(ActionCallback callback) {
-        m_callback = callback;
+        callback_ = callback;
     }
 
     void trigger() {
-        if (m_callback) m_callback();
+        if (callback_) callback_();
     }
 
-    const std::string& getName() const { return m_name; }
-    const std::vector<InputBinding>& getBindings() const { return m_bindings; }
+    const std::string& getName() const { return name_; }
+    const std::vector<InputBinding>& getBindings() const { return bindings_; }
 
 private:
-    std::string m_name;
-    std::vector<InputBinding> m_bindings;
-    ActionCallback m_callback;
+    std::string name_;
+    std::vector<InputBinding> bindings_;
+    ActionCallback callback_;
 };
 
 // Input axis (continuous value like movement or look)
 class InputAxis {
 public:
-    InputAxis(const std::string& name) : m_name(name) {}
+    InputAxis(const std::string& name) : name_(name) {}
 
     void addBinding(const InputBinding& binding) {
-        m_bindings.push_back(binding);
+        bindings_.push_back(binding);
     }
 
     void bind(AxisCallback callback) {
-        m_callback = callback;
+        callback_ = callback;
     }
 
     void trigger(float value) {
-        if (m_callback) m_callback(value);
+        if (callback_) callback_(value);
     }
 
-    const std::string& getName() const { return m_name; }
-    const std::vector<InputBinding>& getBindings() const { return m_bindings; }
+    const std::string& getName() const { return name_; }
+    const std::vector<InputBinding>& getBindings() const { return bindings_; }
 
 private:
-    std::string m_name;
-    std::vector<InputBinding> m_bindings;
-    AxisCallback m_callback;
+    std::string name_;
+    std::vector<InputBinding> bindings_;
+    AxisCallback callback_;
 };
 
 // Input action manager (like Unreal's Input Component)

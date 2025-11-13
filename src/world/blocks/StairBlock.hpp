@@ -43,7 +43,7 @@ public:
         uint16_t offset = static_cast<uint16_t>(facing) +
                          static_cast<uint16_t>(half) * 4 +
                          static_cast<uint16_t>(shape) * 8;
-        return BlockState(m_baseStateId + offset);
+        return BlockState(baseStateId_ + offset);
     }
 
     // Helper for simple placement (always straight shape for now)
@@ -61,17 +61,17 @@ public:
 private:
     // Decode facing, half, and shape from state ID
     StairFacing getFacing(BlockState state) const {
-        int offset = state.id - m_baseStateId;
+        int offset = state.id - baseStateId_;
         return static_cast<StairFacing>(offset % 4);
     }
 
     BlockHalf getHalf(BlockState state) const {
-        int offset = state.id - m_baseStateId;
+        int offset = state.id - baseStateId_;
         return static_cast<BlockHalf>((offset / 4) % 2);
     }
 
     StairShape getShape(BlockState state) const {
-        int offset = state.id - m_baseStateId;
+        int offset = state.id - baseStateId_;
         return static_cast<StairShape>(offset / 8);
     }
 };

@@ -36,14 +36,14 @@ public:
     // Get player's bounding box
     AABB getBoundingBox() const override {
         return AABB::fromCenter(
-            m_position + glm::dvec3(0, PLAYER_HEIGHT / 2.0, 0),
+            position_ + glm::dvec3(0, PLAYER_HEIGHT / 2.0, 0),
             PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_WIDTH
         );
     }
 
     // Get eye position for camera
     glm::dvec3 getEyePos() const {
-        return m_position + glm::dvec3(0, PLAYER_EYE_HEIGHT, 0);
+        return position_ + glm::dvec3(0, PLAYER_EYE_HEIGHT, 0);
     }
 
     // Get interpolated eye position for smooth rendering (Minecraft's pattern)
@@ -84,12 +84,12 @@ protected:
             float moveZ = strafe * cos(yaw) + forward * sin(yaw);
             float moveX = forward * cos(yaw) - strafe * sin(yaw);
 
-            m_velocity.x += moveX;
-            m_velocity.z += moveZ;
+            velocity_.x += moveX;
+            velocity_.z += moveZ;
         }
 
         // Apply upward movement (for creative flying)
-        m_velocity.y += upward * speed;
+        velocity_.y += upward * speed;
     }
 };
 

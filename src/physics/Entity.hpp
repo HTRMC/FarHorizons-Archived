@@ -4,6 +4,7 @@
 #include "EntityType.hpp"
 #include "EntityDimensions.hpp"
 #include "util/MathHelper.hpp"
+#include "world/BlockState.hpp"
 #include <glm/glm.hpp>
 #include <optional>
 #include <vector>
@@ -34,127 +35,131 @@ public:
 
 public:
     // Collision flags (Entity.java line 219-221 - public fields)
-    bool m_horizontalCollision;           // Any horizontal collision (X or Z)
-    bool m_verticalCollision;             // Any vertical collision (Y)
-    bool m_verticalCollisionBelow;        // Vertical collision while moving down (Entity.java:779)
-    bool m_minorHorizontalCollision;      // Small horizontal collision (Entity.java:784)
-    bool m_onGround;                      // On ground flag (Entity.java)
-    bool m_onGroundNoBlocks;              // On ground but no supporting blocks found (Entity.java)
+    bool horizontalCollision_;           // Any horizontal collision (X or Z)
+    bool verticalCollision_;             // Any vertical collision (Y)
+    bool verticalCollisionBelow_;        // Vertical collision while moving down (Entity.java:779)
+    bool minorHorizontalCollision_;      // Small horizontal collision (Entity.java:784)
+    bool onGround_;                      // On ground flag (Entity.java)
+    bool onGroundNoBlocks_;              // On ground but no supporting blocks found (Entity.java)
 
 protected:
-    glm::dvec3 m_position;                // Current position (Entity.java uses x, y, z)
-    glm::dvec3 m_lastRenderPos;      // Position from previous tick (for interpolation)
-    glm::dvec3 m_velocity;           // Current velocity
+    glm::dvec3 position_;                // Current position (Entity.java uses x, y, z)
+    glm::dvec3 lastRenderPos_;      // Position from previous tick (for interpolation)
+    glm::dvec3 velocity_;           // Current velocity
 
     // Rotation (Entity.java line 210-213)
-    float m_yaw;                     // Horizontal rotation (degrees)
-    float m_pitch;                   // Vertical rotation (degrees)
-    float m_lastYaw;                 // Previous yaw for interpolation
-    float m_lastPitch;               // Previous pitch for interpolation
+    float yaw_;                     // Horizontal rotation (degrees)
+    float pitch_;                   // Vertical rotation (degrees)
+    float lastYaw_;                 // Previous yaw for interpolation
+    float lastPitch_;               // Previous pitch for interpolation
 
-    bool m_collidedSoftly;
-    bool m_noClip;                  // Ghost mode (fly through blocks)
+    bool collidedSoftly_;
+    bool noClip_;                  // Ghost mode (fly through blocks)
 
 private:
     // Entity type (Entity.java line 198 - private final EntityType<?> type)
-    const EntityType m_type;
+    const EntityType type_;
 
     // Entity ID (Entity.java line 200)
-    int m_id;
+    int id_;
 
     // Precise position flag (Entity.java line 199)
-    bool m_requiresPrecisePosition;
+    bool requiresPrecisePosition_;
 
     // Entity dimensions (Entity.java line 196 - private EntityDimensions dimensions)
-    EntityDimensions m_dimensions;
+    EntityDimensions dimensions_;
+
+    // Bounding box (Entity.java line 195 - private AABB bb)
+    AABB bb_;
 
     // Last known position (Entity.java: private BlockPos lastKnownPosition)
     // Used for tracking position changes and optimizations
-    std::optional<glm::dvec3> m_lastKnownPosition;
+    std::optional<glm::dvec3> lastKnownPosition_;
 
     // Last known speed (Entity.java: private Vec3 lastKnownSpeed)
     // Calculated in computeSpeed() as position delta
-    glm::dvec3 m_lastKnownSpeed;
+    glm::dvec3 lastKnownSpeed_;
 
     // Main supporting block position (Entity.java: private Optional<BlockPos> mainSupportingBlockPos)
     // The block position that is currently supporting this entity
-    std::optional<glm::ivec3> m_mainSupportingBlockPos;
+    std::optional<glm::ivec3> mainSupportingBlockPos_;
 
 public:
     // Constructor matching Minecraft's Entity(EntityType<?> type, Level level)
     Entity(EntityType entityType, EntityDimensions dimensions, const glm::dvec3& position = glm::dvec3(0, 100, 0))
-        : m_type(entityType)
-        , m_id(-1)  // Will be set when added to world
-        , m_requiresPrecisePosition(false)
-        , m_dimensions(dimensions)
-        , m_lastKnownPosition(std::nullopt)
-        , m_lastKnownSpeed(0.0, 0.0, 0.0)
-        , m_mainSupportingBlockPos(std::nullopt)
-        , m_position(position)
-        , m_lastRenderPos(position)
-        , m_velocity(0, 0, 0)
-        , m_yaw(0.0f)
-        , m_pitch(0.0f)
-        , m_lastYaw(0.0f)
-        , m_lastPitch(0.0f)
-        , m_horizontalCollision(false)
-        , m_verticalCollision(false)
-        , m_onGround(false)
-        , m_onGroundNoBlocks(false)
-        , m_verticalCollisionBelow(false)
-        , m_minorHorizontalCollision(false)
-        , m_collidedSoftly(false)
-        , m_noClip(false)
+        : type_(entityType)
+        , id_(-1)  // Will be set when added to world
+        , requiresPrecisePosition_(false)
+        , dimensions_(dimensions)
+        , bb_(dimensions.makeBoundingBox(position))
+        , lastKnownPosition_(std::nullopt)
+        , lastKnownSpeed_(0.0, 0.0, 0.0)
+        , mainSupportingBlockPos_(std::nullopt)
+        , position_(position)
+        , lastRenderPos_(position)
+        , velocity_(0, 0, 0)
+        , yaw_(0.0f)
+        , pitch_(0.0f)
+        , lastYaw_(0.0f)
+        , lastPitch_(0.0f)
+        , horizontalCollision_(false)
+        , verticalCollision_(false)
+        , onGround_(false)
+        , onGroundNoBlocks_(false)
+        , verticalCollisionBelow_(false)
+        , minorHorizontalCollision_(false)
+        , collidedSoftly_(false)
+        , noClip_(false)
     {}
 
     virtual ~Entity() = default;
 
     // Getters
-    const glm::dvec3& getPos() const { return m_position; }
-    double getX() const { return m_position.x; }
-    double getY() const { return m_position.y; }
-    double getZ() const { return m_position.z; }
-    const glm::dvec3& getVelocity() const { return m_velocity; }
-    float getYaw() const { return m_yaw; }
-    float getPitch() const { return m_pitch; }
+    const glm::dvec3& getPos() const { return position_; }
+    double getX() const { return position_.x; }
+    double getY() const { return position_.y; }
+    double getZ() const { return position_.z; }
+    const glm::dvec3& getVelocity() const { return velocity_; }
+    float getYaw() const { return yaw_; }
+    float getPitch() const { return pitch_; }
     float getYRot() const;  // Entity.java: public float getYRot()
     float getXRot() const;  // Entity.java: public float getXRot()
-    bool isNoClip() const { return m_noClip; }
-    bool isOnGround() const { return m_onGround; }  // Entity.java: public boolean isOnGround()
+    bool isNoClip() const { return noClip_; }
+    bool isOnGround() const { return onGround_; }  // Entity.java: public boolean isOnGround()
 
     // Get entity type (Entity.java: public EntityType<?> getType())
-    EntityType getType() const { return m_type; }
+    EntityType getType() const { return type_; }
 
     // Get entity ID (Entity.java: public int getId())
-    int getId() const { return m_id; }
+    int getId() const { return id_; }
 
     // Get precise position requirement (Entity.java: public boolean getRequiresPrecisePosition())
-    bool getRequiresPrecisePosition() const { return m_requiresPrecisePosition; }
+    bool getRequiresPrecisePosition() const { return requiresPrecisePosition_; }
 
     // Get entity dimensions (Entity.java: public EntityDimensions getDimensions())
-    const EntityDimensions& getDimensions() const { return m_dimensions; }
+    const EntityDimensions& getDimensions() const { return dimensions_; }
 
     // Get interpolated position for smooth rendering (Minecraft's pattern)
     // partialTick: value from 0.0 to 1.0 representing progress between ticks
     // Minecraft uses lastRenderX/Y/Z for interpolation
     glm::dvec3 getLerpedPos(float partialTick) const {
-        return glm::mix(m_lastRenderPos, m_position, static_cast<double>(partialTick));
+        return glm::mix(lastRenderPos_, position_, static_cast<double>(partialTick));
     }
 
     // Setters
     void setPos(const glm::dvec3& position);  // Entity.java: public final void setPos(Vec3 pos)
     void setPos(double x, double y, double z);  // Entity.java: public void setPos(double x, double y, double z)
 
-    void setVelocity(const glm::dvec3& vel) { m_velocity = vel; }
-    void setVelocity(double x, double y, double z) { m_velocity = glm::dvec3(x, y, z); }
+    void setVelocity(const glm::dvec3& vel) { velocity_ = vel; }
+    void setVelocity(double x, double y, double z) { velocity_ = glm::dvec3(x, y, z); }
 
-    void setYaw(float yawDegrees) { m_yaw = yawDegrees; }
-    void setPitch(float pitchDegrees) { m_pitch = pitchDegrees; }
+    void setYaw(float yawDegrees) { yaw_ = yawDegrees; }
+    void setPitch(float pitchDegrees) { pitch_ = pitchDegrees; }
 
     // Turn entity based on mouse input (Entity.java: public void turn(double xo, double yo))
     void turn(double xo, double yo);
 
-    void setNoClip(bool noclip) { m_noClip = noclip; }
+    void setNoClip(bool noclip) { noClip_ = noclip; }
 
     // Set on ground state (Entity.java: public void setOnGround(boolean onGround))
     void setOnGround(bool onGround);
@@ -166,15 +171,22 @@ public:
     bool isSupportedBy(const glm::ivec3& pos) const;
 
     // Set entity ID (Entity.java: public void setId(int id))
-    void setId(int id) { m_id = id; }
+    void setId(int id) { id_ = id; }
 
     // Set precise position requirement (Entity.java: public void setRequiresPrecisePosition(boolean))
     void setRequiresPrecisePosition(bool requiresPrecisePosition) {
-        m_requiresPrecisePosition = requiresPrecisePosition;
+        requiresPrecisePosition_ = requiresPrecisePosition;
     }
 
-    // Get entity's bounding box (abstract - subclasses define dimensions)
-    virtual AABB getBoundingBox() const = 0;
+    // Set bounding box (Entity.java: public final void setBoundingBox(AABB bb))
+    void setBoundingBox(const AABB& bb) {
+        bb_ = bb;
+    }
+
+    // Get entity's bounding box (Entity.java: public AABB getBoundingBox())
+    AABB getBoundingBox() const {
+        return bb_;
+    }
 
     // Get maximum step height (Entity.java: maxUpStep())
     // Returns how high this entity can step up
@@ -188,7 +200,7 @@ public:
 
     // Core movement with collision detection (Entity.java line 672)
     // Minecraft: move(MovementType type, Vec3d movement)
-    void move(MovementType type, const glm::dvec3& movement, CollisionSystem& collisionSystem);
+    void move(MovementType type, const glm::dvec3& movement, Level* level);
 
     // Teleport entity to a position
     void teleport(const glm::dvec3& position);
@@ -200,7 +212,7 @@ public:
     // Check if entity is colliding with a specific block (Entity.java line 339)
     // Minecraft signature: isColliding(BlockPos pos, BlockState state)
     // This checks if the entity's bounding box intersects with the block's collision shape
-    bool isColliding(const glm::ivec3& blockPos, const BlockState& blockState, CollisionSystem& collisionSystem) const;
+    bool isColliding(const glm::ivec3& blockPos, const BlockState& blockState, Level* level) const;
 
     // Check if entity is free to move to a position (Entity.java: public boolean isFree(double xa, double ya, double za))
     bool isFree(double xa, double ya, double za) const;

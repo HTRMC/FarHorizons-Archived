@@ -23,35 +23,35 @@ public:
 
     Text() = default;
     explicit Text(const std::string& content, const Style& style = Style()) {
-        m_segments.emplace_back(content, style);
+        segments_.emplace_back(content, style);
     }
 
     // Builder-style methods for composing text
     Text& append(const std::string& content, const Style& style = Style()) {
-        m_segments.emplace_back(content, style);
+        segments_.emplace_back(content, style);
         return *this;
     }
 
     Text& append(const Text& other) {
-        m_segments.insert(m_segments.end(), other.m_segments.begin(), other.m_segments.end());
+        segments_.insert(segments_.end(), other.segments_.begin(), other.segments_.end());
         return *this;
     }
 
     // Apply style to all segments
     Text& withStyle(const Style& style) {
-        for (auto& segment : m_segments) {
+        for (auto& segment : segments_) {
             segment.style = style;
         }
         return *this;
     }
 
     // Get all segments
-    const std::vector<Segment>& getSegments() const { return m_segments; }
+    const std::vector<Segment>& getSegments() const { return segments_; }
 
     // Get plain string (without styling)
     std::string getString() const {
         std::string result;
-        for (const auto& segment : m_segments) {
+        for (const auto& segment : segments_) {
             result += segment.content;
         }
         return result;
@@ -122,7 +122,7 @@ public:
     }
 
 private:
-    std::vector<Segment> m_segments;
+    std::vector<Segment> segments_;
 };
 
 } // namespace FarHorizon

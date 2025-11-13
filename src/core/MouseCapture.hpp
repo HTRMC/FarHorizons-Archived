@@ -28,7 +28,7 @@ public:
     // Cursor control
     void lockCursor();
     void unlockCursor();
-    bool isCursorLocked() const { return m_cursorLocked; }
+    bool isCursorLocked() const { return cursorLocked_; }
 
     // Window state handling
     void onWindowFocusChanged(bool focused);
@@ -36,20 +36,20 @@ public:
 
     // Mouse position tracking (with resolution change protection)
     void updateCursorPosition(double x, double y);
-    double getCursorDeltaX() const { return m_cursorDeltaX; }
-    double getCursorDeltaY() const { return m_cursorDeltaY; }
+    double getCursorDeltaX() const { return cursorDeltaX_; }
+    double getCursorDeltaY() const { return cursorDeltaY_; }
     void resetDeltas();
 
     // Mark that resolution changed (prevents delta spike on next update)
-    void markResolutionChanged() { m_resolutionChanged = true; }
+    void markResolutionChanged() { resolutionChanged_ = true; }
 
     // Get current cursor position
-    double getCursorX() const { return m_cursorX; }
-    double getCursorY() const { return m_cursorY; }
+    double getCursorX() const { return cursorX_; }
+    double getCursorY() const { return cursorY_; }
 
     // Callback for cursor state changes
     void setCursorStateCallback(CursorStateCallback callback) {
-        m_cursorStateCallback = callback;
+        cursorStateCallback_ = callback;
     }
 
     // Check if raw mouse input is supported
@@ -57,33 +57,33 @@ public:
 
     // Enable/disable raw mouse input (bypasses OS acceleration)
     void setRawMouseInput(bool enabled);
-    bool isRawMouseInputEnabled() const { return m_rawMouseInput; }
+    bool isRawMouseInputEnabled() const { return rawMouseInput_; }
 
 private:
     void centerCursor();
     void notifyStateChange();
 
 private:
-    GLFWwindow* m_window;
+    GLFWwindow* window_;
 
     // Cursor state
-    bool m_cursorLocked = false;
-    bool m_windowFocused = true;
-    bool m_resolutionChanged = false;
-    bool m_rawMouseInput = false;
+    bool cursorLocked_ = false;
+    bool windowFocused_ = true;
+    bool resolutionChanged_ = false;
+    bool rawMouseInput_ = false;
 
     // Cursor position tracking
-    double m_cursorX = 0.0;
-    double m_cursorY = 0.0;
-    double m_cursorDeltaX = 0.0;
-    double m_cursorDeltaY = 0.0;
+    double cursorX_ = 0.0;
+    double cursorY_ = 0.0;
+    double cursorDeltaX_ = 0.0;
+    double cursorDeltaY_ = 0.0;
 
     // Window dimensions (for centering)
-    int m_windowWidth = 0;
-    int m_windowHeight = 0;
+    int windowWidth_ = 0;
+    int windowHeight_ = 0;
 
     // Callback
-    CursorStateCallback m_cursorStateCallback;
+    CursorStateCallback cursorStateCallback_;
 };
 
 } // namespace FarHorizon

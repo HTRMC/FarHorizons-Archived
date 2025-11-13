@@ -30,8 +30,8 @@ public:
 private:
     // LRU implementation using unordered_map + list
     // Key: ShapePair, Value: iterator to list element
-    std::unordered_map<ShapePair, std::list<std::pair<ShapePair, bool>>::iterator> m_map;
-    std::list<std::pair<ShapePair, bool>> m_list;  // Most recent at front
+    std::unordered_map<ShapePair, std::list<std::pair<ShapePair, bool>>::iterator> map_;
+    std::list<std::pair<ShapePair, bool>> list_;  // Most recent at front
 };
 
 // Central face culling system
@@ -98,7 +98,7 @@ private:
 
     // BlockShape cache: maps BlockState ID → BlockShape
     // Avoids recomputing shapes every frame (HUGE performance win)
-    std::unordered_map<uint16_t, BlockShape> m_shapeCache;
+    std::unordered_map<uint16_t, BlockShape> shapeCache_;
 };
 
 } // namespace FarHorizon

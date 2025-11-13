@@ -18,39 +18,39 @@ class CyclingButton {
 public:
     CyclingButton(const std::string& label, const glm::vec2& position, float width,
                   const std::vector<std::string>& options, size_t currentIndex = 0, float scale = 1.0f)
-        : m_label(label)
-        , m_position(position)
-        , m_width(width)
-        , m_options(options)
-        , m_currentIndex(currentIndex)
-        , m_scale(scale)
-        , m_hovered(false)
-        , m_selected(false)
-        , m_enabled(true) {
+        : label_(label)
+        , position_(position)
+        , width_(width)
+        , options_(options)
+        , currentIndex_(currentIndex)
+        , scale_(scale)
+        , hovered_(false)
+        , selected_(false)
+        , enabled_(true) {
 
-        m_height = 60.0f * scale; // Height for the button
+        height_ = 60.0f * scale; // Height for the button
 
-        if (!m_options.empty() && m_currentIndex >= m_options.size()) {
-            m_currentIndex = 0;
+        if (!options_.empty() && currentIndex_ >= options_.size()) {
+            currentIndex_ = 0;
         }
     }
 
     // Set callback function for when option changes
     void setOnChange(std::function<void(const std::string&)> callback) {
-        m_onChangeCallback = callback;
+        onChangeCallback_ = callback;
     }
 
     // Update button state with mouse input
     bool update(const glm::vec2& mousePos, bool mouseClicked) {
-        if (!m_enabled) {
-            m_hovered = false;
+        if (!enabled_) {
+            hovered_ = false;
             return false;
         }
 
         // Update hover state
-        m_hovered = isMouseOver(mousePos);
+        hovered_ = isMouseOver(mousePos);
 
-        if (m_hovered && mouseClicked) {
+        if (hovered_ && mouseClicked) {
             cycleNext();
             return true;
         }
@@ -59,18 +59,18 @@ public:
 
     // Cycle to the next option (wraps around)
     void cycleNext() {
-        if (m_options.empty()) return;
+        if (options_.empty()) return;
 
-        m_currentIndex = (m_currentIndex + 1) % m_options.size();
+        currentIndex_ = (currentIndex_ + 1) % options_.size();
 
-        if (m_onChangeCallback) {
-            m_onChangeCallback(m_options[m_currentIndex]);
+        if (onChangeCallback_) {
+            onChangeCallback_(options_[currentIndex_]);
         }
     }
 
     // Activate button (for keyboard navigation)
     void activate() {
-        if (m_enabled) {
+        if (enabled_) {
             cycleNext();
         }
     }
@@ -84,19 +84,19 @@ public:
     ) const {
         // Choose style based on button state
         Style labelStyle;
-        if (!m_enabled) {
+        if (!enabled_) {
             labelStyle = Style::darkGray();
-        } else if (m_selected) {
+        } else if (selected_) {
             labelStyle = Style::yellow();
-        } else if (m_hovered) {
+        } else if (hovered_) {
             labelStyle = Style::yellow();
         } else {
             labelStyle = Style::white();
         }
 
         // Build the display text: "Label: CurrentOption"
-        std::string displayText = m_label + ": ";
-        std::string currentOption = m_options.empty() ? "None" : m_options[m_currentIndex];
+        std::string displayText = label_ + ": ";
+        std::string currentOption = options_.empty() ? "None" : options_[currentIndex_];
 
         auto text = Text::literal(displayText + currentOption, labelStyle);
 
@@ -105,65 +105,65 @@ public:
         float textWidth = textRenderer.calculateTextWidth(text, scale);
         float textHeight = textRenderer.calculateTextHeight(text, scale);
 
-        glm::vec2 textPos = m_position + glm::vec2(
-            (m_width - textWidth) * 0.5f,
-            (m_height - textHeight) * 0.5f
+        glm::vec2 textPos = position_ + glm::vec2(
+            (width_ - textWidth) * 0.5f,
+            (height_ - textHeight) * 0.5f
         );
 
         return textRenderer.generateVertices(text, textPos, scale, screenWidth, screenHeight);
     }
 
     // Getters/Setters
-    void setPosition(const glm::vec2& pos) { m_position = pos; }
-    void setSelected(bool selected) { m_selected = selected; }
-    void setEnabled(bool enabled) { m_enabled = enabled; }
-    void setHovered(bool hovered) { m_hovered = hovered; }
+    void setPosition(const glm::vec2& pos) { position_ = pos; }
+    void setSelected(bool selected) { selected_ = selected; }
+    void setEnabled(bool enabled) { enabled_ = enabled; }
+    void setHovered(bool hovered) { hovered_ = hovered; }
 
-    const glm::vec2& getPosition() const { return m_position; }
-    float getHeight() const { return m_height; }
-    bool isSelected() const { return m_selected; }
-    bool isHovered() const { return m_hovered; }
-    bool isEnabled() const { return m_enabled; }
+    const glm::vec2& getPosition() const { return position_; }
+    float getHeight() const { return height_; }
+    bool isSelected() const { return selected_; }
+    bool isHovered() const { return hovered_; }
+    bool isEnabled() const { return enabled_; }
 
     const std::string& getCurrentOption() const {
-        return m_options.empty() ? "" : m_options[m_currentIndex];
+        return options_.empty() ? "" : options_[currentIndex_];
     }
 
-    size_t getCurrentIndex() const { return m_currentIndex; }
+    size_t getCurrentIndex() const { return currentIndex_; }
 
     void setOptions(const std::vector<std::string>& options, size_t index = 0) {
-        m_options = options;
-        m_currentIndex = index;
-        if (!m_options.empty() && m_currentIndex >= m_options.size()) {
-            m_currentIndex = 0;
+        options_ = options;
+        currentIndex_ = index;
+        if (!options_.empty() && currentIndex_ >= options_.size()) {
+            currentIndex_ = 0;
         }
     }
 
     void setCurrentIndex(size_t index) {
-        if (!m_options.empty() && index < m_options.size()) {
-            m_currentIndex = index;
+        if (!options_.empty() && index < options_.size()) {
+            currentIndex_ = index;
         }
     }
 
 private:
     bool isMouseOver(const glm::vec2& mousePos) const {
-        return mousePos.x >= m_position.x &&
-               mousePos.x <= m_position.x + m_width &&
-               mousePos.y >= m_position.y &&
-               mousePos.y <= m_position.y + m_height;
+        return mousePos.x >= position_.x &&
+               mousePos.x <= position_.x + width_ &&
+               mousePos.y >= position_.y &&
+               mousePos.y <= position_.y + height_;
     }
 
-    std::string m_label;
-    glm::vec2 m_position;
-    float m_width;
-    float m_height;
-    std::vector<std::string> m_options;
-    size_t m_currentIndex;
-    float m_scale;
-    bool m_hovered;
-    bool m_selected;
-    bool m_enabled;
-    std::function<void(const std::string&)> m_onChangeCallback;
+    std::string label_;
+    glm::vec2 position_;
+    float width_;
+    float height_;
+    std::vector<std::string> options_;
+    size_t currentIndex_;
+    float scale_;
+    bool hovered_;
+    bool selected_;
+    bool enabled_;
+    std::function<void(const std::string&)> onChangeCallback_;
 };
 
 } // namespace FarHorizon

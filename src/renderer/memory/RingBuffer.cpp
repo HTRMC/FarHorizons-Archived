@@ -5,10 +5,10 @@
 namespace FarHorizon {
 
 void RingBuffer::init(VmaAllocator allocator, VkDeviceSize size, VkDeviceSize alignment) {
-    m_alignment = alignment;
+    alignment_ = alignment;
 
     // Create persistently mapped buffer for dynamic data
-    m_buffer.init(
+    buffer_.init(
         allocator,
         size,
         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
@@ -17,39 +17,39 @@ void RingBuffer::init(VmaAllocator allocator, VkDeviceSize size, VkDeviceSize al
     );
 
     // Keep it persistently mapped
-    m_buffer.map();
+    buffer_.map();
 
     spdlog::info("[RingBuffer] Initialized with size: {} KB, alignment: {}",
                  size / 1024, alignment);
 }
 
 void RingBuffer::cleanup() {
-    m_buffer.cleanup();
+    buffer_.cleanup();
 }
 
 VkDeviceSize RingBuffer::allocate(VkDeviceSize size) {
     // Align current offset
-    VkDeviceSize alignedOffset = alignOffset(m_currentOffset);
+    VkDeviceSize alignedOffset = alignOffset(currentOffset_);
 
     // Check if we have enough space
-    if (alignedOffset + size > m_buffer.getSize()) {
+    if (alignedOffset + size > buffer_.getSize()) {
         spdlog::error("[RingBuffer] Out of space! Requested: {} bytes, available: {} bytes",
-                      size, m_buffer.getSize() - alignedOffset);
+                      size, buffer_.getSize() - alignedOffset);
         return VK_WHOLE_SIZE;
     }
 
     // Update current offset for next allocation
-    m_currentOffset = alignedOffset + size;
+    currentOffset_ = alignedOffset + size;
 
     return alignedOffset;
 }
 
 void RingBuffer::write(const void* data, VkDeviceSize size, VkDeviceSize offset) {
-    m_buffer.copyData(data, size, offset);
+    buffer_.copyData(data, size, offset);
 }
 
 void RingBuffer::reset() {
-    m_currentOffset = 0;
+    currentOffset_ = 0;
 }
 
 } // namespace FarHorizon

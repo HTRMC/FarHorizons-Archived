@@ -30,27 +30,27 @@ static StaticInitializer s_init;
 // ============================================================================
 
 BlockShape::BlockShape()
-    : m_voxels(nullptr), m_type(Type::EMPTY) {
+    : voxels_(nullptr), type_(Type::EMPTY) {
     // Empty shape has no voxels
     for (int i = 0; i < 6; i++) {
-        m_cullingFaces[i] = nullptr;
+        cullingFaces_[i] = nullptr;
     }
 }
 
 BlockShape::BlockShape(std::shared_ptr<VoxelSet> voxels)
-    : m_voxels(voxels) {
+    : voxels_(voxels) {
     // Determine type
     if (!voxels || voxels->isEmpty()) {
-        m_type = Type::EMPTY;
+        type_ = Type::EMPTY;
     } else if (voxels->getXSize() == 1 && voxels->getYSize() == 1 && voxels->getZSize() == 1) {
-        m_type = Type::FULL_CUBE;
+        type_ = Type::FULL_CUBE;
     } else {
-        m_type = Type::PARTIAL;
+        type_ = Type::PARTIAL;
     }
 
     // Initialize culling face cache
     for (int i = 0; i < 6; i++) {
-        m_cullingFaces[i] = nullptr;
+        cullingFaces_[i] = nullptr;
     }
 }
 
@@ -152,11 +152,11 @@ BlockShape BlockShape::fromBounds(const glm::vec3& min, const glm::vec3& max) {
 }
 
 bool BlockShape::isEmpty() const {
-    return m_type == Type::EMPTY || !m_voxels || m_voxels->isEmpty();
+    return type_ == Type::EMPTY || !voxels_ || voxels_->isEmpty();
 }
 
 bool BlockShape::isFullCube() const {
-    return m_type == Type::FULL_CUBE;
+    return type_ == Type::FULL_CUBE;
 }
 
 std::shared_ptr<VoxelSet> BlockShape::getCullingFace(FaceDirection direction) const {
@@ -166,13 +166,13 @@ std::shared_ptr<VoxelSet> BlockShape::getCullingFace(FaceDirection direction) co
     }
 
     if (isFullCube()) {
-        return m_voxels;  // Full cube is same on all faces
+        return voxels_;  // Full cube is same on all faces
     }
 
     // Check cache
     int dirIndex = static_cast<int>(direction);
-    if (m_cullingFaces[dirIndex]) {
-        return m_cullingFaces[dirIndex];
+    if (cullingFaces_[dirIndex]) {
+        return cullingFaces_[dirIndex];
     }
 
     // Extract face slice at the block boundary
@@ -184,9 +184,9 @@ std::shared_ptr<VoxelSet> BlockShape::getCullingFace(FaceDirection direction) co
     // If the shape doesn't have voxels at that boundary (e.g., top slab's DOWN face),
     // the slice will be empty, which is correct!
 
-    int sizeX = m_voxels->getXSize();
-    int sizeY = m_voxels->getYSize();
-    int sizeZ = m_voxels->getZSize();
+    int sizeX = voxels_->getXSize();
+    int sizeY = voxels_->getYSize();
+    int sizeZ = voxels_->getZSize();
 
     // Determine which slice to extract based on direction
     int sliceIndex;
@@ -228,10 +228,10 @@ std::shared_ptr<VoxelSet> BlockShape::getCullingFace(FaceDirection direction) co
     int maxY = (axis == Direction::Axis::Y) ? sliceIndex + 1 : sizeY;
     int maxZ = (axis == Direction::Axis::Z) ? sliceIndex + 1 : sizeZ;
 
-    auto faceVoxels = std::make_shared<CroppedVoxelSet>(m_voxels, minX, minY, minZ, maxX, maxY, maxZ);
+    auto faceVoxels = std::make_shared<CroppedVoxelSet>(voxels_, minX, minY, minZ, maxX, maxY, maxZ);
 
     // Cache the result
-    m_cullingFaces[dirIndex] = faceVoxels;
+    cullingFaces_[dirIndex] = faceVoxels;
     return faceVoxels;
 }
 
@@ -245,14 +245,14 @@ glm::vec3 BlockShape::getMin() const {
     }
 
     // Convert voxel coordinates to world coordinates (0-1 space)
-    int sizeX = m_voxels->getXSize();
-    int sizeY = m_voxels->getYSize();
-    int sizeZ = m_voxels->getZSize();
+    int sizeX = voxels_->getXSize();
+    int sizeY = voxels_->getYSize();
+    int sizeZ = voxels_->getZSize();
 
     return glm::vec3(
-        static_cast<float>(m_voxels->getMin(Direction::Axis::X)) / sizeX,
-        static_cast<float>(m_voxels->getMin(Direction::Axis::Y)) / sizeY,
-        static_cast<float>(m_voxels->getMin(Direction::Axis::Z)) / sizeZ
+        static_cast<float>(voxels_->getMin(Direction::Axis::X)) / sizeX,
+        static_cast<float>(voxels_->getMin(Direction::Axis::Y)) / sizeY,
+        static_cast<float>(voxels_->getMin(Direction::Axis::Z)) / sizeZ
     );
 }
 
@@ -266,14 +266,14 @@ glm::vec3 BlockShape::getMax() const {
     }
 
     // Convert voxel coordinates to world coordinates (0-1 space)
-    int sizeX = m_voxels->getXSize();
-    int sizeY = m_voxels->getYSize();
-    int sizeZ = m_voxels->getZSize();
+    int sizeX = voxels_->getXSize();
+    int sizeY = voxels_->getYSize();
+    int sizeZ = voxels_->getZSize();
 
     return glm::vec3(
-        static_cast<float>(m_voxels->getMax(Direction::Axis::X)) / sizeX,
-        static_cast<float>(m_voxels->getMax(Direction::Axis::Y)) / sizeY,
-        static_cast<float>(m_voxels->getMax(Direction::Axis::Z)) / sizeZ
+        static_cast<float>(voxels_->getMax(Direction::Axis::X)) / sizeX,
+        static_cast<float>(voxels_->getMax(Direction::Axis::Y)) / sizeY,
+        static_cast<float>(voxels_->getMax(Direction::Axis::Z)) / sizeZ
     );
 }
 

@@ -69,8 +69,8 @@ class Sound {
 public:
     Sound() = default;
     ~Sound() {
-        if (m_initialized) {
-            ma_sound_uninit(&m_sound);
+        if (initialized_) {
+            ma_sound_uninit(&sound_);
         }
     }
 
@@ -78,19 +78,19 @@ public:
     Sound& operator=(const Sound&) = delete;
 
     Sound(Sound&& other) noexcept
-        : m_sound(other.m_sound)
-        , m_initialized(other.m_initialized) {
-        other.m_initialized = false;
+        : sound_(other.sound_)
+        , initialized_(other.initialized_) {
+        other.initialized_ = false;
     }
 
     Sound& operator=(Sound&& other) noexcept {
         if (this != &other) {
-            if (m_initialized) {
-                ma_sound_uninit(&m_sound);
+            if (initialized_) {
+                ma_sound_uninit(&sound_);
             }
-            m_sound = other.m_sound;
-            m_initialized = other.m_initialized;
-            other.m_initialized = false;
+            sound_ = other.sound_;
+            initialized_ = other.initialized_;
+            other.initialized_ = false;
         }
         return *this;
     }
@@ -129,72 +129,72 @@ public:
             ma_decoder_uninit(&decoder);
         }
 
-        ma_result result = ma_sound_init_from_file(engine, absolutePath.string().c_str(), 0, nullptr, nullptr, &m_sound);
+        ma_result result = ma_sound_init_from_file(engine, absolutePath.string().c_str(), 0, nullptr, nullptr, &sound_);
         if (result != MA_SUCCESS) {
             spdlog::error("Failed to load sound: {} (error: {})", absolutePath.string(), magic_enum::enum_name(result));
             return false;
         }
-        m_initialized = true;
+        initialized_ = true;
         spdlog::debug("Successfully loaded sound: {}", absolutePath.string());
         return true;
     }
 
     bool initFromFile(ma_engine* engine, const std::filesystem::path& filepath, ma_uint32 flags) {
-        ma_result result = ma_sound_init_from_file(engine, filepath.string().c_str(), flags, nullptr, nullptr, &m_sound);
+        ma_result result = ma_sound_init_from_file(engine, filepath.string().c_str(), flags, nullptr, nullptr, &sound_);
         if (result != MA_SUCCESS) {
             return false;
         }
-        m_initialized = true;
+        initialized_ = true;
         return true;
     }
 
     void play() {
-        if (m_initialized) {
-            ma_sound_start(&m_sound);
+        if (initialized_) {
+            ma_sound_start(&sound_);
         }
     }
 
     void stop() {
-        if (m_initialized) {
-            ma_sound_stop(&m_sound);
+        if (initialized_) {
+            ma_sound_stop(&sound_);
         }
     }
 
     void setVolume(float volume) {
-        if (m_initialized) {
-            ma_sound_set_volume(&m_sound, volume);
+        if (initialized_) {
+            ma_sound_set_volume(&sound_, volume);
         }
     }
 
     void setPitch(float pitch) {
-        if (m_initialized) {
-            ma_sound_set_pitch(&m_sound, pitch);
+        if (initialized_) {
+            ma_sound_set_pitch(&sound_, pitch);
         }
     }
 
     void setLooping(bool loop) {
-        if (m_initialized) {
-            ma_sound_set_looping(&m_sound, loop ? MA_TRUE : MA_FALSE);
+        if (initialized_) {
+            ma_sound_set_looping(&sound_, loop ? MA_TRUE : MA_FALSE);
         }
     }
 
     bool isPlaying() const {
-        return m_initialized && ma_sound_is_playing(&m_sound);
+        return initialized_ && ma_sound_is_playing(&sound_);
     }
 
     bool atEnd() const {
-        return m_initialized && ma_sound_at_end(&m_sound);
+        return initialized_ && ma_sound_at_end(&sound_);
     }
 
     void seekToStart() {
-        if (m_initialized) {
-            ma_sound_seek_to_pcm_frame(&m_sound, 0);
+        if (initialized_) {
+            ma_sound_seek_to_pcm_frame(&sound_, 0);
         }
     }
 
 private:
-    ma_sound m_sound{};
-    bool m_initialized = false;
+    ma_sound sound_{};
+    bool initialized_ = false;
 };
 
 class AudioManager {
@@ -215,47 +215,47 @@ public:
             config.pPlaybackDeviceID = pDeviceId;
         }
 
-        ma_result result = ma_engine_init(&config, &m_engine);
+        ma_result result = ma_engine_init(&config, &engine_);
         if (result != MA_SUCCESS) {
             spdlog::error("Failed to initialize audio engine (error: {})", magic_enum::enum_name(result));
             return false;
         }
-        m_initialized = true;
+        initialized_ = true;
         spdlog::info("AudioManager initialized successfully");
         return true;
     }
 
     void cleanup() {
-        if (m_initialized) {
-            m_sounds.clear();
-            m_activeSounds.clear();
-            ma_engine_uninit(&m_engine);
-            m_initialized = false;
+        if (initialized_) {
+            sounds_.clear();
+            activeSounds_.clear();
+            ma_engine_uninit(&engine_);
+            initialized_ = false;
             spdlog::info("AudioManager cleaned up");
         }
     }
 
     // Load a sound and store it with a given name
     bool loadSound(const std::string& name, const std::string& filepath) {
-        if (!m_initialized) {
+        if (!initialized_) {
             spdlog::error("Cannot load sound: AudioManager not initialized");
             return false;
         }
 
         auto sound = std::make_unique<Sound>();
-        if (!sound->init(&m_engine, filepath)) {
+        if (!sound->init(&engine_, filepath)) {
             return false;
         }
 
-        m_sounds[name] = std::move(sound);
+        sounds_[name] = std::move(sound);
         spdlog::info("Loaded sound: {} from {}", name, filepath);
         return true;
     }
 
     // Play a loaded sound
     void playSound(const std::string& name) {
-        auto it = m_sounds.find(name);
-        if (it != m_sounds.end()) {
+        auto it = sounds_.find(name);
+        if (it != sounds_.end()) {
             it->second->play();
         } else {
             spdlog::warn("Sound not found: {}", name);
@@ -264,46 +264,46 @@ public:
 
     // Stop a playing sound
     void stopSound(const std::string& name) {
-        auto it = m_sounds.find(name);
-        if (it != m_sounds.end()) {
+        auto it = sounds_.find(name);
+        if (it != sounds_.end()) {
             it->second->stop();
         }
     }
 
     // Set volume for a specific sound (0.0 to 1.0)
     void setSoundVolume(const std::string& name, float volume) {
-        auto it = m_sounds.find(name);
-        if (it != m_sounds.end()) {
+        auto it = sounds_.find(name);
+        if (it != sounds_.end()) {
             it->second->setVolume(volume);
         }
     }
 
     // Set looping for a specific sound
     void setSoundLooping(const std::string& name, bool loop) {
-        auto it = m_sounds.find(name);
-        if (it != m_sounds.end()) {
+        auto it = sounds_.find(name);
+        if (it != sounds_.end()) {
             it->second->setLooping(loop);
         }
     }
 
     // Set master volume (0.0 to 1.0)
     void setMasterVolume(float volume) {
-        if (m_initialized) {
-            ma_engine_set_volume(&m_engine, volume);
+        if (initialized_) {
+            ma_engine_set_volume(&engine_, volume);
         }
     }
 
     // Play a one-shot sound without storing it
     void playOneShot(const std::string& filepath, float volume = 1.0f) {
-        if (m_initialized) {
-            ma_engine_play_sound(&m_engine, filepath.c_str(), nullptr);
+        if (initialized_) {
+            ma_engine_play_sound(&engine_, filepath.c_str(), nullptr);
         }
     }
 
     // Check if a sound is playing
     bool isSoundPlaying(const std::string& name) const {
-        auto it = m_sounds.find(name);
-        if (it != m_sounds.end()) {
+        auto it = sounds_.find(name);
+        if (it != sounds_.end()) {
             return it->second->isPlaying();
         }
         return false;
@@ -311,13 +311,13 @@ public:
 
     // Load sounds from sounds.json
     bool loadSoundsFromJson(const std::string& jsonPath, const std::string& soundsBasePath = "assets/minecraft/sounds/") {
-        if (!m_initialized) {
+        if (!initialized_) {
             spdlog::error("Cannot load sounds: AudioManager not initialized");
             return false;
         }
 
         // Store the base path for later use in playSoundEvent
-        m_soundsBasePath = soundsBasePath;
+        soundsBasePath_ = soundsBasePath;
 
         // Read JSON file
         std::ifstream file(jsonPath);
@@ -356,18 +356,18 @@ public:
             }
 
             if (!soundPaths.empty()) {
-                m_soundEvents[eventName] = soundPaths;
+                soundEvents_[eventName] = soundPaths;
                 spdlog::info("Registered sound event '{}' with {} variations", eventName, soundPaths.size());
             }
         }
 
-        spdlog::info("Loaded {} sound events from {}", m_soundEvents.size(), jsonPath);
+        spdlog::info("Loaded {} sound events from {}", soundEvents_.size(), jsonPath);
         return true;
     }
 
     void playSoundEvent(const std::string& eventName, float volume = 1.0f, float pitch = 1.0f) {
-        auto it = m_soundEvents.find(eventName);
-        if (it == m_soundEvents.end()) {
+        auto it = soundEvents_.find(eventName);
+        if (it == soundEvents_.end()) {
             spdlog::warn("Sound event not found: {}", eventName);
             return;
         }
@@ -378,21 +378,21 @@ public:
         }
 
         std::uniform_int_distribution<size_t> dist(0, variations.size() - 1);
-        size_t index = dist(m_rng);
+        size_t index = dist(rng_);
 
-        std::string soundPath = m_soundsBasePath + variations[index] + ".ogg";
+        std::string soundPath = soundsBasePath_ + variations[index] + ".ogg";
         std::filesystem::path normalizedPath(soundPath);
         std::filesystem::path absolutePath = std::filesystem::absolute(normalizedPath.make_preferred());
 
         // spdlog::debug("Playing sound event '{}' from: {}", eventName, absolutePath.string());
 
-        if (m_initialized) {
+        if (initialized_) {
             cleanupFinishedSounds();
 
             auto sound = std::make_unique<Sound>();
             ma_uint32 flags = MA_SOUND_FLAG_DECODE | MA_SOUND_FLAG_NO_SPATIALIZATION;
 
-            if (sound->initFromFile(&m_engine, absolutePath, flags)) {
+            if (sound->initFromFile(&engine_, absolutePath, flags)) {
                 // spdlog::debug("Sound initialized successfully, setting volume={} pitch={}", volume, pitch);
 
                 sound->setVolume(volume);
@@ -400,7 +400,7 @@ public:
                 sound->play();
 
                 spdlog::debug("Sound started successfully");
-                m_activeSounds.push_back(std::move(sound));
+                activeSounds_.push_back(std::move(sound));
             } else {
                 spdlog::warn("Failed to initialize sound event '{}'", eventName);
             }
@@ -408,18 +408,18 @@ public:
     }
 
     void cleanupFinishedSounds() {
-        auto it = m_activeSounds.begin();
-        while (it != m_activeSounds.end()) {
+        auto it = activeSounds_.begin();
+        while (it != activeSounds_.end()) {
             if (!(*it)->isPlaying() && (*it)->atEnd()) {
                 // spdlog::debug("Cleaning up finished sound");
-                it = m_activeSounds.erase(it);
+                it = activeSounds_.erase(it);
             } else {
                 ++it;
             }
         }
     }
 
-    bool isInitialized() const { return m_initialized; }
+    bool isInitialized() const { return initialized_; }
 
     // Get list of available audio output devices
     std::vector<std::string> getAvailableDevices() {
@@ -455,11 +455,11 @@ public:
 
     // Get current device name
     std::string getCurrentDeviceName() {
-        if (!m_initialized) {
+        if (!initialized_) {
             return "Default";
         }
 
-        ma_device* pDevice = ma_engine_get_device(&m_engine);
+        ma_device* pDevice = ma_engine_get_device(&engine_);
         if (pDevice == nullptr) {
             return "Default";
         }
@@ -469,7 +469,7 @@ public:
 
     // Switch to a different audio device (requires reinitialization)
     bool switchDevice(const std::string& deviceName) {
-        if (!m_initialized) {
+        if (!initialized_) {
             spdlog::error("Cannot switch device: AudioManager not initialized");
             return false;
         }
@@ -477,30 +477,30 @@ public:
         spdlog::info("Switching audio device to: {}", deviceName);
 
         // Store current volume
-        float currentVolume = ma_engine_get_volume(&m_engine);
+        float currentVolume = ma_engine_get_volume(&engine_);
 
         // Clean up current engine
-        m_sounds.clear();
-        m_activeSounds.clear();
-        ma_engine_uninit(&m_engine);
-        m_initialized = false;
+        sounds_.clear();
+        activeSounds_.clear();
+        ma_engine_uninit(&engine_);
+        initialized_ = false;
 
         // Reinitialize with new device
         ma_result result;
 
         if (deviceName == "Default") {
             // Use default device
-            result = ma_engine_init(nullptr, &m_engine);
+            result = ma_engine_init(nullptr, &engine_);
         } else {
             // Find and use specific device
             ma_context context;
             if (ma_context_init(nullptr, 0, nullptr, &context) != MA_SUCCESS) {
                 spdlog::error("Failed to initialize context for device switching");
                 // Try to recover with default device
-                result = ma_engine_init(nullptr, &m_engine);
+                result = ma_engine_init(nullptr, &engine_);
                 if (result == MA_SUCCESS) {
-                    m_initialized = true;
-                    ma_engine_set_volume(&m_engine, currentVolume);
+                    initialized_ = true;
+                    ma_engine_set_volume(&engine_, currentVolume);
                 }
                 return false;
             }
@@ -512,10 +512,10 @@ public:
                 spdlog::error("Failed to get device list for switching");
                 ma_context_uninit(&context);
                 // Try to recover with default device
-                result = ma_engine_init(nullptr, &m_engine);
+                result = ma_engine_init(nullptr, &engine_);
                 if (result == MA_SUCCESS) {
-                    m_initialized = true;
-                    ma_engine_set_volume(&m_engine, currentVolume);
+                    initialized_ = true;
+                    ma_engine_set_volume(&engine_, currentVolume);
                 }
                 return false;
             }
@@ -532,13 +532,13 @@ public:
             if (pDeviceId == nullptr) {
                 spdlog::warn("Device '{}' not found, using default", deviceName);
                 ma_context_uninit(&context);
-                result = ma_engine_init(nullptr, &m_engine);
+                result = ma_engine_init(nullptr, &engine_);
             } else {
                 // Create engine config with the specific device
                 ma_engine_config engineConfig = ma_engine_config_init();
                 engineConfig.pPlaybackDeviceID = pDeviceId;
 
-                result = ma_engine_init(&engineConfig, &m_engine);
+                result = ma_engine_init(&engineConfig, &engine_);
                 ma_context_uninit(&context);
             }
         }
@@ -546,25 +546,25 @@ public:
         if (result != MA_SUCCESS) {
             spdlog::error("Failed to reinitialize audio engine (error: {})", magic_enum::enum_name(result));
             // Try to recover with default device
-            result = ma_engine_init(nullptr, &m_engine);
+            result = ma_engine_init(nullptr, &engine_);
             if (result != MA_SUCCESS) {
                 spdlog::error("Failed to recover audio engine (error: {})", magic_enum::enum_name(result));
                 return false;
             }
         }
 
-        m_initialized = true;
+        initialized_ = true;
 
         // Restore volume
-        ma_engine_set_volume(&m_engine, currentVolume);
+        ma_engine_set_volume(&engine_, currentVolume);
 
         // Reload sound events if they were previously loaded
-        if (!m_soundEvents.empty() && !m_soundsBasePath.empty()) {
+        if (!soundEvents_.empty() && !soundsBasePath_.empty()) {
             // Store the events temporarily
-            auto tempEvents = m_soundEvents;
-            auto tempBasePath = m_soundsBasePath;
+            auto tempEvents = soundEvents_;
+            auto tempBasePath = soundsBasePath_;
 
-            // Reload (this will repopulate m_soundEvents)
+            // Reload (this will repopulate soundEvents_)
             loadSoundsFromJson("assets/minecraft/sounds.json", tempBasePath);
         }
 
@@ -573,13 +573,13 @@ public:
     }
 
 private:
-    ma_engine m_engine{};
-    bool m_initialized = false;
-    std::unordered_map<std::string, std::unique_ptr<Sound>> m_sounds;
-    std::unordered_map<std::string, std::vector<std::string>> m_soundEvents;
-    std::string m_soundsBasePath;
-    std::mt19937 m_rng{std::random_device{}()};
-    std::vector<std::unique_ptr<Sound>> m_activeSounds;
+    ma_engine engine_{};
+    bool initialized_ = false;
+    std::unordered_map<std::string, std::unique_ptr<Sound>> sounds_;
+    std::unordered_map<std::string, std::vector<std::string>> soundEvents_;
+    std::string soundsBasePath_;
+    std::mt19937 rng_{std::random_device{}()};
+    std::vector<std::unique_ptr<Sound>> activeSounds_;
 };
 
 } // namespace FarHorizon

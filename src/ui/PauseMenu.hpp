@@ -24,22 +24,22 @@ public:
     };
 
     PauseMenu(uint32_t screenWidth, uint32_t screenHeight, Settings* settings = nullptr)
-        : m_screenWidth(screenWidth)
-        , m_screenHeight(screenHeight)
-        , m_settings(settings)
-        , m_selectedButtonIndex(0)
-        , m_lastAction(Action::None) {
+        : screenWidth_(screenWidth)
+        , screenHeight_(screenHeight)
+        , settings_(settings)
+        , selectedButtonIndex_(0)
+        , lastAction_(Action::None) {
         setupButtons();
     }
 
     // Update menu state with input
     Action update(float deltaTime) {
-        m_lastAction = Action::None;
+        lastAction_ = Action::None;
 
         // Handle ESC key to resume (unpause)
         if (InputSystem::isKeyDown(KeyCode::Escape)) {
-            m_lastAction = Action::Resume;
-            return m_lastAction;
+            lastAction_ = Action::Resume;
+            return lastAction_;
         }
 
         // Handle gamepad navigation only if gamepad is connected
@@ -66,30 +66,30 @@ public:
         bool useSelection = InputSystem::isGamepadConnected(0);
 
         // Update buttons
-        for (size_t i = 0; i < m_buttons.size(); ++i) {
-            if (m_buttons[i]->update(screenMousePos, mouseClicked)) {
-                m_lastAction = getActionForButton(i);
+        for (size_t i = 0; i < buttons_.size(); ++i) {
+            if (buttons_[i]->update(screenMousePos, mouseClicked)) {
+                lastAction_ = getActionForButton(i);
             }
 
             // Update selection based on hover (only if gamepad connected)
-            if (m_buttons[i]->isHovered() && useSelection) {
-                m_selectedButtonIndex = i;
+            if (buttons_[i]->isHovered() && useSelection) {
+                selectedButtonIndex_ = i;
             }
         }
 
         // Update button selection states (only when using gamepad)
-        for (size_t i = 0; i < m_buttons.size(); ++i) {
-            m_buttons[i]->setSelected(useSelection && i == m_selectedButtonIndex);
+        for (size_t i = 0; i < buttons_.size(); ++i) {
+            buttons_[i]->setSelected(useSelection && i == selectedButtonIndex_);
         }
 
-        return m_lastAction;
+        return lastAction_;
     }
 
     // Generate overlay panel for blur effect
     std::vector<PanelVertex> generateOverlayPanel() const {
         // Blur-like frosted glass overlay
-        auto overlay = Panel::createBlurOverlay(m_screenWidth, m_screenHeight);
-        return overlay.generateVertices(m_screenWidth, m_screenHeight);
+        auto overlay = Panel::createBlurOverlay(screenWidth_, screenHeight_);
+        return overlay.generateVertices(screenWidth_, screenHeight_);
     }
 
     // Generate vertices for rendering
@@ -97,30 +97,30 @@ public:
         std::vector<TextVertex> allVertices;
 
         // Calculate effective GUI scale
-        float guiScale = m_settings ? static_cast<float>(m_settings->getEffectiveGuiScale(m_screenHeight)) : 1.0f;
+        float guiScale = settings_ ? static_cast<float>(settings_->getEffectiveGuiScale(screenHeight_)) : 1.0f;
 
         // Add title
         auto titleText = Text::literal("PAUSED", Style::yellow().withBold(true));
         float titleScale = 5.0f * guiScale;
         float titleWidth = textRenderer.calculateTextWidth(titleText, titleScale);
-        float titleX = (m_screenWidth - titleWidth) * 0.5f;
+        float titleX = (screenWidth_ - titleWidth) * 0.5f;
         float titleY = 150.0f;
 
         auto titleVertices = textRenderer.generateVertices(
             titleText,
             glm::vec2(titleX, titleY),
             titleScale,
-            m_screenWidth,
-            m_screenHeight
+            screenWidth_,
+            screenHeight_
         );
         allVertices.insert(allVertices.end(), titleVertices.begin(), titleVertices.end());
 
         // Add button text
-        for (const auto& button : m_buttons) {
+        for (const auto& button : buttons_) {
             auto buttonVertices = button->generateTextVertices(
                 textRenderer,
-                m_screenWidth,
-                m_screenHeight,
+                screenWidth_,
+                screenHeight_,
                 guiScale
             );
             allVertices.insert(allVertices.end(), buttonVertices.begin(), buttonVertices.end());
@@ -131,20 +131,20 @@ public:
 
     // Handle screen resize
     void onResize(uint32_t newWidth, uint32_t newHeight) {
-        m_screenWidth = newWidth;
-        m_screenHeight = newHeight;
+        screenWidth_ = newWidth;
+        screenHeight_ = newHeight;
         setupButtons();
     }
 
     // Reset menu state
     void reset() {
-        m_selectedButtonIndex = 0;
-        m_lastAction = Action::None;
+        selectedButtonIndex_ = 0;
+        lastAction_ = Action::None;
     }
 
 private:
     void setupButtons() {
-        m_buttons.clear();
+        buttons_.clear();
 
         // Button dimensions
         float buttonWidth = 300.0f;
@@ -152,8 +152,8 @@ private:
         float buttonSpacing = 20.0f;
 
         // Center buttons on screen
-        float startX = (m_screenWidth - buttonWidth) * 0.5f;
-        float startY = m_screenHeight * 0.4f;
+        float startX = (screenWidth_ - buttonWidth) * 0.5f;
+        float startY = screenHeight_ * 0.4f;
 
         // Create buttons
         auto resumeButton = std::make_unique<Button>(
@@ -161,45 +161,45 @@ private:
             glm::vec2(startX, startY),
             glm::vec2(buttonWidth, buttonHeight)
         );
-        resumeButton->setOnClick([this]() { m_lastAction = Action::Resume; });
+        resumeButton->setOnClick([this]() { lastAction_ = Action::Resume; });
 
         auto optionsButton = std::make_unique<Button>(
             "Options",
             glm::vec2(startX, startY + buttonHeight + buttonSpacing),
             glm::vec2(buttonWidth, buttonHeight)
         );
-        optionsButton->setOnClick([this]() { m_lastAction = Action::OpenOptions; });
+        optionsButton->setOnClick([this]() { lastAction_ = Action::OpenOptions; });
 
         auto quitButton = std::make_unique<Button>(
             "Quit",
             glm::vec2(startX, startY + (buttonHeight + buttonSpacing) * 2),
             glm::vec2(buttonWidth, buttonHeight)
         );
-        quitButton->setOnClick([this]() { m_lastAction = Action::Quit; });
+        quitButton->setOnClick([this]() { lastAction_ = Action::Quit; });
 
-        m_buttons.push_back(std::move(resumeButton));
-        m_buttons.push_back(std::move(optionsButton));
-        m_buttons.push_back(std::move(quitButton));
+        buttons_.push_back(std::move(resumeButton));
+        buttons_.push_back(std::move(optionsButton));
+        buttons_.push_back(std::move(quitButton));
 
         // Set initial selection
-        m_buttons[m_selectedButtonIndex]->setSelected(true);
+        buttons_[selectedButtonIndex_]->setSelected(true);
     }
 
     void selectPreviousButton() {
-        if (m_selectedButtonIndex > 0) {
-            m_selectedButtonIndex--;
+        if (selectedButtonIndex_ > 0) {
+            selectedButtonIndex_--;
         }
     }
 
     void selectNextButton() {
-        if (m_selectedButtonIndex < m_buttons.size() - 1) {
-            m_selectedButtonIndex++;
+        if (selectedButtonIndex_ < buttons_.size() - 1) {
+            selectedButtonIndex_++;
         }
     }
 
     void activateSelectedButton() {
-        if (m_selectedButtonIndex < m_buttons.size()) {
-            m_buttons[m_selectedButtonIndex]->activate();
+        if (selectedButtonIndex_ < buttons_.size()) {
+            buttons_[selectedButtonIndex_]->activate();
         }
     }
 
@@ -212,13 +212,13 @@ private:
         }
     }
 
-    uint32_t m_screenWidth;
-    uint32_t m_screenHeight;
-    Settings* m_settings;
-    size_t m_selectedButtonIndex;
-    Action m_lastAction;
+    uint32_t screenWidth_;
+    uint32_t screenHeight_;
+    Settings* settings_;
+    size_t selectedButtonIndex_;
+    Action lastAction_;
 
-    std::vector<std::unique_ptr<Button>> m_buttons;
+    std::vector<std::unique_ptr<Button>> buttons_;
 };
 
 } // namespace FarHorizon

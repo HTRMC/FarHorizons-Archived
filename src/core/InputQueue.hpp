@@ -19,20 +19,20 @@ public:
 
     // Push event from input thread (callbacks)
     void push(InputEvent&& event) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        m_queue.push(std::move(event));
+        std::lock_guard<std::mutex> lock(mutex_);
+        queue_.push(std::move(event));
     }
 
     // Get all events for processing on game thread
     std::vector<InputEvent> pollEvents() {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock(mutex_);
 
         std::vector<InputEvent> events;
-        events.reserve(m_queue.size());
+        events.reserve(queue_.size());
 
-        while (!m_queue.empty()) {
-            events.push_back(std::move(m_queue.front()));
-            m_queue.pop();
+        while (!queue_.empty()) {
+            events.push_back(std::move(queue_.front()));
+            queue_.pop();
         }
 
         return events;
@@ -40,27 +40,27 @@ public:
 
     // Check if queue is empty (thread-safe)
     bool empty() const {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        return m_queue.empty();
+        std::lock_guard<std::mutex> lock(mutex_);
+        return queue_.empty();
     }
 
     // Get queue size (thread-safe)
     size_t size() const {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        return m_queue.size();
+        std::lock_guard<std::mutex> lock(mutex_);
+        return queue_.size();
     }
 
     // Clear all events
     void clear() {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        while (!m_queue.empty()) {
-            m_queue.pop();
+        std::lock_guard<std::mutex> lock(mutex_);
+        while (!queue_.empty()) {
+            queue_.pop();
         }
     }
 
 private:
-    mutable std::mutex m_mutex;
-    std::queue<InputEvent> m_queue;
+    mutable std::mutex mutex_;
+    std::queue<InputEvent> queue_;
 };
 
 } // namespace FarHorizon

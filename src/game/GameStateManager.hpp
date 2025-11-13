@@ -53,12 +53,12 @@ public:
     /**
      * Get current game state.
      */
-    State getState() const { return m_state; }
+    State getState() const { return state_; }
 
     /**
      * Check if currently in gameplay (not in menus).
      */
-    bool isPlaying() const { return m_state == State::Playing; }
+    bool isPlaying() const { return state_ == State::Playing; }
 
     /**
      * Request to open pause menu (from gameplay).
@@ -68,9 +68,9 @@ public:
     /**
      * Get menu instances for rendering.
      */
-    MainMenu& getMainMenu() { return m_mainMenu; }
-    PauseMenu& getPauseMenu() { return m_pauseMenu; }
-    OptionsMenu& getOptionsMenu() { return m_optionsMenu; }
+    MainMenu& getMainMenu() { return mainMenu_; }
+    PauseMenu& getPauseMenu() { return pauseMenu_; }
+    OptionsMenu& getOptionsMenu() { return optionsMenu_; }
 
     /**
      * Check if texture reload is needed (mipmap settings changed).
@@ -83,22 +83,22 @@ public:
     void clearTextureReloadFlag();
 
 private:
-    State m_state;
+    State state_;
 
     // Menus
-    MainMenu m_mainMenu;
-    PauseMenu m_pauseMenu;
-    OptionsMenu m_optionsMenu;
+    MainMenu mainMenu_;
+    PauseMenu pauseMenu_;
+    OptionsMenu optionsMenu_;
 
     // Dependencies
-    MouseCapture* m_mouseCapture;
-    Camera* m_camera;
-    ChunkManager* m_chunkManager;
-    Settings* m_settings;
-    AudioManager* m_audioManager;
+    MouseCapture* mouseCapture_;
+    Camera* camera_;
+    ChunkManager* chunkManager_;
+    Settings* settings_;
+    AudioManager* audioManager_;
 
     // For world reset
-    float m_aspectRatio;
+    float aspectRatio_;
 
     /**
      * Transition to a new state.

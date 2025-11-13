@@ -19,17 +19,17 @@ public:
     uint8_t getOrAddIndex(uint16_t stateId);
 
     // Get the number of entries in the palette
-    size_t size() const { return m_palette.size(); }
+    size_t size() const { return palette_.size(); }
 
     // Check if palette is empty (only contains AIR)
-    bool isEmpty() const { return m_palette.size() <= 1; }
+    bool isEmpty() const { return palette_.size() <= 1; }
 
     // Clear the palette and reset to just AIR
     void clear();
 
 private:
-    std::vector<uint16_t> m_palette;                      // Local index -> Global state ID
-    std::unordered_map<uint16_t, uint8_t> m_indexMap;     // Global state ID -> Local index
+    std::vector<uint16_t> palette_;                      // Local index -> Global state ID
+    std::unordered_map<uint16_t, uint8_t> indexMap_;     // Global state ID -> Local index
 };
 
 } // namespace FarHorizon

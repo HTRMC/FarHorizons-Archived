@@ -31,37 +31,37 @@ public:
     void compactIfNeeded(const std::unordered_map<ChunkPosition, CompactChunkMesh, ChunkPositionHash>& meshCache);
 
     // Get current draw count for rendering
-    uint32_t getDrawCommandCount() const { return m_drawCommandCount; }
+    uint32_t getDrawCommandCount() const { return drawCommandCount_; }
 
     // Get buffers for binding
-    VkBuffer getFaceBuffer() const { return m_faceBuffer.getBuffer(); }
-    VkBuffer getLightingBuffer() const { return m_lightingBuffer.getBuffer(); }
-    VkBuffer getIndirectBuffer() const { return m_indirectBuffer.getBuffer(); }
-    VkBuffer getChunkDataBuffer() const { return m_chunkDataBuffer.getBuffer(); }
+    VkBuffer getFaceBuffer() const { return faceBuffer_.getBuffer(); }
+    VkBuffer getLightingBuffer() const { return lightingBuffer_.getBuffer(); }
+    VkBuffer getIndirectBuffer() const { return indirectBuffer_.getBuffer(); }
+    VkBuffer getChunkDataBuffer() const { return chunkDataBuffer_.getBuffer(); }
 
     // Check if a chunk has an allocation
     bool hasAllocation(const ChunkPosition& pos) const;
 
     // Get mesh cache (meshes currently in buffers)
-    const std::unordered_map<ChunkPosition, CompactChunkMesh, ChunkPositionHash>& getMeshCache() const { return m_meshCache; }
-    std::unordered_map<ChunkPosition, CompactChunkMesh, ChunkPositionHash>& getMeshCache() { return m_meshCache; }
+    const std::unordered_map<ChunkPosition, CompactChunkMesh, ChunkPositionHash>& getMeshCache() const { return meshCache_; }
+    std::unordered_map<ChunkPosition, CompactChunkMesh, ChunkPositionHash>& getMeshCache() { return meshCache_; }
 
 private:
-    Buffer m_faceBuffer;      // FaceData buffer (replaces vertex buffer)
-    Buffer m_lightingBuffer;  // PackedLighting buffer (replaces index buffer)
-    Buffer m_indirectBuffer;  // VkDrawIndirectCommand buffer
-    Buffer m_chunkDataBuffer; // ChunkData buffer (per-chunk metadata, indexed by gl_BaseInstance)
+    Buffer faceBuffer_;      // FaceData buffer (replaces vertex buffer)
+    Buffer lightingBuffer_;  // PackedLighting buffer (replaces index buffer)
+    Buffer indirectBuffer_;  // VkDrawIndirectCommand buffer
+    Buffer chunkDataBuffer_; // ChunkData buffer (per-chunk metadata, indexed by gl_BaseInstance)
 
-    size_t m_maxFaces;
-    size_t m_maxDrawCommands;
+    size_t maxFaces_;
+    size_t maxDrawCommands_;
 
-    uint32_t m_currentFaceOffset = 0;
-    uint32_t m_currentLightingOffset = 0;
-    uint32_t m_drawCommandCount = 0;
+    uint32_t currentFaceOffset_ = 0;
+    uint32_t currentLightingOffset_ = 0;
+    uint32_t drawCommandCount_ = 0;
 
-    std::unordered_map<ChunkPosition, CompactChunkMesh, ChunkPositionHash> m_meshCache;
-    std::unordered_map<ChunkPosition, ChunkBufferAllocation, ChunkPositionHash> m_allocations;
-    std::vector<ChunkData> m_chunkDataArray;  // CPU-side copy of chunk data (indexed by draw command)
+    std::unordered_map<ChunkPosition, CompactChunkMesh, ChunkPositionHash> meshCache_;
+    std::unordered_map<ChunkPosition, ChunkBufferAllocation, ChunkPositionHash> allocations_;
+    std::vector<ChunkData> chunkDataArray_;  // CPU-side copy of chunk data (indexed by draw command)
 
     void fullRebuild();
     void rebuildDrawCommands();  // Fast rebuild: only updates draw commands, not face/lighting data

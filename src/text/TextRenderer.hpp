@@ -26,7 +26,7 @@ public:
     TextRenderer() = default;
 
     void init(FontManager* fontManager) {
-        m_fontManager = fontManager;
+        fontManager_ = fontManager;
     }
 
     /**
@@ -45,7 +45,7 @@ public:
                                              uint32_t screenHeight = 900) {
         std::vector<TextVertex> vertices;
 
-        if (!m_fontManager) {
+        if (!fontManager_) {
             spdlog::error("TextRenderer not initialized with font manager");
             return vertices;
         }
@@ -54,8 +54,8 @@ public:
 
         for (const auto& segment : text.getSegments()) {
             const Style& style = segment.style;
-            FontAtlas* atlas = m_fontManager->getFont(style.getFont());
-            uint32_t textureIndex = m_fontManager->getFontTexture(style.getFont());
+            FontAtlas* atlas = fontManager_->getFont(style.getFont());
+            uint32_t textureIndex = fontManager_->getFontTexture(style.getFont());
 
             if (!atlas) {
                 spdlog::warn("Font '{}' not found, skipping segment", style.getFont());
@@ -85,11 +85,11 @@ public:
      * Calculate the width of text in pixels.
      */
     float calculateTextWidth(const Text& text, float scale = 1.0f) {
-        if (!m_fontManager) return 0.0f;
+        if (!fontManager_) return 0.0f;
 
         float width = 0.0f;
         for (const auto& segment : text.getSegments()) {
-            FontAtlas* atlas = m_fontManager->getFont(segment.style.getFont());
+            FontAtlas* atlas = fontManager_->getFont(segment.style.getFont());
             if (atlas) {
                 width += atlas->calculateWidth(segment.content) * scale;
             }
@@ -101,12 +101,12 @@ public:
      * Calculate the height of text in pixels.
      */
     float calculateTextHeight(const Text& text, float scale = 1.0f) {
-        if (!m_fontManager) return 0.0f;
+        if (!fontManager_) return 0.0f;
 
         // Use the first segment's font for height
         if (text.getSegments().empty()) return 0.0f;
 
-        FontAtlas* atlas = m_fontManager->getFont(text.getSegments()[0].style.getFont());
+        FontAtlas* atlas = fontManager_->getFont(text.getSegments()[0].style.getFont());
         if (atlas) {
             return atlas->getLineHeight() * scale;
         }
@@ -185,7 +185,7 @@ private:
         );
     }
 
-    FontManager* m_fontManager = nullptr;
+    FontManager* fontManager_ = nullptr;
 };
 
 } // namespace FarHorizon

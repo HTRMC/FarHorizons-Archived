@@ -6,38 +6,38 @@
 namespace FarHorizon {
 
 Buffer::Buffer(Buffer&& other) noexcept
-    : m_allocator(other.m_allocator)
-    , m_buffer(other.m_buffer)
-    , m_allocation(other.m_allocation)
-    , m_size(other.m_size)
-    , m_deviceAddress(other.m_deviceAddress)
-    , m_mappedData(other.m_mappedData)
+    : allocator_(other.allocator_)
+    , buffer_(other.buffer_)
+    , allocation_(other.allocation_)
+    , size_(other.size_)
+    , deviceAddress_(other.deviceAddress_)
+    , mappedData_(other.mappedData_)
 {
-    other.m_allocator = VK_NULL_HANDLE;
-    other.m_buffer = VK_NULL_HANDLE;
-    other.m_allocation = VK_NULL_HANDLE;
-    other.m_size = 0;
-    other.m_deviceAddress = 0;
-    other.m_mappedData = nullptr;
+    other.allocator_ = VK_NULL_HANDLE;
+    other.buffer_ = VK_NULL_HANDLE;
+    other.allocation_ = VK_NULL_HANDLE;
+    other.size_ = 0;
+    other.deviceAddress_ = 0;
+    other.mappedData_ = nullptr;
 }
 
 Buffer& Buffer::operator=(Buffer&& other) noexcept {
     if (this != &other) {
         cleanup();
 
-        m_allocator = other.m_allocator;
-        m_buffer = other.m_buffer;
-        m_allocation = other.m_allocation;
-        m_size = other.m_size;
-        m_deviceAddress = other.m_deviceAddress;
-        m_mappedData = other.m_mappedData;
+        allocator_ = other.allocator_;
+        buffer_ = other.buffer_;
+        allocation_ = other.allocation_;
+        size_ = other.size_;
+        deviceAddress_ = other.deviceAddress_;
+        mappedData_ = other.mappedData_;
 
-        other.m_allocator = VK_NULL_HANDLE;
-        other.m_buffer = VK_NULL_HANDLE;
-        other.m_allocation = VK_NULL_HANDLE;
-        other.m_size = 0;
-        other.m_deviceAddress = 0;
-        other.m_mappedData = nullptr;
+        other.allocator_ = VK_NULL_HANDLE;
+        other.buffer_ = VK_NULL_HANDLE;
+        other.allocation_ = VK_NULL_HANDLE;
+        other.size_ = 0;
+        other.deviceAddress_ = 0;
+        other.mappedData_ = nullptr;
     }
     return *this;
 }
@@ -49,8 +49,8 @@ void Buffer::init(
     VmaMemoryUsage memoryUsage,
     VmaAllocationCreateFlags flags
 ) {
-    m_allocator = allocator;
-    m_size = size;
+    allocator_ = allocator;
+    size_ = size;
 
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -63,11 +63,11 @@ void Buffer::init(
     allocInfo.flags = flags;
 
     VK_CHECK(vmaCreateBuffer(
-        m_allocator,
+        allocator_,
         &bufferInfo,
         &allocInfo,
-        &m_buffer,
-        &m_allocation,
+        &buffer_,
+        &allocation_,
         nullptr
     ));
 
@@ -75,53 +75,53 @@ void Buffer::init(
     if (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
         VkBufferDeviceAddressInfo addressInfo{};
         addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-        addressInfo.buffer = m_buffer;
+        addressInfo.buffer = buffer_;
 
         VmaAllocatorInfo allocatorInfo;
-        vmaGetAllocatorInfo(m_allocator, &allocatorInfo);
-        m_deviceAddress = vkGetBufferDeviceAddress(allocatorInfo.device, &addressInfo);
+        vmaGetAllocatorInfo(allocator_, &allocatorInfo);
+        deviceAddress_ = vkGetBufferDeviceAddress(allocatorInfo.device, &addressInfo);
     }
 }
 
 void Buffer::cleanup() {
-    if (m_buffer != VK_NULL_HANDLE) {
-        if (m_mappedData != nullptr) {
+    if (buffer_ != VK_NULL_HANDLE) {
+        if (mappedData_ != nullptr) {
             unmap();
         }
-        vmaDestroyBuffer(m_allocator, m_buffer, m_allocation);
-        m_buffer = VK_NULL_HANDLE;
-        m_allocation = VK_NULL_HANDLE;
-        m_size = 0;
-        m_deviceAddress = 0;
+        vmaDestroyBuffer(allocator_, buffer_, allocation_);
+        buffer_ = VK_NULL_HANDLE;
+        allocation_ = VK_NULL_HANDLE;
+        size_ = 0;
+        deviceAddress_ = 0;
     }
 }
 
 void* Buffer::map() {
-    if (m_mappedData == nullptr) {
-        VK_CHECK(vmaMapMemory(m_allocator, m_allocation, &m_mappedData));
+    if (mappedData_ == nullptr) {
+        VK_CHECK(vmaMapMemory(allocator_, allocation_, &mappedData_));
     }
-    return m_mappedData;
+    return mappedData_;
 }
 
 void Buffer::unmap() {
-    if (m_mappedData != nullptr) {
-        vmaUnmapMemory(m_allocator, m_allocation);
-        m_mappedData = nullptr;
+    if (mappedData_ != nullptr) {
+        vmaUnmapMemory(allocator_, allocation_);
+        mappedData_ = nullptr;
     }
 }
 
 void Buffer::copyData(const void* data, size_t size, size_t offset) {
-    if (m_mappedData == nullptr) {
+    if (mappedData_ == nullptr) {
         spdlog::error("[Buffer] Cannot copy data to unmapped buffer!");
         assert(false);
     }
 
-    if (offset + size > m_size) {
+    if (offset + size > size_) {
         spdlog::error("[Buffer] Copy size exceeds buffer bounds!");
         assert(false);
     }
 
-    std::memcpy(static_cast<char*>(m_mappedData) + offset, data, size);
+    std::memcpy(static_cast<char*>(mappedData_) + offset, data, size);
 }
 
 } // namespace FarHorizon

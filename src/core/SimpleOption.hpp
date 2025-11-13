@@ -33,25 +33,25 @@ public:
         T defaultValue,
         Validator validator = nullptr,
         ChangeCallback changeCallback = nullptr
-    ) : m_key(std::move(key)),
-        m_defaultValue(defaultValue),
-        m_value(defaultValue),
-        m_validator(std::move(validator)),
-        m_changeCallback(std::move(changeCallback)) {}
+    ) : key_(std::move(key)),
+        defaultValue_(defaultValue),
+        value_(defaultValue),
+        validator_(std::move(validator)),
+        changeCallback_(std::move(changeCallback)) {}
 
     // Get current value
-    const T& getValue() const { return m_value; }
+    const T& getValue() const { return value_; }
 
     // Implicit conversion to T for convenience
-    operator const T&() const { return m_value; }
+    operator const T&() const { return value_; }
 
     // Comparison operators
-    bool operator==(const T& other) const { return m_value == other; }
-    bool operator!=(const T& other) const { return m_value != other; }
-    bool operator<(const T& other) const { return m_value < other; }
-    bool operator>(const T& other) const { return m_value > other; }
-    bool operator<=(const T& other) const { return m_value <= other; }
-    bool operator>=(const T& other) const { return m_value >= other; }
+    bool operator==(const T& other) const { return value_ == other; }
+    bool operator!=(const T& other) const { return value_ != other; }
+    bool operator<(const T& other) const { return value_ < other; }
+    bool operator>(const T& other) const { return value_ > other; }
+    bool operator<=(const T& other) const { return value_ <= other; }
+    bool operator>=(const T& other) const { return value_ >= other; }
 
     // Assignment from value
     SimpleOption& operator=(const T& value) {
@@ -64,43 +64,43 @@ public:
         T validated = value;
 
         // Validate if validator exists
-        if (m_validator) {
-            auto result = m_validator(value);
+        if (validator_) {
+            auto result = validator_(value);
             if (!result.has_value()) {
-                spdlog::error("Invalid option value for {}, using default", m_key);
-                validated = m_defaultValue;
+                spdlog::error("Invalid option value for {}, using default", key_);
+                validated = defaultValue_;
             } else {
                 validated = *result;
             }
         }
 
         // Only update if value changed
-        if (m_value != validated) {
-            m_value = validated;
-            if (m_changeCallback) {
-                m_changeCallback(m_value);
+        if (value_ != validated) {
+            value_ = validated;
+            if (changeCallback_) {
+                changeCallback_(value_);
             }
         }
     }
 
     // Reset to default
-    void reset() { setValue(m_defaultValue); }
+    void reset() { setValue(defaultValue_); }
 
     // Get key
-    const std::string& getKey() const { return m_key; }
+    const std::string& getKey() const { return key_; }
 
     // Serialize to JSON string (compile-time dispatch based on type)
     std::string serialize() const {
         if constexpr (std::is_same_v<T, bool>) {
-            return m_value ? "true" : "false";
+            return value_ ? "true" : "false";
         } else if constexpr (std::is_integral_v<T>) {
-            return std::to_string(m_value);
+            return std::to_string(value_);
         } else if constexpr (std::is_floating_point_v<T>) {
-            return std::to_string(m_value);
+            return std::to_string(value_);
         } else if constexpr (std::is_same_v<T, std::string>) {
-            return "\"" + m_value + "\"";
+            return "\"" + value_ + "\"";
         } else if constexpr (std::is_enum_v<T>) {
-            auto name = magic_enum::enum_name(m_value);
+            auto name = magic_enum::enum_name(value_);
             return "\"" + std::string(name) + "\"";
         } else {
             static_assert(sizeof(T) == 0, "Unsupported type for SimpleOption");
@@ -144,11 +144,11 @@ public:
     }
 
 private:
-    std::string m_key;
-    T m_defaultValue;
-    T m_value;
-    Validator m_validator;
-    ChangeCallback m_changeCallback;
+    std::string key_;
+    T defaultValue_;
+    T value_;
+    Validator validator_;
+    ChangeCallback changeCallback_;
 };
 
 // ============================================================================

@@ -27,11 +27,11 @@ public:
     void shutdown();
 
     // Getters
-    VkInstance getInstance() const { return m_instance; }
-    VkSurfaceKHR getSurface() const { return m_surface; }
-    VulkanDevice& getDevice() { return m_device; }
-    const VulkanDevice& getDevice() const { return m_device; }
-    VmaAllocator getAllocator() const { return m_allocator; }
+    VkInstance getInstance() const { return instance_; }
+    VkSurfaceKHR getSurface() const { return surface_; }
+    VulkanDevice& getDevice() { return device_; }
+    const VulkanDevice& getDevice() const { return device_; }
+    VmaAllocator getAllocator() const { return allocator_; }
 
     void waitIdle() const;
 
@@ -43,11 +43,11 @@ private:
     std::vector<const char*> getRequiredExtensions();
 
 private:
-    VkInstance m_instance = VK_NULL_HANDLE;
-    VkSurfaceKHR m_surface = VK_NULL_HANDLE;
-    VulkanDebugMessenger m_debugMessenger;
-    VulkanDevice m_device;
-    VmaAllocator m_allocator = VK_NULL_HANDLE;
+    VkInstance instance_ = VK_NULL_HANDLE;
+    VkSurfaceKHR surface_ = VK_NULL_HANDLE;
+    VulkanDebugMessenger debugMessenger_;
+    VulkanDevice device_;
+    VmaAllocator allocator_ = VK_NULL_HANDLE;
 };
 
 } // namespace FarHorizon
