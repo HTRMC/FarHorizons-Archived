@@ -60,8 +60,8 @@ public:
     AABB getBoundingBox() const override {
         double halfWidth = width / 2.0;
         return AABB(
-            pos.x - halfWidth, pos.y, pos.z - halfWidth,
-            pos.x + halfWidth, pos.y + height, pos.z + halfWidth
+            m_position.x - halfWidth, m_position.y, m_position.z - halfWidth,
+            m_position.x + halfWidth, m_position.y + height, m_position.z + halfWidth
         );
     }
 
@@ -143,9 +143,9 @@ public:
         // Debug logging: Print every 1 tick with detailed info
         glm::dvec3 finalVel = getVelocity();
         spdlog::info("pos({:.3f}, {:.3f}, {:.3f}) vel({:.6f}, {:.6f}, {:.6f}) onGround={} vCol={} hCol={}",
-            pos.x, pos.y, pos.z,
+            m_position.x, m_position.y, m_position.z,
             finalVel.x, finalVel.y, finalVel.z,
-            groundCollision, verticalCollision, horizontalCollision);
+            groundCollision, m_verticalCollision, m_horizontalCollision);
     }
 
     // Main travel method (LivingEntity.java line 2278)
@@ -162,10 +162,10 @@ protected:
     virtual void travelMidAir(const glm::dvec3& movementInput, CollisionSystem& collisionSystem) {
         updateLastRenderPos();  // Save position for interpolation
 
-        if (noClip) {
+        if (m_noClip) {
             // Creative flying mode (simplified)
             glm::dvec3 vel = getVelocity();
-            setPos(pos + vel);
+            setPos(m_position + vel);
             setVelocity(vel * 0.91);
             return;
         }
@@ -233,16 +233,16 @@ protected:
     // Transforms local movement input to world space and adds to velocity
     virtual void updateVelocity(float speed, const glm::dvec3& movementInput) {
         // Use Entity's movementInputToVelocity to properly rotate by yaw (Entity.java line 1601)
-        glm::dvec3 rotatedVelocity = movementInputToVelocity(movementInput, speed, yaw);
+        glm::dvec3 rotatedVelocity = movementInputToVelocity(movementInput, speed, m_yaw);
 
         // Add to current velocity (Entity.java line 1602)
-        setVelocity(velocity + rotatedVelocity);
+        setVelocity(m_velocity + rotatedVelocity);
     }
 
     // Jump from ground (LivingEntity.java line 2273: jumpFromGround)
     virtual void jumpFromGround() {
-        if (groundCollision && !noClip) {
-            velocity.y = JUMP_VELOCITY;
+        if (groundCollision && !m_noClip) {
+            m_velocity.y = JUMP_VELOCITY;
             groundCollision = false;
         }
     }

@@ -6,7 +6,7 @@
 namespace FarHorizon {
 
 void Entity::updateLastRenderPos() {
-    lastRenderPos = pos;
+    lastRenderPos = position;
 }
     
 // Get yaw rotation (Entity.java: public float getYRot())
@@ -51,13 +51,13 @@ void Entity::setPos(double x, double y, double z) {
 
 // Create bounding box from current position and dimensions (Entity.java: protected AABB makeBoundingBox())
 AABB Entity::makeBoundingBox() const {
-    return dimensions_.makeBoundingBox(pos);
+    return dimensions_.makeBoundingBox(position);
 }
 
 // Reapply position to update bounding box (Entity.java: protected void reapplyPosition())
 void Entity::reapplyPosition() {
     lastKnownPosition_ = std::nullopt;
-    setPos(pos.x, pos.y, pos.z);
+    setPos(position.x, position.y, position.z);
 }
 
 // Turn entity based on mouse input (Entity.java: public void turn(double xo, double yo))
@@ -80,8 +80,103 @@ void Entity::tick() {
 }
 
 void Entity::baseTick() {
-    // In full implementation: fire ticks, portal logic, water state, etc.
-    // For now, minimal implementation
+    // Full Minecraft implementation (Entity.java baseTick line ~500):
+    computeSpeed();  // Calculate position delta for this tick
+
+    // Not yet implemented:
+    // - inBlockState tracking
+    // - Vehicle/passenger logic (isPassenger, getVehicle, stopRiding)
+    // - boardingCooldown countdown
+    // - handlePortal() - nether/end portal logic
+    // - spawnSprintParticle() - sprint particles
+    // - Powder snow tracking (wasInPowderSnow, isInPowderSnow)
+    // - updateInWaterStateAndDoFluidPushing() - water physics
+    // - updateFluidOnEyes() - check if head is in water/lava
+    // - updateSwimming() - swimming state
+    // - Fire tick logic (remainingFireTicks, fireImmune, damage from fire)
+    // - Lava fall distance reduction (fallDistance *= 0.5)
+    // - checkBelowWorld() - void damage
+    // - setSharedFlagOnFire() - sync fire state
+    // - firstTick flag reset
+    // - Leashable tick (for leashed entities)
+}
+
+// Compute speed by calculating position delta (Entity.java: protected void computeSpeed())
+void Entity::computeSpeed() {
+    if (!lastKnownPosition_.has_value()) {
+        lastKnownPosition_ = position;
+    }
+
+    lastKnownSpeed_ = position - lastKnownPosition_.value();
+    lastKnownPosition_ = position;
+}
+
+// Check if entity is free to move to a position (Entity.java: public boolean isFree(double xa, double ya, double za))
+bool Entity::isFree(double xa, double ya, double za) const {
+    return isFree(getBoundingBox().move(xa, ya, za));
+}
+
+// Check if bounding box is free (Entity.java: private boolean isFree(AABB box))
+bool Entity::isFree(const AABB& box) const {
+    // In Minecraft: return this.level().noCollision(this, box) && !this.level().containsAnyLiquid(box);
+    // We don't have Level, liquids, or noCollision yet
+    // For now, return true as placeholder
+    return true;  // TODO: Implement when Level system is added
+}
+
+// Set on ground state (Entity.java: public void setOnGround(boolean onGround))
+void Entity::setOnGround(bool onGround) {
+    m_onGround = onGround;
+    checkSupportingBlock(onGround, nullptr);
+}
+
+// Set on ground with movement (Entity.java: public void setOnGroundWithMovement(boolean onGround, Vec3 movement))
+void Entity::setOnGroundWithMovement(bool onGround, const glm::dvec3& movement) {
+    setOnGroundWithMovement(onGround, m_horizontalCollision, movement);
+}
+
+// Set on ground with movement (3-parameter version)
+void Entity::setOnGroundWithMovement(bool onGround, bool horizontalCollision, const glm::dvec3& movement) {
+    m_onGround = onGround;
+    m_horizontalCollision = horizontalCollision;
+    checkSupportingBlock(onGround, &movement);
+}
+
+// Check if entity is supported by a specific block position (Entity.java: public boolean isSupportedBy(BlockPos pos))
+bool Entity::isSupportedBy(const glm::ivec3& pos) const {
+    return m_mainSupportingBlockPos.has_value() && m_mainSupportingBlockPos.value() == pos;
+}
+
+// Check and update supporting block (Entity.java: protected void checkSupportingBlock(boolean onGround, Vec3 movement))
+void Entity::checkSupportingBlock(bool onGround, const glm::dvec3* movement) {
+    if (onGround) {
+        // Get bounding box slightly below entity (Entity.java: AABB var4 = new AABB(var3.minX, var3.minY - 1.0E-6, ...))
+        AABB entityBox = getBoundingBox();
+        AABB checkBox(
+            entityBox.minX, entityBox.minY - 1.0E-6, entityBox.minZ,
+            entityBox.maxX, entityBox.minY, entityBox.maxZ
+        );
+
+        // In Minecraft: Optional var5 = this.level.findSupportingBlock(this, var4);
+        // We don't have Level.findSupportingBlock() yet
+        // Full implementation would:
+        // 1. Find the supporting block using level.findSupportingBlock(this, checkBox)
+        // 2. If not found and !onGroundNoBlocks and movement != null:
+        //    - Try again with checkBox moved by -movement
+        // 3. Set mainSupportingBlockPos to the result
+        // 4. Set onGroundNoBlocks = result.isEmpty()
+
+        // Placeholder implementation
+        m_mainSupportingBlockPos = std::nullopt;  // Would be set by findSupportingBlock
+        m_onGroundNoBlocks = true;  // Would be set based on findSupportingBlock result
+
+        // TODO: Implement when Level.findSupportingBlock() is available
+    } else {
+        m_onGroundNoBlocks = false;
+        if (m_mainSupportingBlockPos.has_value()) {
+            m_mainSupportingBlockPos = std::nullopt;
+        }
+    }
 }
 
 // Set yaw rotation (Entity.java: public void setYRot(float yRot))
@@ -103,10 +198,10 @@ void Entity::setXRot(float xRot) {
 }
 
 void Entity::teleport(const glm::dvec3& position) {
-    pos = position;
+    position = position;
     lastRenderPos = position;
     velocity = glm::dvec3(0.0);
-    groundCollision = false;
+    this->m_onGround = false;
 }
 
 // Private collision method (Entity.java line 1076)
@@ -132,7 +227,7 @@ glm::dvec3 Entity::collide(const glm::dvec3& movement, CollisionSystem& collisio
     // maxUpStep() > 0.0F && (fallingAndHitGround || this.onGround()) && (xBlocked || zBlocked)
     float stepHeight = getStepHeight();
     if (stepHeight > 0.0f &&
-        (fallingAndHitGround || groundCollision) &&
+        (fallingAndHitGround || this->m_onGround) &&
         (xBlocked || zBlocked)) {
 
         // Create starting box for step attempt (Entity.java line 1085)
@@ -178,12 +273,12 @@ glm::dvec3 Entity::collide(const glm::dvec3& movement, CollisionSystem& collisio
 void Entity::move(MovementType type, const glm::dvec3& movement, CollisionSystem& collisionSystem) {
     if (noClip) {
         // Creative flying mode - no collision (Entity.java line 728-733)
-        setPos(pos + movement);
-        horizontalCollision = false;
+        setPos(position + movement);
+        m_horizontalCollision = false;
         verticalCollision = false;
         verticalCollisionBelow = false;
         minorHorizontalCollision = false;
-        groundCollision = false;
+        this->m_onGround = false;
         return;
     }
 
@@ -191,12 +286,12 @@ void Entity::move(MovementType type, const glm::dvec3& movement, CollisionSystem
     glm::dvec3 actualMovement = collide(movement, collisionSystem);
 
     // Update position (Entity.java line 769)
-    setPos(pos + actualMovement);
+    setPos(position + actualMovement);
 
     // Update collision flags (Entity.java line 774-787)
     bool xBlocked = !MathHelper::approximatelyEquals(movement.x, actualMovement.x);
     bool zBlocked = !MathHelper::approximatelyEquals(movement.z, actualMovement.z);
-    horizontalCollision = xBlocked || zBlocked;
+    m_horizontalCollision = xBlocked || zBlocked;
 
     // Vertical collision (Entity.java line 777-781)
     if (std::abs(movement.y) > 0.0) {
@@ -204,12 +299,12 @@ void Entity::move(MovementType type, const glm::dvec3& movement, CollisionSystem
         verticalCollisionBelow = verticalCollision && movement.y < 0.0;
 
         // setOnGroundWithMovement (simplified - Entity.java line 780)
-        groundCollision = verticalCollisionBelow;
+        this->m_onGround = verticalCollisionBelow;
     }
     // If movement.y == 0, keep previous collision flags
 
     // minorHorizontalCollision check (Entity.java line 783-787)
-    if (horizontalCollision) {
+    if (m_horizontalCollision) {
         // For now, always set to false (full implementation checks collision amount)
         minorHorizontalCollision = false;
     } else {
@@ -218,7 +313,7 @@ void Entity::move(MovementType type, const glm::dvec3& movement, CollisionSystem
 
     // Reset velocity on collision (Entity.java line 799-800)
     glm::dvec3 vel = getVelocity();
-    if (horizontalCollision) {
+    if (m_horizontalCollision) {
         setVelocity(xBlocked ? 0.0 : vel.x, vel.y, zBlocked ? 0.0 : vel.z);
     }
 }
