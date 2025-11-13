@@ -86,6 +86,16 @@ public:
         return offset(vec.x, vec.y, vec.z);
     }
 
+    // Move the AABB (Minecraft: public AABB move(Vec3 vec))
+    // This is the same as offset
+    AABB move(double x, double y, double z) const {
+        return offset(x, y, z);
+    }
+
+    AABB move(const glm::dvec3& vec) const {
+        return offset(vec.x, vec.y, vec.z);
+    }
+
     // Expand the AABB in all directions
     AABB expand(double x, double y, double z) const {
         double newMinX = minX;
@@ -108,6 +118,16 @@ public:
     }
 
     AABB expand(const glm::dvec3& vec) const {
+        return expand(vec.x, vec.y, vec.z);
+    }
+
+    // Expand towards a direction (Minecraft: public AABB expandTowards(Vec3 vec))
+    // This is the same as expand
+    AABB expandTowards(double x, double y, double z) const {
+        return expand(x, y, z);
+    }
+
+    AABB expandTowards(const glm::dvec3& vec) const {
         return expand(vec.x, vec.y, vec.z);
     }
 

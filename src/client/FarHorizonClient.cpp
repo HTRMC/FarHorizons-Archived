@@ -121,8 +121,8 @@ void FarHorizonClient::init() {
     camera->setMouseCapture(mouseCapture);
 
     // Initialize physics system
-    collisionSystem = std::make_unique<CollisionSystem>(chunkManager.get());
-    player = std::make_unique<PlayerEntity>();
+    level = std::make_unique<Level>(chunkManager.get());
+    player = std::make_unique<Player>();
     player->setPos(glm::dvec3(0.0, 100.0, 0.0)); // Start high up
     spdlog::info("Initialized physics system with collision detection");
 
@@ -272,7 +272,7 @@ void FarHorizonClient::tick(float deltaTime) {
             player->setYaw(glm::radians(camera->getYaw()));
 
             // Handle player physics and movement (at fixed 20 ticks/second)
-            player->tick(*collisionSystem);
+            player->tick(level.get());
         }
 
         // Make camera follow player's eye position with sub-tick interpolation

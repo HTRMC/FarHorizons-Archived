@@ -1,7 +1,10 @@
 #include "Entity.hpp"
 #include <cmath>
 #include <algorithm>
+#include <glm/ext/scalar_constants.hpp>
 #include <spdlog/spdlog.h>
+
+#include "world/Level.hpp"
 
 namespace FarHorizon {
 
@@ -67,9 +70,9 @@ void Entity::turn(double xo, double yo) {
     setXRot(getXRot() + var5);
     setYRot(getYRot() + var6);
     setXRot(std::clamp(getXRot(), -90.0f, 90.0f));
-    lastPitch += var5;
-    lastYaw += var6;
-    lastPitch = std::clamp(lastPitch, -90.0f, 90.0f);
+    lastPitch_ += var5;
+    lastYaw_ += var6;
+    lastPitch_ = std::clamp(lastPitch_, -90.0f, 90.0f);
     // Note: In Minecraft, if there's a vehicle, it calls vehicle.onPassengerTurned(this)
     // We don't have vehicle support yet
 }
@@ -104,11 +107,11 @@ void Entity::baseTick() {
 // Compute speed by calculating position delta (Entity.java: protected void computeSpeed())
 void Entity::computeSpeed() {
     if (!lastKnownPosition_.has_value()) {
-        lastKnownPosition_ = position;
+        lastKnownPosition_ = position_;
     }
 
-    lastKnownSpeed_ = position - lastKnownPosition_.value();
-    lastKnownPosition_ = position;
+    lastKnownSpeed_ = position_ - lastKnownPosition_.value();
+    lastKnownPosition_ = position_;
 }
 
 // Check if entity is free to move to a position (Entity.java: public boolean isFree(double xa, double ya, double za))
@@ -126,7 +129,7 @@ bool Entity::isFree(const AABB& box) const {
 
 // Set on ground state (Entity.java: public void setOnGround(boolean onGround))
 void Entity::setOnGround(bool onGround) {
-    m_onGround = onGround;
+    onGround_ = onGround;
     checkSupportingBlock(onGround, nullptr);
 }
 
@@ -137,14 +140,14 @@ void Entity::setOnGroundWithMovement(bool onGround, const glm::dvec3& movement) 
 
 // Set on ground with movement (3-parameter version)
 void Entity::setOnGroundWithMovement(bool onGround, bool horizontalCollision, const glm::dvec3& movement) {
-    m_onGround = onGround;
+    onGround_ = onGround;
     horizontalCollision_ = horizontalCollision;
     checkSupportingBlock(onGround, &movement);
 }
 
 // Check if entity is supported by a specific block position (Entity.java: public boolean isSupportedBy(BlockPos pos))
 bool Entity::isSupportedBy(const glm::ivec3& pos) const {
-    return m_mainSupportingBlockPos.has_value() && m_mainSupportingBlockPos.value() == pos;
+    return mainSupportingBlockPos_.has_value() && mainSupportingBlockPos_.value() == pos;
 }
 
 // Check and update supporting block (Entity.java: protected void checkSupportingBlock(boolean onGround, Vec3 movement))
@@ -167,14 +170,14 @@ void Entity::checkSupportingBlock(bool onGround, const glm::dvec3* movement) {
         // 4. Set onGroundNoBlocks = result.isEmpty()
 
         // Placeholder implementation
-        m_mainSupportingBlockPos = std::nullopt;  // Would be set by findSupportingBlock
-        m_onGroundNoBlocks = true;  // Would be set based on findSupportingBlock result
+        mainSupportingBlockPos_ = std::nullopt;  // Would be set by findSupportingBlock
+        onGroundNoBlocks_ = true;  // Would be set based on findSupportingBlock result
 
         // TODO: Implement when Level.findSupportingBlock() is available
     } else {
-        m_onGroundNoBlocks = false;
-        if (m_mainSupportingBlockPos.has_value()) {
-            m_mainSupportingBlockPos = std::nullopt;
+        onGroundNoBlocks_ = false;
+        if (mainSupportingBlockPos_.has_value()) {
+            mainSupportingBlockPos_ = std::nullopt;
         }
     }
 }
@@ -184,7 +187,7 @@ void Entity::setYRot(float yRot) {
     if (!std::isfinite(yRot)) {
         spdlog::warn("Invalid entity rotation: {}, discarding.", yRot);
     } else {
-        this->yaw = yRot;
+        this->yaw_ = yRot;
     }
 }
 
@@ -193,15 +196,15 @@ void Entity::setXRot(float xRot) {
     if (!std::isfinite(xRot)) {
         spdlog::warn("Invalid entity rotation: {}, discarding.", xRot);
     } else {
-        this->pitch = std::clamp(std::fmod(xRot, 360.0f), -90.0f, 90.0f);
+        this->pitch_ = std::clamp(std::fmod(xRot, 360.0f), -90.0f, 90.0f);
     }
 }
 
 void Entity::teleport(const glm::dvec3& position) {
-    position = position;
-    lastRenderPos = position;
-    velocity = glm::dvec3(0.0);
-    this->m_onGround = false;
+    position_ = position;
+    lastRenderPos_ = position;
+    velocity_ = glm::dvec3(0.0);
+    this->onGround_ = false;
 }
 
 // Private collision method (Entity.java line 1076)
@@ -227,7 +230,7 @@ glm::dvec3 Entity::collide(const glm::dvec3& movement, Level* level) {
     // maxUpStep() > 0.0F && (fallingAndHitGround || this.onGround()) && (xBlocked || zBlocked)
     float stepHeight = getStepHeight();
     if (stepHeight > 0.0f &&
-        (fallingAndHitGround || this->m_onGround) &&
+        (fallingAndHitGround || this->onGround_) &&
         (xBlocked || zBlocked)) {
 
         // Create starting box for step attempt (Entity.java line 1085)
@@ -271,14 +274,14 @@ glm::dvec3 Entity::collide(const glm::dvec3& movement, Level* level) {
 
 // Main movement method (Entity.java line 672)
 void Entity::move(MovementType type, const glm::dvec3& movement, Level* level) {
-    if (m_noClip) {
+    if (noClip_) {
         // Creative flying mode - no collision (Entity.java line 728-733)
-        setPos(m_position + movement);
+        setPos(position_ + movement);
         horizontalCollision_ = false;
-        m_verticalCollision = false;
-        m_verticalCollisionBelow = false;
-        m_minorHorizontalCollision = false;
-        this->m_onGround = false;
+        verticalCollision_ = false;
+        verticalCollisionBelow_ = false;
+        minorHorizontalCollision_ = false;
+        this->onGround_ = false;
         return;
     }
 
@@ -286,7 +289,7 @@ void Entity::move(MovementType type, const glm::dvec3& movement, Level* level) {
     glm::dvec3 actualMovement = collide(movement, level);
 
     // Update position (Entity.java line 769)
-    setPos(m_position + actualMovement);
+    setPos(position_ + actualMovement);
 
     // Update collision flags (Entity.java line 774-787)
     bool xBlocked = !MathHelper::approximatelyEquals(movement.x, actualMovement.x);
@@ -295,20 +298,20 @@ void Entity::move(MovementType type, const glm::dvec3& movement, Level* level) {
 
     // Vertical collision (Entity.java line 777-781)
     if (std::abs(movement.y) > 0.0) {
-        m_verticalCollision = (movement.y != actualMovement.y);
-        m_verticalCollisionBelow = m_verticalCollision && movement.y < 0.0;
+        verticalCollision_ = (movement.y != actualMovement.y);
+        verticalCollisionBelow_ = verticalCollision_ && movement.y < 0.0;
 
         // setOnGroundWithMovement (simplified - Entity.java line 780)
-        this->m_onGround = m_verticalCollisionBelow;
+        this->onGround_ = verticalCollisionBelow_;
     }
     // If movement.y == 0, keep previous collision flags
 
     // minorHorizontalCollision check (Entity.java line 783-787)
     if (horizontalCollision_) {
         // For now, always set to false (full implementation checks collision amount)
-        m_minorHorizontalCollision = false;
+        minorHorizontalCollision_ = false;
     } else {
-        m_minorHorizontalCollision = false;
+        minorHorizontalCollision_ = false;
     }
 
     // Reset velocity on collision (Entity.java line 799-800)

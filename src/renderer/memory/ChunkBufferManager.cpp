@@ -35,7 +35,7 @@ void ChunkBufferManager::init(VmaAllocator allocator, size_t maxFaces, size_t ma
     );
 
     // ChunkData buffer (per-chunk metadata, indexed by gl_BaseInstance)
-    chunkDataBuffer.init(
+    chunkDataBuffer_.init(
         allocator,
         maxDrawCommands * sizeof(ChunkData),
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -50,7 +50,7 @@ void ChunkBufferManager::init(VmaAllocator allocator, size_t maxFaces, size_t ma
 }
 
 void ChunkBufferManager::cleanup() {
-    chunkDataBuffer.cleanup();
+    chunkDataBuffer_.cleanup();
     indirectBuffer_.cleanup();
     lightingBuffer_.cleanup();
     faceBuffer_.cleanup();
@@ -80,7 +80,7 @@ bool ChunkBufferManager::addMeshes(std::vector<CompactChunkMesh>& meshes, size_t
     void* faceData = faceBuffer_.map();
     void* lightingData = lightingBuffer_.map();
     void* indirectData = indirectBuffer_.map();
-    void* chunkData = chunkDataBuffer.map();
+    void* chunkData = chunkDataBuffer_.map();
 
     for (size_t i = 0; i < processCount; i++) {
         CompactChunkMesh& mesh = meshes[i];
@@ -173,7 +173,7 @@ bool ChunkBufferManager::addMeshes(std::vector<CompactChunkMesh>& meshes, size_t
     }
 
     lightingBuffer_.unmap();
-    chunkDataBuffer.unmap();
+    chunkDataBuffer_.unmap();
     faceBuffer_.unmap();
     indirectBuffer_.unmap();
 
@@ -240,7 +240,7 @@ void ChunkBufferManager::fullRebuild() {
     void* faceData = faceBuffer_.map();
     void* lightingData = lightingBuffer_.map();
     void* indirectData = indirectBuffer_.map();
-    void* chunkData = chunkDataBuffer.map();
+    void* chunkData = chunkDataBuffer_.map();
 
     std::unordered_map<ChunkPosition, ChunkBufferAllocation, ChunkPositionHash> newAllocations;
 
@@ -301,7 +301,7 @@ void ChunkBufferManager::fullRebuild() {
     allocations_ = std::move(newAllocations);
 
     lightingBuffer_.unmap();
-    chunkDataBuffer.unmap();
+    chunkDataBuffer_.unmap();
     faceBuffer_.unmap();
     indirectBuffer_.unmap();
 
@@ -318,7 +318,7 @@ void ChunkBufferManager::rebuildDrawCommands() {
     chunkDataArray_.clear();
 
     void* indirectData = indirectBuffer_.map();
-    void* chunkData = chunkDataBuffer.map();
+    void* chunkData = chunkDataBuffer_.map();
 
     // Rebuild draw commands for remaining allocations
     for (auto& [pos, allocation] : allocations_) {
@@ -346,7 +346,7 @@ void ChunkBufferManager::rebuildDrawCommands() {
     }
 
     indirectBuffer_.unmap();
-    chunkDataBuffer.unmap();
+    chunkDataBuffer_.unmap();
 
     // spdlog::debug("Rebuilt draw commands: {} chunks (face/lighting data unchanged)",
     //              m_drawCommandCount);

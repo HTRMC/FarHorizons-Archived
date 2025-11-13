@@ -31,6 +31,18 @@ public:
         return *voxels;
     }
 
+    // Move the voxel shape by an offset (Minecraft: VoxelShape move(Vec3i offset))
+    // Returns a new VoxelShape translated by the given offset
+    virtual std::shared_ptr<VoxelShape> move(const glm::ivec3& offset) const {
+        // TODO: Implement when VoxelShape offset support is added
+        return nullptr;
+    }
+
+    // Move the voxel shape by an offset (double version)
+    virtual std::shared_ptr<VoxelShape> move(double x, double y, double z) const {
+        return move(glm::ivec3(static_cast<int>(x), static_cast<int>(y), static_cast<int>(z)));
+    }
+
     // Get position of a point index along an axis (VoxelShape.java line 67)
     double getPointPosition(Direction::Axis axis, int index) const {
         return getPointPositions(axis)[index];

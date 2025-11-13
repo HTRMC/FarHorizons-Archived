@@ -7,7 +7,7 @@ namespace FarHorizon {
 
 // Player entity with player-specific properties
 // Based on Minecraft's PlayerEntity and ClientPlayerEntity classes
-class PlayerEntity : public LivingEntity {
+class Player : public LivingEntity {
 public:
     // Minecraft player dimensions
     static constexpr float PLAYER_WIDTH = 0.6f;
@@ -23,22 +23,14 @@ private:
     float yaw;  // Camera yaw for movement rotation
 
 public:
-    PlayerEntity(const glm::dvec3& position = glm::dvec3(0, 100, 0))
-        : LivingEntity(position)
+    Player(const glm::dvec3& position = glm::dvec3(0, 100, 0))
+        : LivingEntity(EntityType::PLAYER, position, PLAYER_WIDTH, PLAYER_HEIGHT)
         , yaw(0.0f)
     {}
 
     // Set camera yaw for movement rotation
     void setYaw(float yawRadians) {
         yaw = yawRadians;
-    }
-
-    // Get player's bounding box
-    AABB getBoundingBox() const override {
-        return AABB::fromCenter(
-            position_ + glm::dvec3(0, PLAYER_HEIGHT / 2.0, 0),
-            PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_WIDTH
-        );
     }
 
     // Get eye position for camera

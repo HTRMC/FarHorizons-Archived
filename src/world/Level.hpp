@@ -1,7 +1,13 @@
 #pragma once
 
 #include "../physics/AABB.hpp"
+#include "../physics/CollisionGetter.hpp"
 #include "../voxel/VoxelShape.hpp"
+#include "../voxel/VoxelShapes.hpp"
+#include "ChunkManager.hpp"
+#include "BlockState.hpp"
+#include "BlockRegistry.hpp"
+#include "BlockShape.hpp"
 #include <glm/glm.hpp>
 #include <vector>
 #include <memory>
@@ -10,23 +16,116 @@ namespace FarHorizon {
 
 class Entity;
 
-// Level interface (from Minecraft)
-// Represents the game world
-class Level {
+// Level class (from Minecraft's Level.java)
+// Represents the game world and handles collision detection
+class Level : public CollisionGetter {
+private:
+    ChunkManager* chunkManager_;
+
 public:
+    Level(ChunkManager* chunkManager)
+        : chunkManager_(chunkManager) {}
+
     virtual ~Level() = default;
 
     // Get entity collisions in bounding box (Minecraft: List<VoxelShape> getEntityCollisions(Entity source, AABB box))
-    virtual std::vector<std::shared_ptr<VoxelShape>> getEntityCollisions(const Entity* source, const AABB& box) = 0;
+    std::vector<std::shared_ptr<VoxelShape>> getEntityCollisions(const Entity* source, const AABB& box) {
+        // TODO: Implement entity-entity collision when we have multiple entities
+        // For now, return empty since we only have one player
+        return std::vector<std::shared_ptr<VoxelShape>>();
+    }
 
     // Get block collisions in bounding box (Minecraft: Iterable<VoxelShape> getBlockCollisions(Entity source, AABB box))
-    virtual std::vector<std::shared_ptr<VoxelShape>> getBlockCollisions(const Entity* source, const AABB& box) = 0;
+    std::vector<std::shared_ptr<VoxelShape>> getBlockCollisions(const Entity* source, const AABB& box) {
+        std::vector<std::shared_ptr<VoxelShape>> collisions;
 
-    // TODO: Add other methods as needed:
-    // - getBlockState(BlockPos pos)
-    // - setBlockState(BlockPos pos, BlockState state)
-    // - getWorldBorder()
-    // - getChunkForCollisions(int x, int z)
+        // Get integer bounds of the region
+        int minX = static_cast<int>(std::floor(box.minX));
+        int minY = static_cast<int>(std::floor(box.minY));
+        int minZ = static_cast<int>(std::floor(box.minZ));
+        int maxX = static_cast<int>(std::floor(box.maxX));
+        int maxY = static_cast<int>(std::floor(box.maxY));
+        int maxZ = static_cast<int>(std::floor(box.maxZ));
+
+        // Iterate through all blocks in the region
+        for (int x = minX; x <= maxX; ++x) {
+            for (int y = minY; y <= maxY; ++y) {
+                for (int z = minZ; z <= maxZ; ++z) {
+                    // Get block state at position via chunk
+                    ChunkPosition chunkPos = chunkManager_->worldToChunkPos(glm::vec3(x, y, z));
+                    Chunk* chunk = chunkManager_->getChunk(chunkPos);
+                    if (!chunk) continue;
+
+                    // Convert world coords to chunk-local coords
+                    int localX = x - chunkPos.x * 16;
+                    int localY = y - chunkPos.y * 16;
+                    int localZ = z - chunkPos.z * 16;
+
+                    // Clamp to valid chunk bounds
+                    if (localX < 0 || localX >= 16 || localY < 0 || localY >= 16 || localZ < 0 || localZ >= 16) {
+                        continue;
+                    }
+
+                    BlockState blockState = chunk->getBlockState(localX, localY, localZ);
+                    if (blockState.isAir()) continue; // Air block
+
+                    // Get collision shape at world coordinates
+                    auto shape = getBlockCollisionShape(blockState, glm::ivec3(x, y, z));
+
+                    if (!shape || shape->isEmpty()) {
+                        continue;
+                    }
+
+                    collisions.push_back(shape);
+                }
+            }
+        }
+
+        return collisions;
+    }
+
+    // CollisionGetter interface: Get block state at a position
+    BlockState getBlockState(const glm::ivec3& pos) const override {
+        ChunkPosition chunkPos = chunkManager_->worldToChunkPos(glm::vec3(pos.x, pos.y, pos.z));
+        Chunk* chunk = chunkManager_->getChunk(chunkPos);
+        if (!chunk) {
+            return BlockState();  // Return air
+        }
+
+        // Convert world coords to chunk-local coords
+        int localX = pos.x - chunkPos.x * 16;
+        int localY = pos.y - chunkPos.y * 16;
+        int localZ = pos.z - chunkPos.z * 16;
+
+        // Clamp to valid chunk bounds
+        if (localX < 0 || localX >= 16 || localY < 0 || localY >= 16 || localZ < 0 || localZ >= 16) {
+            return BlockState();  // Return air
+        }
+
+        return chunk->getBlockState(localX, localY, localZ);
+    }
+
+private:
+    // Get collision shape for a block at world coordinates
+    std::shared_ptr<VoxelShape> getBlockCollisionShape(const BlockState& blockState, const glm::ivec3& pos) const {
+        // Fast path: air blocks have no collision
+        if (blockState.isAir()) {
+            return VoxelShapes::empty();
+        }
+
+        // Get the block and ask for its collision shape
+        Block* block = BlockRegistry::getBlock(blockState);
+        if (!block) {
+            // Fallback: if block not found, return full cube
+            return VoxelShapes::cuboid(pos.x, pos.y, pos.z, pos.x + 1.0, pos.y + 1.0, pos.z + 1.0);
+        }
+
+        // Get the block's collision shape (in 0-1 block space)
+        BlockShape collisionShape = block->getCollisionShape(blockState);
+
+        // Convert BlockShape to VoxelShape at world position
+        return VoxelShapes::fromBlockShape(collisionShape, pos.x, pos.y, pos.z);
+    }
 };
 
 } // namespace FarHorizon
