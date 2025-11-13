@@ -5,6 +5,8 @@
 #include <spdlog/spdlog.h>
 
 #include "world/Level.hpp"
+#include "world/BlockRegistry.hpp"
+#include "voxel/Shapes.hpp"
 
 namespace FarHorizon {
 
@@ -358,24 +360,35 @@ void Entity::move(MovementType type, const glm::dvec3& movement, Level* level) {
 }
 
 // Check if entity is colliding with a specific block (Entity.java line 339)
-// Minecraft: state.getCollisionShape(level, pos, CollisionContext.of(this)).move(pos)
-bool Entity::isColliding(const glm::ivec3& blockPos, const BlockState& blockState, Level* level) const {
-    // Get entity's current bounding box (Entity.java: Shapes.create(this.getBoundingBox()))
-    AABB entityBox = getBoundingBox();
+// Minecraft: VoxelShape var3 = state.getCollisionShape(this.level(), pos, CollisionContext.of(this)).move((Vec3i)pos);
+// Minecraft: return Shapes.joinIsNotEmpty(var3, Shapes.create(this.getBoundingBox()), BooleanOp.AND);
+bool Entity::isColliding(const glm::ivec3& blockPos, const BlockState& blockState) const {
+    // Fast path: air blocks have no collision
+    if (blockState.isAir()) {
+        return false;
+    }
 
-    // Get the block's collision shape (Entity.java line 340)
-    // state.getCollisionShape(level, pos, CollisionContext.of(this)).move(pos)
-    // TODO: Implement when BlockState has getCollisionShape() method
-    // auto blockShape = blockState.getCollisionShape(level, blockPos, CollisionContext::of(this));
+    // Get the block and its collision shape
+    Block* block = BlockRegistry::getBlock(blockState);
+    if (!block) {
+        return false;
+    }
 
-    // TODO: Move shape to block position
-    // blockShape = blockShape->move(blockPos);
+    // Get the block's collision shape (in 0-1 block space)
+    // Minecraft: state.getCollisionShape(this.level(), pos, CollisionContext.of(this))
+    BlockShape collisionShape = block->getCollisionShape(blockState);
 
-    // TODO: Check intersection
-    // Shapes.joinIsNotEmpty(var3, Shapes.create(this.getBoundingBox()), BooleanOp.AND)
-    // return Shapes::joinIsNotEmpty(blockShape, Shapes::create(entityBox), BooleanOp::AND);
+    // Create VoxelShape and move to block position
+    // Minecraft: .move((Vec3i)pos)
+    auto var3 = VoxelShapes::fromBlockShape(collisionShape, blockPos.x, blockPos.y, blockPos.z);
 
-    return false;  // Placeholder
+    // Create VoxelShape from entity bounding box
+    // Minecraft: Shapes.create(this.getBoundingBox())
+    auto entityShape = Shapes::create(getBoundingBox());
+
+    // Check if intersection is non-empty
+    // Minecraft: return Shapes.joinIsNotEmpty(var3, Shapes.create(this.getBoundingBox()), BooleanOp.AND);
+    return Shapes::joinIsNotEmpty(var3, entityShape, BooleanOp::AND);
 }
 
 // Transform movement input to velocity based on entity rotation (Entity.java line 1605)

@@ -227,7 +227,7 @@ public:
     // Check if entity is colliding with a specific block (Entity.java line 339)
     // Minecraft signature: isColliding(BlockPos pos, BlockState state)
     // This checks if the entity's bounding box intersects with the block's collision shape
-    bool isColliding(const glm::ivec3& blockPos, const BlockState& blockState, Level* level) const;
+    bool isColliding(const glm::ivec3& blockPos, const BlockState& blockState) const;
 
     // Check if entity is free to move to a position (Entity.java: public boolean isFree(double xa, double ya, double za))
     bool isFree(double xa, double ya, double za) const;
