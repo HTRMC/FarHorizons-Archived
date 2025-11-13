@@ -47,9 +47,36 @@ void Entity::setPos(const glm::dvec3& position) {
 // Set position (Entity.java: public void setPos(double x, double y, double z))
 void Entity::setPos(double x, double y, double z) {
     setPosRaw(x, y, z);
-    setBoundingBox(this.makeBoundingBox());
-    // Note: In Minecraft, this also calls setBoundingBox(makeBoundingBox())
-    // Our getBoundingBox() is calculated on-demand, so no need to update it here
+    setBoundingBox(makeBoundingBox());
+}
+
+// Set raw position without updating bounding box (Entity.java: public final void setPosRaw(double x, double y, double z))
+void Entity::setPosRaw(double x, double y, double z) {
+    // Only update if position actually changed (Entity.java line 238)
+    if (position_.x != x || position_.y != y || position_.z != z) {
+        position_ = glm::dvec3(x, y, z);
+
+        // Calculate block position (Entity.java line 240-242)
+        int blockX = static_cast<int>(std::floor(x));
+        int blockY = static_cast<int>(std::floor(y));
+        int blockZ = static_cast<int>(std::floor(z));
+
+        // Check if block position changed (Entity.java line 243)
+        if (!lastKnownPosition_.has_value() ||
+            blockX != static_cast<int>(std::floor(lastKnownPosition_->x)) ||
+            blockY != static_cast<int>(std::floor(lastKnownPosition_->y)) ||
+            blockZ != static_cast<int>(std::floor(lastKnownPosition_->z))) {
+
+            // Update block position (Entity.java line 244)
+            lastKnownPosition_ = glm::dvec3(blockX, blockY, blockZ);
+
+            // TODO: Implement when these systems are available:
+            // - Update chunk position if chunk changed (Entity.java line 245-251)
+            // - Call LevelCallback.onMove() (Entity.java line 252)
+            // - Call GameEventListenerRegistrar.onListenerMove() (Entity.java line 253)
+            // - Update waypoint tracking (Entity.java line 254-257)
+        }
+    }
 }
 
 // Create bounding box from current position and dimensions (Entity.java: protected AABB makeBoundingBox())

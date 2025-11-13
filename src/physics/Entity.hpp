@@ -149,6 +149,7 @@ public:
     // Setters
     void setPos(const glm::dvec3& position);  // Entity.java: public final void setPos(Vec3 pos)
     void setPos(double x, double y, double z);  // Entity.java: public void setPos(double x, double y, double z)
+    void setPosRaw(double x, double y, double z);  // Entity.java: public final void setPosRaw(double x, double y, double z)
 
     void setVelocity(const glm::dvec3& vel) { velocity_ = vel; }
     void setVelocity(double x, double y, double z) { velocity_ = glm::dvec3(x, y, z); }
