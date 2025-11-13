@@ -49,19 +49,19 @@ public:
         return size;
     }
 
-    // Calculate maximum distance before collision (VoxelShape.java line 256)
+    // Calculate maximum distance before collision (VoxelShape.java line 217: collide)
     // This is the CORE collision method!
-    double calculateMaxDistance(Direction::Axis axis, const AABB& box, double maxDist) const {
-        return calculateMaxDistance(AxisCycle::between(Direction::Axis::X, axis), box, maxDist);
+    double collide(Direction::Axis axis, const AABB& moving, double distance) const {
+        return collideX(AxisCycle::between(Direction::Axis::X, axis), moving, distance);
     }
 
 protected:
-    // Internal calculateMaxDistance with axis cycling (VoxelShape.java line 260)
-    double calculateMaxDistance(AxisCycleDirection axisCycle, const AABB& box, double maxDist) const {
+    // Internal collision with axis cycling (VoxelShape.java line 221: collideX)
+    double collideX(AxisCycleDirection axisCycle, const AABB& moving, double distance) const {
         if (isEmpty()) {
-            return maxDist;
+            return distance;
         }
-        if (std::abs(maxDist) < 1.0E-7) {
+        if (std::abs(distance) < 1.0E-7) {
             return 0.0;
         }
 
@@ -70,54 +70,54 @@ protected:
         Direction::Axis axis2 = AxisCycle::apply(axisCycleOpposite, Direction::Axis::Y);
         Direction::Axis axis3 = AxisCycle::apply(axisCycleOpposite, Direction::Axis::Z);
 
-        // Get box bounds along the cycled axes (VoxelShape.java line 270-271)
-        double boxMax = Direction::choose(axis, box.maxX, box.maxY, box.maxZ);
-        double boxMin = Direction::choose(axis, box.minX, box.minY, box.minZ);
+        // Get box bounds along the cycled axes (VoxelShape.java line 231-232)
+        double var9 = Direction::choose(axis, moving.maxX, moving.maxY, moving.maxZ);
+        double var11 = Direction::choose(axis, moving.minX, moving.minY, moving.minZ);
 
-        // Get voxel indices (VoxelShape.java line 272-273)
-        int startIndex = getCoordIndex(axis, boxMin + 1.0E-7);
-        int endIndex = getCoordIndex(axis, boxMax - 1.0E-7);
+        // Get voxel indices (VoxelShape.java line 233-234)
+        int var13 = getCoordIndex(axis, var11 + 1.0E-7);
+        int var14 = getCoordIndex(axis, var9 - 1.0E-7);
 
-        // Get bounds for other axes (VoxelShape.java line 274-277)
-        int k = std::max(0, getCoordIndex(axis2, Direction::choose(axis2, box.minX, box.minY, box.minZ) + 1.0E-7));
-        int l = std::min(voxels->getSize(axis2), getCoordIndex(axis2, Direction::choose(axis2, box.maxX, box.maxY, box.maxZ) - 1.0E-7) + 1);
-        int m = std::max(0, getCoordIndex(axis3, Direction::choose(axis3, box.minX, box.minY, box.minZ) + 1.0E-7));
-        int n = std::min(voxels->getSize(axis3), getCoordIndex(axis3, Direction::choose(axis3, box.maxX, box.maxY, box.maxZ) - 1.0E-7) + 1);
-        int o = voxels->getSize(axis);
+        // Get bounds for other axes (VoxelShape.java line 235-238)
+        int var15 = std::max(0, getCoordIndex(axis2, Direction::choose(axis2, moving.minX, moving.minY, moving.minZ) + 1.0E-7));
+        int var16 = std::min(voxels->getSize(axis2), getCoordIndex(axis2, Direction::choose(axis2, moving.maxX, moving.maxY, moving.maxZ) - 1.0E-7) + 1);
+        int var17 = std::max(0, getCoordIndex(axis3, Direction::choose(axis3, moving.minX, moving.minY, moving.minZ) + 1.0E-7));
+        int var18 = std::min(voxels->getSize(axis3), getCoordIndex(axis3, Direction::choose(axis3, moving.maxX, moving.maxY, moving.maxZ) - 1.0E-7) + 1);
+        int var19 = voxels->getSize(axis);
 
-        if (maxDist > 0.0) {
-            // Moving in positive direction (VoxelShape.java line 279)
-            for (int p = endIndex + 1; p < o; p++) {
-                for (int q = k; q < l; q++) {
-                    for (int r = m; r < n; r++) {
-                        if (voxels->inBoundsAndContains(axisCycleOpposite, p, q, r)) {
-                            double f = getPointPosition(axis, p) - boxMax;
-                            if (f >= -1.0E-7) {
-                                maxDist = std::min(maxDist, f);
+        if (distance > 0.0) {
+            // Moving in positive direction (VoxelShape.java line 244)
+            for (int var20 = var14 + 1; var20 < var19; var20++) {
+                for (int var21 = var15; var21 < var16; var21++) {
+                    for (int var22 = var17; var22 < var18; var22++) {
+                        if (voxels->inBoundsAndContains(axisCycleOpposite, var20, var21, var22)) {
+                            double var23 = getPointPosition(axis, var20) - var9;
+                            if (var23 >= -1.0E-7) {
+                                distance = std::min(distance, var23);
                             }
-                            return maxDist;
+                            return distance;
                         }
                     }
                 }
             }
-        } else if (maxDist < 0.0) {
-            // Moving in negative direction (VoxelShape.java line 294)
-            for (int p = startIndex - 1; p >= 0; p--) {
-                for (int q = k; q < l; q++) {
-                    for (int r = m; r < n; r++) {
-                        if (voxels->inBoundsAndContains(axisCycleOpposite, p, q, r)) {
-                            double f = getPointPosition(axis, p + 1) - boxMin;
-                            if (f <= 1.0E-7) {
-                                maxDist = std::max(maxDist, f);
+        } else if (distance < 0.0) {
+            // Moving in negative direction (VoxelShape.java line 259)
+            for (int var20 = var13 - 1; var20 >= 0; var20--) {
+                for (int var21 = var15; var21 < var16; var21++) {
+                    for (int var22 = var17; var22 < var18; var22++) {
+                        if (voxels->inBoundsAndContains(axisCycleOpposite, var20, var21, var22)) {
+                            double var23 = getPointPosition(axis, var20 + 1) - var11;
+                            if (var23 <= 1.0E-7) {
+                                distance = std::max(distance, var23);
                             }
-                            return maxDist;
+                            return distance;
                         }
                     }
                 }
             }
         }
 
-        return maxDist;
+        return distance;
     }
 };
 

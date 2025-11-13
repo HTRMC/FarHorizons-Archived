@@ -24,8 +24,87 @@ public:
     CollisionSystem(ChunkManager* chunkManager)
         : chunkManager_(chunkManager) {}
 
+    // Main collision method matching Minecraft's Entity.collide() (Entity.java line 1076)
+    // This is the method that Entity.move() calls
+    glm::dvec3 collide(const AABB& entityBox, const glm::dvec3& movement,
+                       float stepHeight, bool onGround) const {
+        // Get all collisions in the swept volume (Entity.java line 1078)
+        AABB sweptBox = entityBox.stretch(movement);
+        auto entityCollisions = getBlockCollisions(sweptBox);
+
+        // First try basic collision resolution (Entity.java line 1079)
+        glm::dvec3 resolvedMovement = (glm::length(movement) == 0.0)
+            ? movement
+            : collideBoundingBox(entityBox, movement, entityCollisions);
+
+        // Check if movement was blocked
+        bool xBlocked = !MathHelper::approximatelyEquals(movement.x, resolvedMovement.x);
+        bool yBlocked = (movement.y != resolvedMovement.y);
+        bool zBlocked = !MathHelper::approximatelyEquals(movement.z, resolvedMovement.z);
+        bool fallingAndHitGround = yBlocked && movement.y < 0.0;
+
+        // Minecraft's stepping condition (Entity.java line 1084):
+        // maxUpStep() > 0.0F && (var8 || this.onGround()) && (var5 || var7)
+        // where var8 = fallingAndHitGround, var5 = xBlocked, var7 = zBlocked
+        if (stepHeight > AABB::EPSILON &&
+            (fallingAndHitGround || onGround) &&
+            (xBlocked || zBlocked)) {
+
+            // Try stepping (Entity.java line 1085-1104)
+            glm::dvec3 steppedMovement = tryStepUp(
+                entityBox, movement, resolvedMovement,
+                stepHeight, fallingAndHitGround, entityCollisions
+            );
+
+            // Use stepped movement if it's better horizontally (Entity.java line 1100)
+            double resolvedHorizontalDist = resolvedMovement.x * resolvedMovement.x +
+                                            resolvedMovement.z * resolvedMovement.z;
+            double steppedHorizontalDist = steppedMovement.x * steppedMovement.x +
+                                           steppedMovement.z * steppedMovement.z;
+
+            if (steppedHorizontalDist > resolvedHorizontalDist) {
+                return steppedMovement;
+            }
+        }
+
+        return resolvedMovement;
+    }
+
+    // Basic collision resolution without stepping (Entity.java line 1137: collideBoundingBox)
+    glm::dvec3 collideBoundingBox(const AABB& entityBox, const glm::dvec3& movement,
+                                  const std::vector<std::shared_ptr<VoxelShape>>& entityCollisions) const {
+        // Get all colliders (both entity and block collisions)
+        auto allCollisions = collectAllColliders(entityBox.stretch(movement), entityCollisions);
+
+        // Perform axis-by-axis collision resolution (Entity.java line 1139)
+        return collideWithShapes(movement, entityBox, allCollisions);
+    }
+
     // Get all block collision shapes in a region
     // Based on Minecraft's BlockCollisionSpliterator
+    // Get collision shape for a specific block (used by Entity.isColliding)
+    // Matches Minecraft's: state.getCollisionShape(level, pos, CollisionContext.of(this)).move(pos)
+    std::shared_ptr<VoxelShape> getBlockCollisionShape(const BlockState& blockState,
+                                                        const glm::ivec3& blockPos) const {
+        if (blockState.getId() == 0) {
+            return nullptr;  // Air block, no collision
+        }
+
+        // Get the block's collision shape
+        const Block* block = BlockRegistry::getBlock(blockState.getId());
+        if (!block) {
+            return nullptr;
+        }
+
+        // Get the shape and offset it to the block's position (.move(pos) in Minecraft)
+        auto shape = VoxelShapes::getBlockShape(block);
+        if (shape && !shape->isEmpty()) {
+            return shape->offset(blockPos.x, blockPos.y, blockPos.z);
+        }
+
+        return nullptr;
+    }
+
     std::vector<std::shared_ptr<VoxelShape>> getBlockCollisions(const AABB& region) const {
         std::vector<std::shared_ptr<VoxelShape>> collisions;
 
@@ -37,14 +116,33 @@ public:
         int maxY = static_cast<int>(std::floor(region.maxY));
         int maxZ = static_cast<int>(std::floor(region.maxZ));
 
+        static int debugCounter = 0;
+        bool shouldDebug = (++debugCounter % 20 == 0); // Debug every 20 calls
+
+        if (shouldDebug) {
+            spdlog::info("getBlockCollisions: region ({:.3f},{:.3f},{:.3f}) to ({:.3f},{:.3f},{:.3f})",
+                region.minX, region.minY, region.minZ, region.maxX, region.maxY, region.maxZ);
+            spdlog::info("  Checking blocks: ({},{},{}) to ({},{},{})", minX, minY, minZ, maxX, maxY, maxZ);
+        }
+
+        int blocksChecked = 0;
+        int blocksFound = 0;
+
         // Iterate through all blocks in the region
         for (int x = minX; x <= maxX; ++x) {
             for (int y = minY; y <= maxY; ++y) {
                 for (int z = minZ; z <= maxZ; ++z) {
+                    blocksChecked++;
+
                     // Get block state at position via chunk
                     ChunkPosition chunkPos = chunkManager_->worldToChunkPos(glm::vec3(x, y, z));
                     Chunk* chunk = chunkManager_->getChunk(chunkPos);
-                    if (!chunk) continue;
+                    if (!chunk) {
+                        if (shouldDebug && blocksChecked <= 5) {
+                            spdlog::warn("  Block ({},{},{}): No chunk at {},{},{}", x, y, z, chunkPos.x, chunkPos.y, chunkPos.z);
+                        }
+                        continue;
+                    }
 
                     // Convert world coords to chunk-local coords
                     int localX = x - chunkPos.x * 16;
@@ -53,6 +151,9 @@ public:
 
                     // Clamp to valid chunk bounds
                     if (localX < 0 || localX >= 16 || localY < 0 || localY >= 16 || localZ < 0 || localZ >= 16) {
+                        if (shouldDebug && blocksChecked <= 5) {
+                            spdlog::warn("  Block ({},{},{}): Out of chunk bounds ({},{},{})", x, y, z, localX, localY, localZ);
+                        }
                         continue;
                     }
 
@@ -62,11 +163,25 @@ public:
                     // Get collision shape at world coordinates (BlockCollisionSpliterator.java line 88)
                     auto shape = getBlockCollisionShape(blockState, x, y, z);
 
-                    if (!shape || shape->isEmpty()) continue;
+                    if (!shape || shape->isEmpty()) {
+                        if (shouldDebug && blocksFound < 3) {
+                            spdlog::warn("  Block ({},{},{}): state {} has empty collision shape", x, y, z, blockState.id);
+                        }
+                        continue;
+                    }
+
+                    blocksFound++;
+                    if (shouldDebug && blocksFound <= 3) {
+                        spdlog::info("  Block ({},{},{}): state {} has collision shape", x, y, z, blockState.id);
+                    }
 
                     collisions.push_back(shape);
                 }
             }
+        }
+
+        if (shouldDebug) {
+            spdlog::info("  Found {} collision shapes out of {} blocks checked", blocksFound, blocksChecked);
         }
 
         return collisions;
@@ -165,8 +280,8 @@ private:
             // Convert axis int to Direction::Axis enum
             Direction::Axis dirAxis = static_cast<Direction::Axis>(axis);
 
-            // Calculate max offset on this axis (VoxelShapes.java line 270)
-            double offset = VoxelShapes::calculateMaxOffset(dirAxis, currentBox, collisions, movementOnAxis);
+            // Calculate max offset on this axis (Shapes.java line 184: collide)
+            double offset = VoxelShapes::collide(dirAxis, currentBox, collisions, movementOnAxis);
 
             // Apply offset and update current box
             setAxisComponent(result, axis, offset);
@@ -176,47 +291,135 @@ private:
         return result;
     }
 
-    // Step height implementation
-    // Based on Minecraft's step logic in Entity.move()
+    // Minecraft's step-up logic (Entity.java line 1085-1104)
     glm::dvec3 tryStepUp(const AABB& entityBox, const glm::dvec3& originalMovement,
-                        const glm::dvec3& blockedMovement, float stepHeight) const {
+                        const glm::dvec3& blockedMovement, float maxStepHeight,
+                        bool fallingAndHitGround,
+                        const std::vector<std::shared_ptr<VoxelShape>>& entityCollisions) const {
 
-        // Create a box for the step attempt
-        AABB stepBox = entityBox.offset(0.0, blockedMovement.y, 0.0);
+        // Create starting box (Entity.java line 1085)
+        // If falling and hit ground, start from position after Y movement
+        // Otherwise start from original position
+        AABB stepBox = fallingAndHitGround
+            ? entityBox.offset(0.0, blockedMovement.y, 0.0)
+            : entityBox;
 
-        // Get swept volume for step attempt (horizontal movement + step up)
-        glm::dvec3 stepUpMovement(originalMovement.x, stepHeight, originalMovement.z);
-        AABB stepSweptBox = stepBox.stretch(stepUpMovement);
+        // Expand box for step attempt (Entity.java line 1086-1088)
+        AABB stepSweptBox = stepBox.expand(originalMovement.x, maxStepHeight, originalMovement.z);
+        if (!fallingAndHitGround) {
+            stepSweptBox = stepSweptBox.expand(0.0, -9.999999747378752E-6, 0.0);
+        }
 
-        // Get collisions for stepping
-        auto stepCollisions = getBlockCollisions(stepSweptBox);
+        // Get all colliders for stepping (Entity.java line 1091)
+        auto stepCollisions = collectAllColliders(stepSweptBox, entityCollisions);
 
-        // Collect all possible step heights from collision edges
-        std::vector<float> possibleStepHeights = collectStepHeights(stepBox, stepCollisions, stepHeight);
+        // Collect candidate step heights (Entity.java line 1093)
+        float currentY = static_cast<float>(blockedMovement.y);
+        std::vector<float> candidateHeights = collectCandidateStepUpHeights(
+            stepBox, stepCollisions, maxStepHeight, currentY
+        );
 
-        // Try each step height and find the best one
+        // Try each step height (Entity.java line 1097-1104)
         glm::dvec3 bestMovement = blockedMovement;
-        double bestHorizontalDist = blockedMovement.x * blockedMovement.x +
-                                   blockedMovement.z * blockedMovement.z;
+        for (float tryHeight : candidateHeights) {
+            glm::dvec3 tryMovement(originalMovement.x, tryHeight, originalMovement.z);
+            glm::dvec3 result = collideWithShapes(tryMovement, stepBox, stepCollisions);
 
-        for (float tryStepHeight : possibleStepHeights) {
-            // Try horizontal movement at this step height
-            glm::dvec3 tryMovement(originalMovement.x, tryStepHeight, originalMovement.z);
-            glm::dvec3 resolvedMovement = adjustMovementForCollisionsInternal(stepBox, tryMovement, stepCollisions);
+            // Check if this gives better horizontal movement (Entity.java line 1100)
+            if (result.x * result.x + result.z * result.z >
+                bestMovement.x * bestMovement.x + bestMovement.z * bestMovement.z) {
 
-            // Check if this gives better horizontal movement
-            double horizontalDist = resolvedMovement.x * resolvedMovement.x +
-                                   resolvedMovement.z * resolvedMovement.z;
-
-            if (horizontalDist > bestHorizontalDist) {
-                bestHorizontalDist = horizontalDist;
-                // Adjust Y to account for initial box offset
-                bestMovement = resolvedMovement;
-                bestMovement.y += blockedMovement.y;
+                // Adjust for box offset (Entity.java line 1102)
+                double yOffset = stepBox.minY - entityBox.minY;
+                bestMovement = result - glm::dvec3(0.0, yOffset, 0.0);
             }
         }
 
         return bestMovement;
+    }
+
+    // Old step-up for backwards compatibility
+    glm::dvec3 tryStepUp(const AABB& entityBox, const glm::dvec3& originalMovement,
+                        const glm::dvec3& blockedMovement, float stepHeight) const {
+        auto entityCollisions = getBlockCollisions(entityBox.stretch(originalMovement));
+        return tryStepUp(entityBox, originalMovement, blockedMovement, stepHeight,
+                        true, entityCollisions);
+    }
+
+    // Collect candidate step-up heights (Entity.java line 1110)
+    std::vector<float> collectCandidateStepUpHeights(
+        const AABB& box,
+        const std::vector<std::shared_ptr<VoxelShape>>& collisions,
+        float maxStepHeight,
+        float stepHeightToSkip) const {
+
+        std::set<float> heights;
+
+        for (const auto& shape : collisions) {
+            if (!shape || shape->isEmpty()) continue;
+
+            // Get Y coordinates from shape (Entity.java line 1116)
+            const auto& yCoords = shape->getPointPositions(Direction::Axis::Y);
+            for (double y : yCoords) {
+                float height = static_cast<float>(y - box.minY);
+
+                // Skip if negative or matches current Y (Entity.java line 1122-1123)
+                if (height < 0.0f || height == stepHeightToSkip) continue;
+
+                // Stop if exceeds max (Entity.java line 1123)
+                if (height > maxStepHeight) break;
+
+                heights.insert(height);
+            }
+        }
+
+        return std::vector<float>(heights.begin(), heights.end());
+    }
+
+    // Collect all colliders (Entity.java line 1147)
+    std::vector<std::shared_ptr<VoxelShape>> collectAllColliders(
+        const AABB& box,
+        const std::vector<std::shared_ptr<VoxelShape>>& entityCollisions) const {
+
+        std::vector<std::shared_ptr<VoxelShape>> result;
+        result.reserve(entityCollisions.size() + 16); // Reserve for entity + block collisions
+
+        // Add entity collisions
+        result.insert(result.end(), entityCollisions.begin(), entityCollisions.end());
+
+        // Add block collisions (Entity.java line 1159)
+        auto blockCollisions = getBlockCollisions(box);
+        result.insert(result.end(), blockCollisions.begin(), blockCollisions.end());
+
+        return result;
+    }
+
+    // Collide with shapes (Entity.java line 1163: collideWithShapes)
+    glm::dvec3 collideWithShapes(const glm::dvec3& movement, const AABB& box,
+                                 const std::vector<std::shared_ptr<VoxelShape>>& shapes) const {
+        if (shapes.empty()) {
+            return movement;
+        }
+
+        // Process axes in order of movement magnitude (Entity.java line 1168)
+        std::array<int, 3> axisOrder = getAxisOrder(movement);
+
+        glm::dvec3 result(0.0);
+        AABB currentBox = box;
+
+        for (int axis : axisOrder) {
+            double movementOnAxis = getAxisComponent(movement, axis);
+            if (movementOnAxis == 0.0) continue;
+
+            // Collide on this axis (Entity.java line 1174)
+            Direction::Axis dirAxis = static_cast<Direction::Axis>(axis);
+            double offset = VoxelShapes::collide(dirAxis, currentBox, shapes, movementOnAxis);
+
+            setAxisComponent(result, axis, offset);
+            currentBox = currentBox.offset(getAxisVector(axis, offset));
+        }
+
+        return result;
     }
 
     // Collect possible step heights from collision shapes

@@ -2,6 +2,7 @@
 #include "world/BlockShape.hpp"
 #include <algorithm>
 #include <cmath>
+#include <spdlog/spdlog.h>
 
 namespace FarHorizon {
 
@@ -64,43 +65,22 @@ std::shared_ptr<VoxelShape> VoxelShapes::fromBlockShape(const BlockShape& blockS
                      worldX + 1.0, worldY + 1.0, worldZ + 1.0);
     }
 
-    // Partial shape: preserve the voxel grid from BlockShape
-    // BlockShape stores voxels in 0-1 block space, we need to offset to world space
-    const std::shared_ptr<VoxelSet>& blockVoxels = blockShape.getVoxels();
-    if (!blockVoxels) {
-        return empty();
-    }
+    // Partial shape: use bounding box approach
+    // Get min/max bounds in block space (0-1) from BlockShape
+    glm::vec3 minLocal = blockShape.getMin();
+    glm::vec3 maxLocal = blockShape.getMax();
 
-    // Get voxel grid dimensions
-    int sizeX = blockVoxels->getXSize();
-    int sizeY = blockVoxels->getYSize();
-    int sizeZ = blockVoxels->getZSize();
+    // Convert to world coordinates
+    double minX = worldX + minLocal.x;
+    double minY = worldY + minLocal.y;
+    double minZ = worldZ + minLocal.z;
+    double maxX = worldX + maxLocal.x;
+    double maxY = worldY + maxLocal.y;
+    double maxZ = worldZ + maxLocal.z;
 
-    // Create point arrays by offsetting block-space coordinates to world-space
-    // BlockShape voxels are in 0-1 space, we scale them to world position
-    std::vector<double> xPoints, yPoints, zPoints;
-    xPoints.reserve(sizeX + 1);
-    yPoints.reserve(sizeY + 1);
-    zPoints.reserve(sizeZ + 1);
-
-    // Generate world-space point positions
-    // Points represent the boundaries of voxels in world coordinates
-    for (int i = 0; i <= sizeX; i++) {
-        double localX = static_cast<double>(i) / sizeX;  // 0-1 space
-        xPoints.push_back(worldX + localX);              // World space
-    }
-    for (int i = 0; i <= sizeY; i++) {
-        double localY = static_cast<double>(i) / sizeY;
-        yPoints.push_back(worldY + localY);
-    }
-    for (int i = 0; i <= sizeZ; i++) {
-        double localZ = static_cast<double>(i) / sizeZ;
-        zPoints.push_back(worldZ + localZ);
-    }
-
-    // Create ArrayVoxelShape that uses the SAME voxel grid from BlockShape
-    // This preserves the detailed voxel-level collision data
-    return std::make_shared<ArrayVoxelShape>(blockVoxels, xPoints, yPoints, zPoints);
+    // Use cuboid to create a properly-sized VoxelShape
+    // This creates a fresh voxel grid that spans exactly the bounds we need
+    return cuboid(minX, minY, minZ, maxX, maxY, maxZ);
 }
 
 // Create a shape with specified bounds (VoxelShapes.java line 113)
@@ -171,32 +151,53 @@ std::vector<double> VoxelShapes::makeIndexList(double min, double max, int size)
     return points;
 }
 
-// Calculate maximum distance for collision (VoxelShapes.java line 270)
-double VoxelShapes::calculateMaxOffset(Direction::Axis axis, const AABB& box,
-                                       const std::vector<std::shared_ptr<VoxelShape>>& shapes,
-                                       double maxDist) {
+// Collision method (Shapes.java line 184: collide)
+double VoxelShapes::collide(Direction::Axis axis, const AABB& moving,
+                           const std::vector<std::shared_ptr<VoxelShape>>& shapes,
+                           double distance) {
     // Early exit for no shapes
     if (shapes.empty()) {
-        return maxDist;
+        return distance;
     }
 
     // Early exit for zero movement
-    if (std::abs(maxDist) < 1.0E-7) {
+    if (std::abs(distance) < 1.0E-7) {
         return 0.0;
     }
 
-    double result = maxDist;
+    double result = distance;
+
+    // Debug logging - only when there are shapes and we're moving on Y axis
+    bool shouldDebug = !shapes.empty() && axis == Direction::Axis::Y;
+    if (shouldDebug) {
+        spdlog::info("Shapes.collide: axis=Y moving=({:.3f},{:.3f},{:.3f})-({:.3f},{:.3f},{:.3f}) distance={:.6f} shapes={}",
+            moving.minX, moving.minY, moving.minZ, moving.maxX, moving.maxY, moving.maxZ, distance, shapes.size());
+    }
 
     // Iterate through all shapes and find the minimum collision distance
+    int shapeIndex = 0;
     for (const auto& shape : shapes) {
         if (shape && !shape->isEmpty()) {
-            result = shape->calculateMaxDistance(axis, box, result);
+            double oldResult = result;
+            result = shape->collide(axis, moving, result);
+
+            if (shouldDebug && shapeIndex < 3) {
+                spdlog::info("  Shape {}: oldResult={:.6f} newResult={:.6f}", shapeIndex, oldResult, result);
+            }
 
             // Early exit if we've hit a collision
             if (std::abs(result) < 1.0E-7) {
+                if (shouldDebug) {
+                    spdlog::info("  Early exit: collision detected!");
+                }
                 return 0.0;
             }
         }
+        shapeIndex++;
+    }
+
+    if (shouldDebug) {
+        spdlog::info("  Final result: {:.6f}", result);
     }
 
     return result;

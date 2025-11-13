@@ -39,11 +39,11 @@ public:
     static std::shared_ptr<VoxelShape> fromBlockShape(const BlockShape& blockShape,
                                                        int worldX, int worldY, int worldZ);
 
-    // Calculate maximum distance for collision (VoxelShapes.java line 202)
+    // Collision method (Shapes.java line 184: collide)
     // This iterates through a list of voxel shapes and finds the minimum collision distance
-    static double calculateMaxOffset(Direction::Axis axis, const AABB& box,
-                                     const std::vector<std::shared_ptr<VoxelShape>>& shapes,
-                                     double maxDist);
+    static double collide(Direction::Axis axis, const AABB& moving,
+                         const std::vector<std::shared_ptr<VoxelShape>>& shapes,
+                         double distance);
 
     // Check if any voxel matches the predicate (VoxelShapes.java line 156)
     // Simplified version for basic face culling - compares voxels directly

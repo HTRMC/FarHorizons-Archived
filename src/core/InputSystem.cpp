@@ -1,6 +1,6 @@
 #include "InputSystem.hpp"
 #include <algorithm>
-#include <print>
+#include <spdlog/spdlog.h>
 
 #include <magic_enum/magic_enum.hpp>
 
@@ -43,12 +43,12 @@ void InputSystem::init(GLFWwindow* window) {
         if (glfwJoystickPresent(jid) && glfwJoystickIsGamepad(jid)) {
             s_gamepads[jid].connected = true;
 #ifndef NDEBUG
-            std::println("[InputSystem] Gamepad {} connected: {}", jid, glfwGetGamepadName(jid));
+            spdlog::info("[InputSystem] Gamepad {} connected: {}", jid, glfwGetGamepadName(jid));
 #endif
         }
     }
 
-    std::println("[InputSystem] Initialized with event queue");
+    spdlog::info("[InputSystem] Initialized with event queue");
 }
 
 void InputSystem::shutdown() {
@@ -84,7 +84,7 @@ void InputSystem::processEvents() {
                     s_eventQueue.push(event);
 #ifndef NDEBUG
                     auto enumName = magic_enum::enum_name(static_cast<GamepadButton>(i));
-                    std::println("[InputSystem] Gamepad {} button {}: {}", jid, enumName,
+                    spdlog::info("[InputSystem] Gamepad {} button {}: {}", jid, enumName,
                         current ? "pressed" : "released");
 #endif
                 }
@@ -101,7 +101,7 @@ void InputSystem::processEvents() {
                     s_eventQueue.push(event);
 #ifndef NDEBUG
                     auto enumName = magic_enum::enum_name(static_cast<GamepadAxis>(i));
-                    std::println("[InputSystem] Gamepad {} axis {}: {:.3f} (was {:.3f})",
+                    spdlog::info("[InputSystem] Gamepad {} axis {}: {:.3f} (was {:.3f})",
                         jid, enumName, current, previous);
 #endif
                 }
@@ -278,7 +278,7 @@ void InputSystem::keyCallback(GLFWwindow* window, int key, int scancode, int act
 #ifndef NDEBUG
     if (action != GLFW_REPEAT) {
         auto enumName = magic_enum::enum_name(static_cast<KeyCode>(key));
-        std::println("[InputSystem] Key {}: {} (code: {})",
+        spdlog::info("[InputSystem] Key {}: {} (code: {})",
             action == GLFW_PRESS ? "pressed" : "released", enumName, key);
     }
 #endif
@@ -323,7 +323,7 @@ void InputSystem::joystickCallback(int jid, int event) {
         s_eventQueue.push(eventData);
 
 #ifndef NDEBUG
-        std::println("[InputSystem] Gamepad {} connected: {}", jid, glfwGetGamepadName(jid));
+        spdlog::info("[InputSystem] Gamepad {} connected: {}", jid, glfwGetGamepadName(jid));
 #endif
     } else if (event == GLFW_DISCONNECTED) {
         s_gamepads[jid].connected = false;
@@ -331,7 +331,7 @@ void InputSystem::joystickCallback(int jid, int event) {
         s_eventQueue.push(eventData);
 
 #ifndef NDEBUG
-        std::println("[InputSystem] Gamepad {} disconnected", jid);
+        spdlog::info("[InputSystem] Gamepad {} disconnected", jid);
 #endif
     }
 }

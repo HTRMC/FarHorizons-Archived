@@ -21,6 +21,10 @@ public:
     static constexpr float VERTICAL_DRAG = 0.98f;
 
 protected:
+    // Entity dimensions (Minecraft's EntityDimensions)
+    float width;    // Bounding box width (X and Z)
+    float height;   // Bounding box height (Y)
+
     // Movement input (LivingEntity.java has these as fields)
     float forwardSpeed;    // Forward/backward movement input
     float sidewaysSpeed;   // Left/right movement input
@@ -33,8 +37,13 @@ protected:
     bool sneaking;
 
 public:
-    LivingEntity(const glm::dvec3& position = glm::dvec3(0, 100, 0))
-        : Entity(position)
+    // Constructor with dimensions (default to player size: 0.6 x 1.8)
+    LivingEntity(EntityType entityType = EntityType::LIVING_ENTITY,
+                 const glm::dvec3& position = glm::dvec3(0, 100, 0),
+                 float entityWidth = 0.6f, float entityHeight = 1.8f)
+        : Entity(entityType, position)
+        , width(entityWidth)
+        , height(entityHeight)
         , forwardSpeed(0.0f)
         , sidewaysSpeed(0.0f)
         , upwardSpeed(0.0f)
@@ -45,6 +54,21 @@ public:
     {}
 
     virtual ~LivingEntity() = default;
+
+    // Get entity's bounding box (Entity.java line 1018: makeBoundingBox)
+    // Minecraft: AABB.ofSize(this.position(), this.dimensions.width(), this.dimensions.height())
+    AABB getBoundingBox() const override {
+        double halfWidth = width / 2.0;
+        return AABB(
+            pos.x - halfWidth, pos.y, pos.z - halfWidth,
+            pos.x + halfWidth, pos.y + height, pos.z + halfWidth
+        );
+    }
+
+    // Get step height (Entity.java: maxUpStep())
+    float getStepHeight() const override {
+        return STEP_HEIGHT;
+    }
 
     // Getters
     bool isSprinting() const { return sprinting; }
@@ -69,52 +93,59 @@ public:
         tickMovement(collisionSystem);
     }
 
-    // Main movement tick (LivingEntity.java line 2754)
+    // aiStep() - Main movement tick (LivingEntity.java line 2913)
     // This is where all the movement logic happens
     virtual void tickMovement(CollisionSystem& collisionSystem) {
-        // Decrease jumping cooldown (LivingEntity.java line 2755-2757)
+        // Decrease jumping cooldown (aiStep line 2914-2916)
         if (jumpingCooldown > 0) {
-            jumpingCooldown--;
+            --jumpingCooldown;
         }
 
-        // Zero out very small velocities (LivingEntity.java line 2771-2794)
-        // IMPORTANT: Players use horizontalLengthSquared check (line 2775-2778)
-        glm::dvec3 vel = getVelocity();
+        // Get deltaMovement (aiStep line 2930)
+        glm::dvec3 var1 = getVelocity();
+        double var2 = var1.x;
+        double var4 = var1.y;
+        double var6 = var1.z;
 
-        // For players: zero horizontal if combined length squared < 9.0E-6
-        double horizontalLengthSq = vel.x * vel.x + vel.z * vel.z;
-        if (horizontalLengthSq < 9.0E-6) {  // 0.003 * 0.003 = 9.0E-6
-            vel.x = 0.0;
-            vel.z = 0.0;
+        // Zero out very small velocities (aiStep line 2934-2947)
+        // IMPORTANT: Players use horizontalDistanceSqr check
+        if (true) {  // EntityType.PLAYER check
+            double horizontalDistanceSqr = var1.x * var1.x + var1.z * var1.z;
+            if (horizontalDistanceSqr < 9.0E-6) {
+                var2 = 0.0;
+                var6 = 0.0;
+            }
         }
 
-        // Always zero Y if too small
-        if (std::abs(vel.y) < 0.003) {
-            vel.y = 0.0;
+        // Always zero Y if too small (aiStep line 2949-2951)
+        if (std::abs(var1.y) < 0.003) {
+            var4 = 0.0;
         }
 
-        setVelocity(vel);
+        // Set cleaned velocity (aiStep line 2953)
+        setVelocity(var2, var4, var6);
 
-        // Jump logic (LivingEntity.java line 2809-2834)
-        if (jumping && groundCollision && jumpingCooldown == 0) {
-            jump();
-            jumpingCooldown = 10;  // 10 ticks = 0.5 seconds
+        // Jump logic (aiStep line 2969-2991)
+        // Simplified - just ground jump for now
+        if (jumping) {
+            if (groundCollision && jumpingCooldown == 0) {
+                jumpFromGround();
+                jumpingCooldown = 10;
+            }
+        } else {
+            jumpingCooldown = 0;
         }
 
-        // Travel with movement input (LivingEntity.java line 2851)
-        glm::dvec3 movementInput(sidewaysSpeed, upwardSpeed, forwardSpeed);
-        travel(movementInput, collisionSystem);
+        // Travel with movement input (aiStep line 2994-3015)
+        glm::dvec3 var10(sidewaysSpeed, upwardSpeed, forwardSpeed);
+        travel(var10, collisionSystem);
 
-        // Debug logging: Print every 1 ticks (20 times per second at 20 TPS)
-        static int debugTick = 0;
-        if (++debugTick >= 1) {
-            debugTick = 0;
-            glm::dvec3 finalVel = getVelocity();
-            spdlog::info("pos({:.3f}, {:.3f}, {:.3f}) vel({:.3f}, {:.3f}, {:.3f}) onGround={}",
-                pos.x, pos.y, pos.z,
-                finalVel.x, finalVel.y, finalVel.z,
-                groundCollision);
-        }
+        // Debug logging: Print every 1 tick with detailed info
+        glm::dvec3 finalVel = getVelocity();
+        spdlog::info("pos({:.3f}, {:.3f}, {:.3f}) vel({:.6f}, {:.6f}, {:.6f}) onGround={} vCol={} hCol={}",
+            pos.x, pos.y, pos.z,
+            finalVel.x, finalVel.y, finalVel.z,
+            groundCollision, verticalCollision, horizontalCollision);
     }
 
     // Main travel method (LivingEntity.java line 2278)
@@ -174,7 +205,7 @@ protected:
         updateVelocity(movementSpeed, movementInput);
 
         // Move with collision (LivingEntity.java line 2482)
-        move(MovementType::SELF, getVelocity(), collisionSystem, STEP_HEIGHT);
+        move(MovementType::SELF, getVelocity(), collisionSystem);
 
         return getVelocity();
     }
@@ -208,8 +239,8 @@ protected:
         setVelocity(velocity + rotatedVelocity);
     }
 
-    // Jump (LivingEntity.java has this as protected)
-    virtual void jump() {
+    // Jump from ground (LivingEntity.java line 2273: jumpFromGround)
+    virtual void jumpFromGround() {
         if (groundCollision && !noClip) {
             velocity.y = JUMP_VELOCITY;
             groundCollision = false;

@@ -2,8 +2,11 @@
 
 #include "AABB.hpp"
 #include "CollisionSystem.hpp"
+#include "EntityType.hpp"
+#include "EntityDimensions.hpp"
 #include "util/MathHelper.hpp"
 #include <glm/glm.hpp>
+#include <optional>
 
 namespace FarHorizon {
 
@@ -24,6 +27,14 @@ public:
     static constexpr float GRAVITY = 0.08f;  // Blocks per tick^2
     static constexpr float TERMINAL_VELOCITY = 3.92f;  // Max fall speed
 
+public:
+    // Collision flags (Entity.java line 219-221 - public fields)
+    bool horizontalCollision;           // Any horizontal collision (X or Z)
+    bool verticalCollision;             // Any vertical collision (Y)
+    bool verticalCollisionBelow;        // Vertical collision while moving down (Entity.java:779)
+    bool minorHorizontalCollision;      // Small horizontal collision (Entity.java:784)
+    bool groundCollision;               // Minecraft's onGround
+
 protected:
     glm::dvec3 pos;                // Current position (Entity.java uses x, y, z)
     glm::dvec3 lastRenderPos;      // Position from previous tick (for interpolation)
@@ -35,17 +46,35 @@ protected:
     float lastYaw;                 // Previous yaw for interpolation
     float lastPitch;               // Previous pitch for interpolation
 
-    // Collision flags (Entity.java line 722-726)
-    bool horizontalCollision;
-    bool verticalCollision;
-    bool groundCollision;         // Minecraft's name for onGround
     bool collidedSoftly;
-
     bool noClip;                  // Ghost mode (fly through blocks)
 
+private:
+    // Entity type (Entity.java line 198 - private final EntityType<?> type)
+    const EntityType type_;
+
+    // Entity ID (Entity.java line 200)
+    int id_;
+
+    // Precise position flag (Entity.java line 199)
+    bool requiresPrecisePosition_;
+
+    // Entity dimensions (Entity.java line 196 - private EntityDimensions dimensions)
+    EntityDimensions dimensions_;
+
+    // Last known position (Entity.java: private BlockPos lastKnownPosition)
+    // Used for tracking position changes and optimizations
+    std::optional<glm::dvec3> lastKnownPosition_;
+
 public:
-    Entity(const glm::dvec3& position = glm::dvec3(0, 100, 0))
-        : pos(position)
+    // Constructor matching Minecraft's Entity(EntityType<?> type, Level level)
+    Entity(EntityType entityType, EntityDimensions dimensions, const glm::dvec3& position = glm::dvec3(0, 100, 0))
+        : type_(entityType)
+        , id_(-1)  // Will be set when added to world
+        , requiresPrecisePosition_(false)
+        , dimensions_(dimensions)
+        , lastKnownPosition_(std::nullopt)
+        , pos(position)
         , lastRenderPos(position)
         , velocity(0, 0, 0)
         , yaw(0.0f)
@@ -55,6 +84,8 @@ public:
         , horizontalCollision(false)
         , verticalCollision(false)
         , groundCollision(false)
+        , verticalCollisionBelow(false)
+        , minorHorizontalCollision(false)
         , collidedSoftly(false)
         , noClip(false)
     {}
@@ -69,8 +100,22 @@ public:
     const glm::dvec3& getVelocity() const { return velocity; }
     float getYaw() const { return yaw; }
     float getPitch() const { return pitch; }
-    bool isOnGround() const { return groundCollision; }
+    float getYRot() const;  // Entity.java: public float getYRot()
+    float getXRot() const;  // Entity.java: public float getXRot()
     bool isNoClip() const { return noClip; }
+    bool isOnGround() const { return groundCollision; }  // Convenience getter
+
+    // Get entity type (Entity.java: public EntityType<?> getType())
+    EntityType getType() const { return type_; }
+
+    // Get entity ID (Entity.java: public int getId())
+    int getId() const { return id_; }
+
+    // Get precise position requirement (Entity.java: public boolean getRequiresPrecisePosition())
+    bool getRequiresPrecisePosition() const { return requiresPrecisePosition_; }
+
+    // Get entity dimensions (Entity.java: public EntityDimensions getDimensions())
+    const EntityDimensions& getDimensions() const { return dimensions_; }
 
     // Get interpolated position for smooth rendering (Minecraft's pattern)
     // partialTick: value from 0.0 to 1.0 representing progress between ticks
@@ -80,115 +125,85 @@ public:
     }
 
     // Setters
-    void setPos(double x, double y, double z) { pos = glm::dvec3(x, y, z); }
-    void setPos(const glm::dvec3& position) { pos = position; }
+    void setPos(const glm::dvec3& position);  // Entity.java: public final void setPos(Vec3 pos)
+    void setPos(double x, double y, double z);  // Entity.java: public void setPos(double x, double y, double z)
+
     void setVelocity(const glm::dvec3& vel) { velocity = vel; }
     void setVelocity(double x, double y, double z) { velocity = glm::dvec3(x, y, z); }
+
     void setYaw(float yawDegrees) { yaw = yawDegrees; }
     void setPitch(float pitchDegrees) { pitch = pitchDegrees; }
-    void setRotation(float yawDegrees, float pitchDegrees) {
-        yaw = yawDegrees;
-        pitch = pitchDegrees;
-    }
+
+    // Turn entity based on mouse input (Entity.java: public void turn(double xo, double yo))
+    void turn(double xo, double yo);
+
     void setNoClip(bool noclip) { noClip = noclip; }
+
+    // Set entity ID (Entity.java: public void setId(int id))
+    void setId(int id) { id_ = id; }
+
+    // Set precise position requirement (Entity.java: public void setRequiresPrecisePosition(boolean))
+    void setRequiresPrecisePosition(bool requiresPrecisePosition) {
+        requiresPrecisePosition_ = requiresPrecisePosition;
+    }
 
     // Get entity's bounding box (abstract - subclasses define dimensions)
     virtual AABB getBoundingBox() const = 0;
 
+    // Get maximum step height (Entity.java: maxUpStep())
+    // Returns how high this entity can step up
+    virtual float getStepHeight() const = 0;
+
     // Main tick method - called once per game tick (Entity.java line 477)
-    // Minecraft: tick() calls baseTick()
-    virtual void tick(CollisionSystem& collisionSystem) {
-        baseTick();
-    }
+    virtual void tick();
 
     // Base tick - handles basic entity updates (Entity.java line 481)
-    virtual void baseTick() {
-        // In full implementation: fire ticks, portal logic, water state, etc.
-        // For now, minimal implementation
-    }
+    virtual void baseTick();
 
     // Core movement with collision detection (Entity.java line 672)
     // Minecraft: move(MovementType type, Vec3d movement)
-    void move(MovementType type, const glm::dvec3& movement, CollisionSystem& collisionSystem, float stepHeight) {
-        if (noClip) {
-            // Creative flying mode - no collision (Entity.java line 673-678)
-            setPos(pos + movement);
-            horizontalCollision = false;
-            verticalCollision = false;
-            groundCollision = false;
-            collidedSoftly = false;
-            return;
-        }
-
-        // adjustMovementForCollisions (Entity.java line 699)
-        AABB currentBox = getBoundingBox();
-        glm::dvec3 actualMovement = collisionSystem.adjustMovementForCollisionsWithStepping(
-            currentBox, movement, stepHeight
-        );
-
-        // Update position (Entity.java line 715)
-        setPos(pos + actualMovement);
-
-        // Collision detection (Entity.java line 720-726)
-        // Minecraft uses approximatelyEquals for X/Z, exact comparison for Y
-        bool xBlocked = !MathHelper::approximatelyEquals(movement.x, actualMovement.x);
-        bool zBlocked = !MathHelper::approximatelyEquals(movement.z, actualMovement.z);
-        horizontalCollision = xBlocked || zBlocked;
-        verticalCollision = movement.y != actualMovement.y;  // EXACT comparison for Y!
-        groundCollision = verticalCollision && movement.y < 0.0;
-
-        // Reset velocity on collision (Entity.java line 745-746)
-        if (horizontalCollision) {
-            glm::dvec3 vel = getVelocity();
-            setVelocity(xBlocked ? 0.0 : vel.x, vel.y, zBlocked ? 0.0 : vel.z);
-        }
-    }
+    void move(MovementType type, const glm::dvec3& movement, CollisionSystem& collisionSystem);
 
     // Teleport entity to a position
-    void teleport(const glm::dvec3& position) {
-        pos = position;
-        lastRenderPos = position;
-        velocity = glm::dvec3(0.0);
-        groundCollision = false;
-    }
+    void teleport(const glm::dvec3& position);
+
+    // Kill the entity (Entity.java: public void kill(ServerLevel level))
+    // Placeholder - removes entity and triggers death event
+    void kill();
+
+    // Check if entity is colliding with a specific block (Entity.java line 339)
+    // Minecraft signature: isColliding(BlockPos pos, BlockState state)
+    // This checks if the entity's bounding box intersects with the block's collision shape
+    bool isColliding(const glm::ivec3& blockPos, const BlockState& blockState, CollisionSystem& collisionSystem) const;
 
 protected:
     // Save position for interpolation (called at start of tick)
-    void updateLastRenderPos() {
-        lastRenderPos = pos;
-    }
+    void updateLastRenderPos();
+
+    // Create bounding box from current position and dimensions (Entity.java: protected AABB makeBoundingBox())
+    AABB makeBoundingBox() const;
+
+    // Reapply position to update bounding box (Entity.java: protected void reapplyPosition())
+    void reapplyPosition();
+
+    // Set rotation with wrapping (Entity.java: protected void setRot(float yRot, float xRot))
+    // Wraps angles to 0-360 range
+    void setRot(float yRot, float xRot);
+
+    // Set yaw rotation (Entity.java: public void setYRot(float yRot))
+    void setYRot(float yRot);
+
+    // Set pitch rotation (Entity.java: public void setXRot(float xRot))
+    // Clamps pitch to -90 to 90 degrees
+    void setXRot(float xRot);
 
     // Transform movement input to velocity based on entity rotation (Entity.java line 1605)
-    // movementInput: local movement (sideways, up, forward)
-    // speed: movement speed multiplier
-    // yawDegrees: entity's yaw rotation in degrees
-    static glm::dvec3 movementInputToVelocity(const glm::dvec3& movementInput, float speed, float yawDegrees) {
-        double lengthSquared = glm::dot(movementInput, movementInput);
+    static glm::dvec3 movementInputToVelocity(const glm::dvec3& movementInput, float speed, float yawDegrees);
 
-        // Early exit for zero movement (Entity.java line 1607)
-        if (lengthSquared < 1.0E-7) {
-            return glm::dvec3(0.0);
-        }
-
-        // Normalize if length > 1.0 (Entity.java line 1610)
-        glm::dvec3 normalized = (lengthSquared > 1.0) ? glm::normalize(movementInput) : movementInput;
-        glm::dvec3 scaled = normalized * static_cast<double>(speed);
-
-        // Rotate by yaw angle (Entity.java line 1611-1613)
-        // Convert yaw from degrees to radians
-        float yawRadians = yawDegrees * (glm::pi<float>() / 180.0f);
-        float sinYaw = std::sin(yawRadians);
-        float cosYaw = std::cos(yawRadians);
-
-        // Apply rotation matrix (Entity.java line 1613)
-        // new Vec3d(vec3d.x * g - vec3d.z * f, vec3d.y, vec3d.z * g + vec3d.x * f)
-        // where f = sin(yaw), g = cos(yaw)
-        return glm::dvec3(
-            scaled.x * cosYaw - scaled.z * sinYaw,  // Rotated X
-            scaled.y,                                 // Y unchanged
-            scaled.z * cosYaw + scaled.x * sinYaw   // Rotated Z
-        );
-    }
+private:
+    // Private collision method (Entity.java line 1076)
+    // This is the core collision logic that handles both basic collision and stepping
+    glm::dvec3 collide(const glm::dvec3& movement, CollisionSystem& collisionSystem);
 };
 
 } // namespace FarHorizon
