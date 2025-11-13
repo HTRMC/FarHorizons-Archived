@@ -84,6 +84,31 @@ public:
         return collisions;
     }
 
+    // Check if entity has no collision at position (Minecraft: boolean noCollision(Entity entity, AABB box))
+    bool noCollision(const Entity* entity, const AABB& box) const {
+        // Get all block collisions in the box
+        auto blockCollisions = const_cast<Level*>(this)->getBlockCollisions(entity, box);
+        if (!blockCollisions.empty()) {
+            return false;  // Has block collisions
+        }
+
+        // Get all entity collisions in the box
+        auto entityCollisions = const_cast<Level*>(this)->getEntityCollisions(entity, box);
+        if (!entityCollisions.empty()) {
+            return false;  // Has entity collisions
+        }
+
+        // TODO: Check world border collision when WorldBorder is implemented
+
+        return true;  // No collisions
+    }
+
+    // Check if box contains any liquid (Minecraft: boolean containsAnyLiquid(AABB box))
+    bool containsAnyLiquid(const AABB& box) const {
+        // TODO: Implement when fluid system is added
+        return false;  // No liquids yet
+    }
+
     // CollisionGetter interface: Get block state at a position
     BlockState getBlockState(const glm::ivec3& pos) const override {
         ChunkPosition chunkPos = chunkManager_->worldToChunkPos(glm::vec3(pos.x, pos.y, pos.z));

@@ -84,6 +84,9 @@ private:
     // The block position that is currently supporting this entity
     std::optional<glm::ivec3> mainSupportingBlockPos_;
 
+    // Level reference (Entity.java: private Level level)
+    Level* level_;
+
 public:
     // Constructor matching Minecraft's Entity(EntityType<?> type, Level level)
     Entity(EntityType entityType, EntityDimensions dimensions, const glm::dvec3& position = glm::dvec3(0, 100, 0))
@@ -95,6 +98,7 @@ public:
         , lastKnownPosition_(std::nullopt)
         , lastKnownSpeed_(0.0, 0.0, 0.0)
         , mainSupportingBlockPos_(std::nullopt)
+        , level_(nullptr)  // Will be set after construction
         , position_(position)
         , lastRenderPos_(position)
         , velocity_(0, 0, 0)
@@ -173,6 +177,16 @@ public:
 
     // Set entity ID (Entity.java: public void setId(int id))
     void setId(int id) { id_ = id; }
+
+    // Get level (Entity.java: public Level level())
+    Level* level() const { 
+        return level_; 
+    }
+    
+    // Set level (Entity.java: Entity constructor sets level in initializer)
+    void setLevel(Level* level) { 
+        level_ = level; 
+    }
 
     // Set precise position requirement (Entity.java: public void setRequiresPrecisePosition(boolean))
     void setRequiresPrecisePosition(bool requiresPrecisePosition) {

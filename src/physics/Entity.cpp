@@ -8,20 +8,6 @@
 
 namespace FarHorizon {
 
-void Entity::updateLastRenderPos() {
-    lastRenderPos_ = position_;
-}
-    
-// Get yaw rotation (Entity.java: public float getYRot())
-float Entity::getYRot() const {
-    return yaw_;
-}
-
-// Get pitch rotation (Entity.java: public float getXRot())
-float Entity::getXRot() const {
-    return pitch_;
-}
-
 // Kill the entity (Entity.java: public void kill(ServerLevel level))
 void Entity::kill() {
     // Placeholder implementation
@@ -148,10 +134,8 @@ bool Entity::isFree(double xa, double ya, double za) const {
 
 // Check if bounding box is free (Entity.java: private boolean isFree(AABB box))
 bool Entity::isFree(const AABB& box) const {
-    // In Minecraft: return this.level().noCollision(this, box) && !this.level().containsAnyLiquid(box);
-    // We don't have Level, liquids, or noCollision yet
-    // For now, return true as placeholder
-    return true;  // TODO: Implement when Level system is added
+    // Entity.java: return this.level().noCollision(this, box) && !this.level().containsAnyLiquid(box);
+    return level_->noCollision(this, box) && !level_->containsAnyLiquid(box);
 }
 
 // Set on ground state (Entity.java: public void setOnGround(boolean onGround))
@@ -180,30 +164,41 @@ bool Entity::isSupportedBy(const glm::ivec3& pos) const {
 // Check and update supporting block (Entity.java: protected void checkSupportingBlock(boolean onGround, Vec3 movement))
 void Entity::checkSupportingBlock(bool onGround, const glm::dvec3* movement) {
     if (onGround) {
-        // Get bounding box slightly below entity (Entity.java: AABB var4 = new AABB(var3.minX, var3.minY - 1.0E-6, ...))
-        AABB entityBox = getBoundingBox();
-        AABB checkBox(
-            entityBox.minX, entityBox.minY - 1.0E-6, entityBox.minZ,
-            entityBox.maxX, entityBox.minY, entityBox.maxZ
+        // Get bounding box slightly below entity (Entity.java line 816: AABB var3 = this.getBoundingBox())
+        AABB var3 = getBoundingBox();
+        // Entity.java line 817: AABB var4 = new AABB(var3.minX, var3.minY - 1.0E-6, var3.minZ, var3.maxX, var3.minY, var3.maxZ)
+        AABB var4(
+            var3.minX, var3.minY - 1.0E-6, var3.minZ,
+            var3.maxX, var3.minY, var3.maxZ
         );
 
-        // In Minecraft: Optional var5 = this.level.findSupportingBlock(this, var4);
-        // We don't have Level.findSupportingBlock() yet
-        // Full implementation would:
-        // 1. Find the supporting block using level.findSupportingBlock(this, checkBox)
-        // 2. If not found and !onGroundNoBlocks and movement != null:
-        //    - Try again with checkBox moved by -movement
-        // 3. Set mainSupportingBlockPos to the result
-        // 4. Set onGroundNoBlocks = result.isEmpty()
+        // Entity.java line 818: Optional var5 = this.level.findSupportingBlock(this, var4);
+        std::optional<glm::ivec3> var5 = level_->findSupportingBlock(this, var4);
 
-        // Placeholder implementation
-        mainSupportingBlockPos_ = std::nullopt;  // Would be set by findSupportingBlock
-        onGroundNoBlocks_ = true;  // Would be set based on findSupportingBlock result
+        // Entity.java line 819: if (!var5.isPresent() && !this.onGroundNoBlocks)
+        if (!var5.has_value() && !onGroundNoBlocks_) {
+            // Entity.java line 820: if (movement != null)
+            if (movement != nullptr) {
+                // Entity.java line 821: AABB var6 = var4.move(-movement.x, 0.0, -movement.z);
+                AABB var6 = var4.move(-movement->x, 0.0, -movement->z);
+                // Entity.java line 822: var5 = this.level.findSupportingBlock(this, var6);
+                var5 = level_->findSupportingBlock(this, var6);
+                // Entity.java line 823: this.mainSupportingBlockPos = var5;
+                mainSupportingBlockPos_ = var5;
+            }
+        } else {
+            // Entity.java line 825: this.mainSupportingBlockPos = var5;
+            mainSupportingBlockPos_ = var5;
+        }
 
-        // TODO: Implement when Level.findSupportingBlock() is available
+        // Entity.java line 828: this.onGroundNoBlocks = var5.isEmpty();
+        onGroundNoBlocks_ = !var5.has_value();
     } else {
+        // Entity.java line 830: this.onGroundNoBlocks = false;
         onGroundNoBlocks_ = false;
+        // Entity.java line 831: if (this.mainSupportingBlockPos.isPresent())
         if (mainSupportingBlockPos_.has_value()) {
+            // Entity.java line 832: this.mainSupportingBlockPos = Optional.empty();
             mainSupportingBlockPos_ = std::nullopt;
         }
     }
@@ -225,6 +220,20 @@ void Entity::setXRot(float xRot) {
     } else {
         this->pitch_ = std::clamp(std::fmod(xRot, 360.0f), -90.0f, 90.0f);
     }
+}
+
+void Entity::updateLastRenderPos() {
+    lastRenderPos_ = position_;
+}
+
+// Get yaw rotation (Entity.java: public float getYRot())
+float Entity::getYRot() const {
+    return yaw_;
+}
+
+// Get pitch rotation (Entity.java: public float getXRot())
+float Entity::getXRot() const {
+    return pitch_;
 }
 
 void Entity::teleport(const glm::dvec3& position) {
