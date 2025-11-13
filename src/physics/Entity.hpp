@@ -1,14 +1,19 @@
 #pragma once
 
 #include "AABB.hpp"
-#include "CollisionSystem.hpp"
 #include "EntityType.hpp"
 #include "EntityDimensions.hpp"
 #include "util/MathHelper.hpp"
 #include <glm/glm.hpp>
 #include <optional>
+#include <vector>
+#include <memory>
 
 namespace FarHorizon {
+
+// Forward declarations
+class VoxelShape;
+class Level;
 
 // MovementType enum (from Minecraft Entity.java)
 enum class MovementType {
@@ -230,10 +235,33 @@ protected:
     // Transform movement input to velocity based on entity rotation (Entity.java line 1605)
     static glm::dvec3 movementInputToVelocity(const glm::dvec3& movementInput, float speed, float yawDegrees);
 
+    // Static collision methods (Entity.java lines 1137-1180)
+
+    // Collide bounding box with world (Entity.java line 1137: public static Vec3 collideBoundingBox)
+    static glm::dvec3 collideBoundingBox(const Entity* source, const glm::dvec3& movement, const AABB& boundingBox,
+                                         Level* level, const std::vector<std::shared_ptr<VoxelShape>>& entityColliders);
+
+    // Collect all colliders in bounding box (Entity.java line 1142: public static List<VoxelShape> collectAllColliders)
+    static std::vector<std::shared_ptr<VoxelShape>> collectAllColliders(const Entity* source, Level* level, const AABB& boundingBox);
+
+    // Collect colliders (Entity.java line 1147: private static List<VoxelShape> collectColliders)
+    static std::vector<std::shared_ptr<VoxelShape>> collectColliders(const Entity* source, Level* level,
+                                                                      const std::vector<std::shared_ptr<VoxelShape>>& entityColliders,
+                                                                      const AABB& boundingBox);
+
+    // Collect candidate step up heights (Entity.java line 1110: private static float[] collectCandidateStepUpHeights)
+    static std::vector<float> collectCandidateStepUpHeights(const AABB& boundingBox,
+                                                             const std::vector<std::shared_ptr<VoxelShape>>& colliders,
+                                                             float maxStepHeight, float stepHeightToSkip);
+
+    // Collide with shapes (Entity.java line 1163: private static Vec3 collideWithShapes)
+    static glm::dvec3 collideWithShapes(const glm::dvec3& movement, const AABB& boundingBox,
+                                        const std::vector<std::shared_ptr<VoxelShape>>& shapes);
+
 private:
     // Private collision method (Entity.java line 1076)
     // This is the core collision logic that handles both basic collision and stepping
-    glm::dvec3 collide(const glm::dvec3& movement, CollisionSystem& collisionSystem);
+    glm::dvec3 collide(const glm::dvec3& movement, Level* level);
 
     // Check if bounding box is free (Entity.java: private boolean isFree(AABB box))
     bool isFree(const AABB& box) const;

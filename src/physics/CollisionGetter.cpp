@@ -1,9 +1,26 @@
 #include "CollisionGetter.hpp"
+#include "BlockCollisions.hpp"
 #include "Entity.hpp"
 #include <cmath>
 #include <limits>
 
 namespace FarHorizon {
+
+// Helper: Calculate squared distance from block center to position (Minecraft: BlockPos.distToCenterSqr)
+static double distToCenterSqr(const glm::ivec3& blockPos, const glm::dvec3& position) {
+    double dx = static_cast<double>(blockPos.x) + 0.5 - position.x;
+    double dy = static_cast<double>(blockPos.y) + 0.5 - position.y;
+    double dz = static_cast<double>(blockPos.z) + 0.5 - position.z;
+    return dx * dx + dy * dy + dz * dz;
+}
+
+// Helper: Compare block positions (Minecraft: BlockPos.compareTo)
+// Returns negative if a < b, positive if a > b, zero if equal
+static int compareBlockPos(const glm::ivec3& a, const glm::ivec3& b) {
+    if (a.y != b.y) return a.y - b.y;
+    if (a.z != b.z) return a.z - b.z;
+    return a.x - b.x;
+}
 
 // Find the supporting block for an entity (Minecraft: default Optional<BlockPos> findSupportingBlock)
 std::optional<glm::ivec3> CollisionGetter::findSupportingBlock(const Entity* source, const AABB& box) const {
@@ -29,23 +46,31 @@ std::optional<glm::ivec3> CollisionGetter::findSupportingBlock(const Entity* sou
     double closestDistSq = std::numeric_limits<double>::max();
     bool foundBlock = false;
 
-    // Get block range to check from the AABB
-    int minX = static_cast<int>(std::floor(box.minX));
-    int minY = static_cast<int>(std::floor(box.minY));
-    int minZ = static_cast<int>(std::floor(box.minZ));
-    int maxX = static_cast<int>(std::floor(box.maxX));
-    int maxY = static_cast<int>(std::floor(box.maxY));
-    int maxZ = static_cast<int>(std::floor(box.maxZ));
+    // Create BlockCollisions iterator (Minecraft: new BlockCollisions(this, source, box, false, ...))
+    // Note: Cast away const since BlockCollisions needs non-const pointer
+    BlockCollisions blockCollisions(const_cast<CollisionGetter*>(this), source, box, false);
 
-    // TODO: Implement BlockCollisions iterator (Minecraft's approach)
-    // For now, return empty as placeholder
-    // Full implementation would:
-    // 1. Create BlockCollisions iterator: new BlockCollisions(this, source, box, false, (var0, var1) -> { return var0; })
-    // 2. Iterate through colliding blocks with var6.hasNext() and var6.next()
-    // 3. Calculate distance for each colliding block
-    // 4. Return the closest block position
+    // Iterate through all colliding blocks (Minecraft: while(true) { ... if (!var6.hasNext()) return ... })
+    while (blockCollisions.hasNext()) {
+        glm::ivec3 blockPos = blockCollisions.next();
 
-    return std::nullopt;  // Placeholder
+        // Calculate distance to entity center (Minecraft: var8 = var7.distToCenterSqr(source.position()))
+        double distSq = distToCenterSqr(blockPos, source->getPos());
+
+        // Keep if closer, or if same distance use compareTo logic
+        // (Minecraft: while(!(var8 < var4) && (var8 != var4 || var3 != null && var3.compareTo(var7) >= 0)))
+        // The logic is inverted - we want to update when: distSq < closestDistSq OR (distSq == closestDistSq AND compareTo < 0)
+        if (distSq < closestDistSq || (distSq == closestDistSq && foundBlock && compareBlockPos(blockPos, closestBlock) < 0)) {
+            closestBlock = blockPos;
+            closestDistSq = distSq;
+            foundBlock = true;
+        }
+    }
+
+    if (foundBlock) {
+        return closestBlock;
+    }
+    return std::nullopt;
 }
 
 } // namespace FarHorizon
