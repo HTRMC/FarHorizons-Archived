@@ -166,6 +166,12 @@ bool Entity::isSupportedBy(const glm::ivec3& pos) const {
 // Check and update supporting block (Entity.java: protected void checkSupportingBlock(boolean onGround, Vec3 movement))
 void Entity::checkSupportingBlock(bool onGround, const glm::dvec3* movement) {
     if (onGround) {
+        // Early exit if level is not set
+        if (!level_) {
+            onGroundNoBlocks_ = false;
+            return;
+        }
+
         // Get bounding box slightly below entity (Entity.java line 816: AABB var3 = this.getBoundingBox())
         AABB var3 = getBoundingBox();
         // Entity.java line 817: AABB var4 = new AABB(var3.minX, var3.minY - 1.0E-6, var3.minZ, var3.maxX, var3.minY, var3.maxZ)
@@ -335,14 +341,13 @@ void Entity::move(MovementType type, const glm::dvec3& movement, Level* level) {
     horizontalCollision_ = xBlocked || zBlocked;
 
     // Vertical collision (Entity.java line 777-781)
-    if (std::abs(movement.y) > 0.0) {
-        verticalCollision_ = (movement.y != actualMovement.y);
-        verticalCollisionBelow_ = verticalCollision_ && movement.y < 0.0;
+    // Minecraft: if (Math.abs(delta.y) > 0.0 || this.isLocalInstanceAuthoritative())
+    // We always update (equivalent to isLocalInstanceAuthoritative() being true)
+    verticalCollision_ = (movement.y != actualMovement.y);
+    verticalCollisionBelow_ = verticalCollision_ && movement.y < 0.0;
 
-        // setOnGroundWithMovement (simplified - Entity.java line 780)
-        this->onGround_ = verticalCollisionBelow_;
-    }
-    // If movement.y == 0, keep previous collision flags
+    // setOnGroundWithMovement (Entity.java line 780)
+    setOnGroundWithMovement(verticalCollisionBelow_, horizontalCollision_, actualMovement);
 
     // minorHorizontalCollision check (Entity.java line 783-787)
     if (horizontalCollision_) {
