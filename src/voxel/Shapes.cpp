@@ -1,4 +1,6 @@
 #include "Shapes.hpp"
+#include "ArrayVoxelShape.hpp"
+#include "BitSetVoxelSet.hpp"
 
 namespace FarHorizon {
 
@@ -27,16 +29,25 @@ std::shared_ptr<VoxelShape> Shapes::create(const AABB& aabb) {
 
 // Create VoxelShape from coordinates (Minecraft: public static VoxelShape create(...))
 std::shared_ptr<VoxelShape> Shapes::create(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
-    // TODO: Implement VoxelShape creation
-    // Minecraft logic (lines 52-73):
-    // 1. Check if dimensions are too small (< EPSILON), return empty()
-    // 2. Use findBits() to determine discretization level
-    // 3. If fits in BitSetDiscreteVoxelShape, create CubeVoxelShape
-    // 4. Otherwise create ArrayVoxelShape
-    // 5. If all coordinates are 0-1 and aligned, return block()
+    // TODO: Proper implementation
+    // Simplified implementation - create ArrayVoxelShape with 1x1x1 voxel
+    // This represents a simple cuboid from (minX, minY, minZ) to (maxX, maxY, maxZ)
 
-    // For now, return placeholder
-    return nullptr;
+    // Create a 1x1x1 voxel grid (single filled voxel)
+    auto voxelSet = std::make_shared<BitSetVoxelSet>(1, 1, 1);
+    voxelSet->set(0, 0, 0);  // Fill the single voxel
+
+    // Create point position arrays
+    // For a 1x1x1 voxel, we need 2 points per axis (start and end)
+    std::vector<double> xPoints = {minX, maxX};
+    std::vector<double> yPoints = {minY, maxY};
+    std::vector<double> zPoints = {minZ, maxZ};
+
+    spdlog::info("Shapes::create - created shape with points X[{},{}] Y[{},{}] Z[{},{}]",
+        xPoints[0], xPoints[1], yPoints[0], yPoints[1], zPoints[0], zPoints[1]);
+
+    // Create and return ArrayVoxelShape
+    return std::make_shared<ArrayVoxelShape>(voxelSet, xPoints, yPoints, zPoints);
 }
 
 // Check if boolean join results in non-empty shape (Minecraft: public static boolean joinIsNotEmpty(...))

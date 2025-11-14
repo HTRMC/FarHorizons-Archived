@@ -457,7 +457,7 @@ std::vector<std::shared_ptr<VoxelShape>> Entity::collectColliders(const Entity* 
 
     // Minecraft: var4.addAll(level.getBlockCollisions(source, boundingBox));
     auto blockCollisions = level->getBlockCollisions(source, boundingBox);
-    colliders.insert(colliders.end(), blockCollisions.begin(), blockCollisions.end());
+   colliders.insert(colliders.end(), blockCollisions.begin(), blockCollisions.end());
 
     // Minecraft: return var4.build();
     return colliders;

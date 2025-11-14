@@ -4,6 +4,7 @@
 #include "util/Direction.hpp"
 #include <algorithm>
 #include <cmath>
+#include <spdlog/spdlog.h>
 
 namespace FarHorizon {
 
@@ -21,6 +22,15 @@ struct StaticInitializer {
         auto voxels = std::make_shared<BitSetVoxelSet>(1, 1, 1);
         voxels->set(0, 0, 0);
         s_fullCubeShape = BlockShape(voxels);
+
+        spdlog::info("BlockShape static init: voxels size={}x{}x{} maxX={} maxY={} maxZ={} isFullCube={}",
+            s_fullCubeShape.getVoxels()->getXSize(),
+            s_fullCubeShape.getVoxels()->getYSize(),
+            s_fullCubeShape.getVoxels()->getZSize(),
+            s_fullCubeShape.getVoxels()->getMax(Direction::Axis::X),
+            s_fullCubeShape.getVoxels()->getMax(Direction::Axis::Y),
+            s_fullCubeShape.getVoxels()->getMax(Direction::Axis::Z),
+            s_fullCubeShape.isFullCube());
     }
 };
 static StaticInitializer s_init;

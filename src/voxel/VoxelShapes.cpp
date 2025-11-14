@@ -59,28 +59,23 @@ std::shared_ptr<VoxelShape> VoxelShapes::fromBlockShape(const BlockShape& blockS
         return empty();
     }
 
-    // Fast path: full cube - use cuboid with world position
+    // Fast path: full cube
     if (blockShape.isFullCube()) {
-        return cuboid(worldX, worldY, worldZ,
-                     worldX + 1.0, worldY + 1.0, worldZ + 1.0);
+        // Create full cube in block-local [0, 1] space, then move to world position
+        return fullCube()->move(worldX, worldY, worldZ);
     }
 
     // Partial shape: use bounding box approach
-    // Get min/max bounds in block space (0-1) from BlockShape
+    // Get min/max bounds in block-local [0, 1] space from BlockShape
     glm::vec3 minLocal = blockShape.getMin();
     glm::vec3 maxLocal = blockShape.getMax();
 
-    // Convert to world coordinates
-    double minX = worldX + minLocal.x;
-    double minY = worldY + minLocal.y;
-    double minZ = worldZ + minLocal.z;
-    double maxX = worldX + maxLocal.x;
-    double maxY = worldY + maxLocal.y;
-    double maxZ = worldZ + maxLocal.z;
+    // Create shape in block-local coordinates [0, 1]
+    auto localShape = cuboid(minLocal.x, minLocal.y, minLocal.z,
+                             maxLocal.x, maxLocal.y, maxLocal.z);
 
-    // Use cuboid to create a properly-sized VoxelShape
-    // This creates a fresh voxel grid that spans exactly the bounds we need
-    return cuboid(minX, minY, minZ, maxX, maxY, maxZ);
+    // Move to world position (Minecraft: shape.move(blockPos))
+    return localShape->move(worldX, worldY, worldZ);
 }
 
 // Create a shape with specified bounds (VoxelShapes.java line 113)
