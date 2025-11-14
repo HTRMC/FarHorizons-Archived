@@ -75,7 +75,8 @@ private:
     glm::vec3 up_ = glm::vec3(0.0f, 1.0f, 0.0f);
 
     // Euler angles (in degrees)
-    float yaw_ = -90.0f;   // Looking towards -Z
+    // Using Minecraft's coordinate system: Yaw 0° = +Z (south)
+    float yaw_ = 0.0f;
     float pitch_ = 0.0f;
 
     // Projection parameters

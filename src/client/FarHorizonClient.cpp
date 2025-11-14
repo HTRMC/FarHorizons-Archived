@@ -271,7 +271,7 @@ void FarHorizonClient::tick(float deltaTime) {
 
             // Set movement input and yaw for this tick
             player->setMovementInput(forwardSpeed, sidewaysSpeed);
-            player->setXRot(camera->getYaw()); // Entity's yaw is in degrees
+            player->setYRot(camera->getYaw()); // Camera now uses Minecraft's yaw system
 
             // Handle player physics and movement (at fixed 20 ticks/second)
             player->tick(level.get());

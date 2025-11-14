@@ -124,10 +124,12 @@ void Camera::updateProjectionMatrix() {
 
 void Camera::updateVectors() {
     // Calculate forward vector from yaw and pitch
+    // Using Minecraft's coordinate system:
+    // Yaw 0° = +Z (south), 90° = -X (west), 180° = -Z (north), 270° = +X (east)
     glm::vec3 forward;
-    forward.x = cos(glm::radians(yaw_)) * cos(glm::radians(pitch_));
+    forward.x = -sin(glm::radians(yaw_)) * cos(glm::radians(pitch_));
     forward.y = sin(glm::radians(pitch_));
-    forward.z = sin(glm::radians(yaw_)) * cos(glm::radians(pitch_));
+    forward.z = cos(glm::radians(yaw_)) * cos(glm::radians(pitch_));
     forward_ = glm::normalize(forward);
 
     // Calculate right and up vectors
