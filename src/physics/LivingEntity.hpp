@@ -128,6 +128,11 @@ public:
         // Travel with movement input (aiStep line 2994-3015)
         glm::dvec3 var10(sidewaysSpeed, upwardSpeed, forwardSpeed);
         travel(var10, level);
+
+        // Debug: Log velocity every tick
+        glm::dvec3 vel = getVelocity();
+        spdlog::info("Vel: ({:.4f}, {:.4f}, {:.4f}) | onGround: {} | hCol: {} | input: ({:.1f}, {:.1f})",
+            vel.x, vel.y, vel.z, onGround_, horizontalCollision_, forwardSpeed, sidewaysSpeed);
     }
 
     // Main travel method (LivingEntity.java line 2318)
@@ -162,12 +167,12 @@ protected:
         glm::dvec3 newVelocity = applyMovementInput(movementInput, slipperiness, level);
 
         // Apply gravity AFTER movement (LivingEntity.java line 2359-2371: effective gravity)
+        // IMPORTANT: Minecraft ALWAYS applies gravity (line 2370), not just when !onGround
+        // The collision system resets Y velocity when hitting ground
         double yVelocity = newVelocity.y;
-        if (!onGround_) {
-            yVelocity -= GRAVITY;
-            if (yVelocity < -TERMINAL_VELOCITY) {
-                yVelocity = -TERMINAL_VELOCITY;
-            }
+        yVelocity -= GRAVITY;
+        if (yVelocity < -TERMINAL_VELOCITY) {
+            yVelocity = -TERMINAL_VELOCITY;
         }
 
         // Apply drag (LivingEntity.java line 2326-2331)

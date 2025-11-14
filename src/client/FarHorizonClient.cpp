@@ -266,8 +266,8 @@ void FarHorizonClient::tick(float deltaTime) {
             float sidewaysSpeed = 0.0f;
             if (InputSystem::isKeyPressed(KeyCode::W)) forwardSpeed += 1.0f;
             if (InputSystem::isKeyPressed(KeyCode::S)) forwardSpeed -= 1.0f;
-            if (InputSystem::isKeyPressed(KeyCode::A)) sidewaysSpeed -= 1.0f;
-            if (InputSystem::isKeyPressed(KeyCode::D)) sidewaysSpeed += 1.0f;
+            if (InputSystem::isKeyPressed(KeyCode::A)) sidewaysSpeed += 1.0f;  // Left = positive strafe
+            if (InputSystem::isKeyPressed(KeyCode::D)) sidewaysSpeed -= 1.0f;  // Right = negative strafe
 
             // Set movement input and yaw for this tick
             player->setMovementInput(forwardSpeed, sidewaysSpeed);
