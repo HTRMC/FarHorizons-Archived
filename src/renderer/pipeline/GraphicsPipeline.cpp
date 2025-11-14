@@ -89,14 +89,14 @@ void GraphicsPipeline::init(VkDevice device, const GraphicsPipelineConfig& confi
                                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     colorBlendAttachment.blendEnable = config.blendEnable ? VK_TRUE : VK_FALSE;
 
-    // Set up proper alpha blending when enabled
+    // Set up blending when enabled (use custom factors from config)
     if (config.blendEnable) {
-        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-        colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-        colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+        colorBlendAttachment.srcColorBlendFactor = config.srcColorBlendFactor;
+        colorBlendAttachment.dstColorBlendFactor = config.dstColorBlendFactor;
+        colorBlendAttachment.colorBlendOp = config.colorBlendOp;
+        colorBlendAttachment.srcAlphaBlendFactor = config.srcAlphaBlendFactor;
+        colorBlendAttachment.dstAlphaBlendFactor = config.dstAlphaBlendFactor;
+        colorBlendAttachment.alphaBlendOp = config.alphaBlendOp;
     }
 
     VkPipelineColorBlendStateCreateInfo colorBlending{};

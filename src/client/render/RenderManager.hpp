@@ -144,6 +144,7 @@ private:
     std::unique_ptr<GraphicsPipeline> panelPipeline;
     std::unique_ptr<GraphicsPipeline> outlinePipeline;
     std::unique_ptr<GraphicsPipeline> blurPipeline;
+    std::unique_ptr<GraphicsPipeline> crosshairPipeline;
 
     // Shaders
     std::unique_ptr<Shader> vertShader, fragShader;
@@ -151,12 +152,14 @@ private:
     std::unique_ptr<Shader> panelVertShader, panelFragShader;
     std::unique_ptr<Shader> outlineVertShader, outlineFragShader;
     std::unique_ptr<Shader> blurVertShader, blurFragShader;
+    std::unique_ptr<Shader> crosshairVertShader, crosshairFragShader;
 
     // Buffers
     std::unique_ptr<Buffer> quadInfoBuffer;
     std::unique_ptr<Buffer> textVertexBuffer;
     std::unique_ptr<Buffer> panelVertexBuffer;
     std::unique_ptr<Buffer> outlineVertexBuffer;
+    std::unique_ptr<Buffer> crosshairVertexBuffer;
     std::unique_ptr<ChunkBufferManager> bufferManager;
 
     // Descriptor sets

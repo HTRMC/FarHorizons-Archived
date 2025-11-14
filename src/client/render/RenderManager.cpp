@@ -11,6 +11,7 @@
 #include "ui/PauseMenu.hpp"
 #include "ui/MainMenu.hpp"
 #include "ui/OptionsMenu.hpp"
+#include "ui/Panel.hpp"
 #include <spdlog/spdlog.h>
 
 namespace FarHorizon {
@@ -25,6 +26,7 @@ RenderManager::RenderManager()
     , panelPipeline(std::make_unique<GraphicsPipeline>())
     , outlinePipeline(std::make_unique<GraphicsPipeline>())
     , blurPipeline(std::make_unique<GraphicsPipeline>())
+    , crosshairPipeline(std::make_unique<GraphicsPipeline>())
     , vertShader(std::make_unique<Shader>())
     , fragShader(std::make_unique<Shader>())
     , textVertShader(std::make_unique<Shader>())
@@ -35,10 +37,13 @@ RenderManager::RenderManager()
     , outlineFragShader(std::make_unique<Shader>())
     , blurVertShader(std::make_unique<Shader>())
     , blurFragShader(std::make_unique<Shader>())
+    , crosshairVertShader(std::make_unique<Shader>())
+    , crosshairFragShader(std::make_unique<Shader>())
     , quadInfoBuffer(std::make_unique<Buffer>())
     , textVertexBuffer(std::make_unique<Buffer>())
     , panelVertexBuffer(std::make_unique<Buffer>())
     , outlineVertexBuffer(std::make_unique<Buffer>())
+    , crosshairVertexBuffer(std::make_unique<Buffer>())
     , bufferManager(std::make_unique<ChunkBufferManager>())
     , sceneTarget(std::make_unique<OffscreenTarget>())
     , blurTarget1(std::make_unique<OffscreenTarget>())
@@ -185,6 +190,8 @@ void RenderManager::createPipelines(TextureManager& textureManager) {
     outlineFragShader->loadFromFile(device, "assets/minecraft/shaders/outline.fsh.spv");
     blurVertShader->loadFromFile(device, "assets/minecraft/shaders/blur.vsh.spv");
     blurFragShader->loadFromFile(device, "assets/minecraft/shaders/blur.fsh.spv");
+    crosshairVertShader->loadFromFile(device, "assets/minecraft/shaders/crosshair.vsh.spv");
+    crosshairFragShader->loadFromFile(device, "assets/minecraft/shaders/crosshair.fsh.spv");
 
     // Create geometry descriptor set layout
     VkDescriptorSetLayoutBinding quadInfoBinding{};
@@ -370,6 +377,51 @@ void RenderManager::createPipelines(TextureManager& textureManager) {
     blurPipelineConfig.pushConstantRanges.push_back(blurPushConstantRange);
 
     blurPipeline->init(device, blurPipelineConfig);
+
+    // Crosshair pipeline (Minecraft INVERT blend mode)
+    GraphicsPipelineConfig crosshairPipelineConfig;
+    crosshairPipelineConfig.vertexShader = crosshairVertShader.get();
+    crosshairPipelineConfig.fragmentShader = crosshairFragShader.get();
+    crosshairPipelineConfig.colorFormat = swapchain->getImageFormat();
+    crosshairPipelineConfig.depthFormat = VK_FORMAT_UNDEFINED;  // No depth test
+    crosshairPipelineConfig.depthTest = false;
+    crosshairPipelineConfig.depthWrite = false;
+    crosshairPipelineConfig.cullMode = VK_CULL_MODE_NONE;
+    crosshairPipelineConfig.blendEnable = true;
+
+    // Minecraft INVERT blend mode (BlendFunction.java line 51)
+    // INVERT = (ONE_MINUS_DST_COLOR, ONE_MINUS_SRC_COLOR, ONE, ZERO)
+    crosshairPipelineConfig.srcColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+    crosshairPipelineConfig.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+    crosshairPipelineConfig.colorBlendOp = VK_BLEND_OP_ADD;
+    crosshairPipelineConfig.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    crosshairPipelineConfig.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    crosshairPipelineConfig.alphaBlendOp = VK_BLEND_OP_ADD;
+
+    VkVertexInputBindingDescription crosshairBinding{};
+    crosshairBinding.binding = 0;
+    crosshairBinding.stride = sizeof(PanelVertex);  // Same as panel: position + color
+    crosshairBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    crosshairPipelineConfig.vertexBindings.push_back(crosshairBinding);
+
+    VkVertexInputAttributeDescription crosshairPosAttr{};
+    crosshairPosAttr.location = 0;
+    crosshairPosAttr.binding = 0;
+    crosshairPosAttr.format = VK_FORMAT_R32G32_SFLOAT;
+    crosshairPosAttr.offset = offsetof(PanelVertex, position);
+    crosshairPipelineConfig.vertexAttributes.push_back(crosshairPosAttr);
+
+    VkVertexInputAttributeDescription crosshairColorAttr{};
+    crosshairColorAttr.location = 1;
+    crosshairColorAttr.binding = 0;
+    crosshairColorAttr.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    crosshairColorAttr.offset = offsetof(PanelVertex, color);
+    crosshairPipelineConfig.vertexAttributes.push_back(crosshairColorAttr);
+
+    // Empty push constant range (crosshair doesn't need any)
+    crosshairPipelineConfig.pushConstantRanges.clear();
+
+    crosshairPipeline->init(device, crosshairPipelineConfig);
 }
 
 void RenderManager::createBuffers() {
@@ -399,6 +451,12 @@ void RenderManager::createBuffers() {
                              VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                              VMA_MEMORY_USAGE_CPU_TO_GPU,
                              VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+
+    // Crosshair vertex buffer (4 vertices for a simple crosshair)
+    crosshairVertexBuffer->init(vulkanContext->getAllocator(), 12 * sizeof(PanelVertex),
+                               VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                               VMA_MEMORY_USAGE_CPU_TO_GPU,
+                               VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
     // Chunk buffer manager
     bufferManager->init(vulkanContext->getAllocator(), 10000000, 5000);
@@ -740,6 +798,52 @@ void RenderManager::renderUI(GameStateManager& gameStateManager, Settings& setti
         cmd.bindDescriptorSets(textPipeline->getLayout(), 0, 1, &textDescSet);
         cmd.bindVertexBuffer(textVertexBuffer->getBuffer());
         cmd.draw(allTextVertices.size(), 1, 0, 0);
+    }
+
+    // Render crosshair in playing mode
+    if (currentState == GameStateManager::State::Playing && !needsBlur) {
+        // Minecraft crosshair: 15x15 pixels centered
+        float width = static_cast<float>(getWidth());
+        float height = static_cast<float>(getHeight());
+
+        // Convert 15 pixels to NDC
+        float crosshairSize = 15.0f;
+        float halfWidth = (crosshairSize / width);
+        float halfHeight = (crosshairSize / height);
+
+        // Crosshair thickness in NDC (about 1 pixel)
+        float thickness = (2.0f / width);
+
+        // White color (will be inverted by blend mode)
+        glm::vec4 white(1.0f, 1.0f, 1.0f, 1.0f);
+
+        // Create crosshair vertices (2 rectangles: horizontal and vertical)
+        PanelVertex crosshairVertices[12];
+
+        // Horizontal bar
+        crosshairVertices[0] = {glm::vec2(-halfWidth, -thickness), white};
+        crosshairVertices[1] = {glm::vec2(halfWidth, -thickness), white};
+        crosshairVertices[2] = {glm::vec2(halfWidth, thickness), white};
+
+        crosshairVertices[3] = {glm::vec2(-halfWidth, -thickness), white};
+        crosshairVertices[4] = {glm::vec2(halfWidth, thickness), white};
+        crosshairVertices[5] = {glm::vec2(-halfWidth, thickness), white};
+
+        // Vertical bar
+        crosshairVertices[6] = {glm::vec2(-thickness, -halfHeight), white};
+        crosshairVertices[7] = {glm::vec2(thickness, -halfHeight), white};
+        crosshairVertices[8] = {glm::vec2(thickness, halfHeight), white};
+
+        crosshairVertices[9] = {glm::vec2(-thickness, -halfHeight), white};
+        crosshairVertices[10] = {glm::vec2(thickness, halfHeight), white};
+        crosshairVertices[11] = {glm::vec2(-thickness, halfHeight), white};
+
+        void* crosshairData = crosshairVertexBuffer->map();
+        memcpy(crosshairData, crosshairVertices, sizeof(crosshairVertices));
+
+        cmd.bindPipeline(crosshairPipeline->getPipeline());
+        cmd.bindVertexBuffer(crosshairVertexBuffer->getBuffer());
+        cmd.draw(12, 1, 0, 0);
     }
 }
 

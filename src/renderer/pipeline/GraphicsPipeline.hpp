@@ -41,6 +41,15 @@ struct GraphicsPipelineConfig {
     // Blending (disabled for opaque)
     bool blendEnable = false;
 
+    // Custom blend factors (optional - used when blendEnable = true)
+    // Defaults to normal alpha blending if not overridden
+    VkBlendFactor srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    VkBlendFactor dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    VkBlendOp colorBlendOp = VK_BLEND_OP_ADD;
+    VkBlendFactor srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    VkBlendFactor dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    VkBlendOp alphaBlendOp = VK_BLEND_OP_ADD;
+
     // Topology (default to triangle list)
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
