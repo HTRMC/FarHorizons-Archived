@@ -26,11 +26,23 @@ static bool matchesAnywhere(const VoxelSet& shape1, const VoxelSet& shape2) {
 
     // Compare all voxel positions
     // ONLY_FIRST predicate: shape1.contains(voxel) && !shape2.contains(voxel)
+    // IMPORTANT: Scale coordinates to each shape's resolution when comparing
     for (int x = 0; x < maxX; x++) {
         for (int y = 0; y < maxY; y++) {
             for (int z = 0; z < maxZ; z++) {
-                bool inShape1 = shape1.inBoundsAndContains(x, y, z);
-                bool inShape2 = shape2.inBoundsAndContains(x, y, z);
+                // Map coordinates from merged grid to each shape's individual grid
+                // This handles cases where shapes have different resolutions
+                // (e.g., full cube at 1x1x1 vs slab at 1x2x1)
+                int x1 = (x * shape1.getXSize()) / maxX;
+                int y1 = (y * shape1.getYSize()) / maxY;
+                int z1 = (z * shape1.getZSize()) / maxZ;
+
+                int x2 = (x * shape2.getXSize()) / maxX;
+                int y2 = (y * shape2.getYSize()) / maxY;
+                int z2 = (z * shape2.getZSize()) / maxZ;
+
+                bool inShape1 = shape1.inBoundsAndContains(x1, y1, z1);
+                bool inShape2 = shape2.inBoundsAndContains(x2, y2, z2);
 
                 // Found a voxel in shape1 that's not in shape2
                 if (inShape1 && !inShape2) {
