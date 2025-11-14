@@ -4,6 +4,7 @@
 #include "Panel.hpp"
 #include "../text/TextRenderer.hpp"
 #include "../core/InputSystem.hpp"
+#include "../core/Settings.hpp"
 #include <memory>
 #include <vector>
 
@@ -22,9 +23,10 @@ public:
         Quit
     };
 
-    MainMenu(uint32_t screenWidth, uint32_t screenHeight)
+    MainMenu(uint32_t screenWidth, uint32_t screenHeight, Settings* settings = nullptr)
         : screenWidth_(screenWidth)
         , screenHeight_(screenHeight)
+        , settings_(settings)
         , selectedButtonIndex_(0)
         , lastAction_(Action::None) {
         setupButtons();
@@ -81,27 +83,32 @@ public:
     std::vector<TextVertex> generateTextVertices(TextRenderer& textRenderer) const {
         std::vector<TextVertex> allVertices;
 
-        // Add title
+        // Calculate effective GUI scale
+        float guiScale = settings_ ? static_cast<float>(settings_->getEffectiveGuiScale(screenHeight_)) : 1.0f;
+
+        // Add title (scaled by GUI scale)
         auto titleText = Text::literal("VULKAN VOXEL ENGINE", Style::yellow().withBold(true));
-        float titleWidth = textRenderer.calculateTextWidth(titleText, 4.0f);
+        float titleScale = 4.0f * guiScale;
+        float titleWidth = textRenderer.calculateTextWidth(titleText, titleScale);
         float titleX = (screenWidth_ - titleWidth) * 0.5f;
-        float titleY = 100.0f;
+        float titleY = 100.0f * guiScale;
 
         auto titleVertices = textRenderer.generateVertices(
             titleText,
             glm::vec2(titleX, titleY),
-            4.0f,
+            titleScale,
             screenWidth_,
             screenHeight_
         );
         allVertices.insert(allVertices.end(), titleVertices.begin(), titleVertices.end());
 
-        // Add button text
+        // Add button text (pass guiScale to buttons)
         for (const auto& button : buttons_) {
             auto buttonVertices = button->generateTextVertices(
                 textRenderer,
                 screenWidth_,
-                screenHeight_
+                screenHeight_,
+                guiScale
             );
             allVertices.insert(allVertices.end(), buttonVertices.begin(), buttonVertices.end());
         }
@@ -126,10 +133,13 @@ private:
     void setupButtons() {
         buttons_.clear();
 
-        // Button dimensions
-        float buttonWidth = 300.0f;
-        float buttonHeight = 60.0f;
-        float buttonSpacing = 20.0f;
+        // Calculate effective GUI scale
+        float guiScale = settings_ ? static_cast<float>(settings_->getEffectiveGuiScale(screenHeight_)) : 1.0f;
+
+        // Button dimensions (scaled by GUI scale)
+        float buttonWidth = 300.0f * guiScale;
+        float buttonHeight = 60.0f * guiScale;
+        float buttonSpacing = 20.0f * guiScale;
 
         // Center buttons on screen
         float startX = (screenWidth_ - buttonWidth) * 0.5f;
@@ -194,6 +204,7 @@ private:
 
     uint32_t screenWidth_;
     uint32_t screenHeight_;
+    Settings* settings_;
     size_t selectedButtonIndex_;
     Action lastAction_;
 

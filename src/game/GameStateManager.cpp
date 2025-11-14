@@ -13,7 +13,7 @@ GameStateManager::GameStateManager(
     AudioManager* audioManager
 )
     : state_(State::MainMenu)
-    , mainMenu_(windowWidth, windowHeight)
+    , mainMenu_(windowWidth, windowHeight, settings)
     , pauseMenu_(windowWidth, windowHeight, settings)
     , optionsMenu_(windowWidth, windowHeight, camera, chunkManager, settings, audioManager)
     , mouseCapture_(mouseCapture)

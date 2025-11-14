@@ -757,12 +757,32 @@ void RenderManager::renderUI(GameStateManager& gameStateManager, Settings& setti
         auto menuTextVertices = gameStateManager.getMainMenu().generateTextVertices(textRenderer);
         allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
     } else if (currentState == GameStateManager::State::OptionsFromMain) {
+        // Render sliders first (panel vertices)
+        std::vector<PanelVertex> panelVertices = gameStateManager.getOptionsMenu().generatePanelVertices(getWidth(), getHeight());
+        if (!panelVertices.empty()) {
+            void* panelData = panelVertexBuffer->map();
+            memcpy(panelData, panelVertices.data(), panelVertices.size() * sizeof(PanelVertex));
+            cmd.bindPipeline(panelPipeline->getPipeline());
+            cmd.bindVertexBuffer(panelVertexBuffer->getBuffer());
+            cmd.draw(panelVertices.size(), 1, 0, 0);
+        }
+        // Then render text
         auto menuTextVertices = gameStateManager.getOptionsMenu().generateTextVertices(textRenderer);
         allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
     } else if (currentState == GameStateManager::State::Paused && !needsBlur) {
         auto menuTextVertices = gameStateManager.getPauseMenu().generateTextVertices(textRenderer);
         allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
     } else if (currentState == GameStateManager::State::Options && !needsBlur) {
+        // Render sliders first (panel vertices)
+        std::vector<PanelVertex> panelVertices = gameStateManager.getOptionsMenu().generatePanelVertices(getWidth(), getHeight());
+        if (!panelVertices.empty()) {
+            void* panelData = panelVertexBuffer->map();
+            memcpy(panelData, panelVertices.data(), panelVertices.size() * sizeof(PanelVertex));
+            cmd.bindPipeline(panelPipeline->getPipeline());
+            cmd.bindVertexBuffer(panelVertexBuffer->getBuffer());
+            cmd.draw(panelVertices.size(), 1, 0, 0);
+        }
+        // Then render text
         auto menuTextVertices = gameStateManager.getOptionsMenu().generateTextVertices(textRenderer);
         allTextVertices.insert(allTextVertices.end(), menuTextVertices.begin(), menuTextVertices.end());
     } else if (!needsBlur) {
@@ -802,17 +822,22 @@ void RenderManager::renderUI(GameStateManager& gameStateManager, Settings& setti
 
     // Render crosshair in playing mode
     if (currentState == GameStateManager::State::Playing && !needsBlur) {
-        // Minecraft crosshair: 15x15 pixels centered
+        // Minecraft crosshair: 15x15 pixels centered (scaled by GUI scale)
         float width = static_cast<float>(getWidth());
         float height = static_cast<float>(getHeight());
 
-        // Convert 15 pixels to NDC
-        float crosshairSize = 15.0f;
+        // Get effective GUI scale
+        float guiScale = static_cast<float>(settings.getEffectiveGuiScale(getHeight()));
+
+        // Convert 15 pixels to NDC (scaled by GUI scale)
+        float crosshairSize = 15.0f * guiScale;
         float halfWidth = (crosshairSize / width);
         float halfHeight = (crosshairSize / height);
 
-        // Crosshair thickness in NDC (about 1 pixel)
-        float thickness = (2.0f / width);
+        // Crosshair thickness in NDC (about 2 pixels, scaled by GUI scale)
+        // Need separate X and Y thickness to account for aspect ratio
+        float thicknessX = (2.0f * guiScale / width);
+        float thicknessY = (2.0f * guiScale / height);
 
         // White color (will be inverted by blend mode)
         glm::vec4 white(1.0f, 1.0f, 1.0f, 1.0f);
@@ -820,23 +845,23 @@ void RenderManager::renderUI(GameStateManager& gameStateManager, Settings& setti
         // Create crosshair vertices (2 rectangles: horizontal and vertical)
         PanelVertex crosshairVertices[12];
 
-        // Horizontal bar
-        crosshairVertices[0] = {glm::vec2(-halfWidth, -thickness), white};
-        crosshairVertices[1] = {glm::vec2(halfWidth, -thickness), white};
-        crosshairVertices[2] = {glm::vec2(halfWidth, thickness), white};
+        // Horizontal bar (use thicknessY for vertical extent)
+        crosshairVertices[0] = {glm::vec2(-halfWidth, -thicknessY), white};
+        crosshairVertices[1] = {glm::vec2(halfWidth, -thicknessY), white};
+        crosshairVertices[2] = {glm::vec2(halfWidth, thicknessY), white};
 
-        crosshairVertices[3] = {glm::vec2(-halfWidth, -thickness), white};
-        crosshairVertices[4] = {glm::vec2(halfWidth, thickness), white};
-        crosshairVertices[5] = {glm::vec2(-halfWidth, thickness), white};
+        crosshairVertices[3] = {glm::vec2(-halfWidth, -thicknessY), white};
+        crosshairVertices[4] = {glm::vec2(halfWidth, thicknessY), white};
+        crosshairVertices[5] = {glm::vec2(-halfWidth, thicknessY), white};
 
-        // Vertical bar
-        crosshairVertices[6] = {glm::vec2(-thickness, -halfHeight), white};
-        crosshairVertices[7] = {glm::vec2(thickness, -halfHeight), white};
-        crosshairVertices[8] = {glm::vec2(thickness, halfHeight), white};
+        // Vertical bar (use thicknessX for horizontal extent)
+        crosshairVertices[6] = {glm::vec2(-thicknessX, -halfHeight), white};
+        crosshairVertices[7] = {glm::vec2(thicknessX, -halfHeight), white};
+        crosshairVertices[8] = {glm::vec2(thicknessX, halfHeight), white};
 
-        crosshairVertices[9] = {glm::vec2(-thickness, -halfHeight), white};
-        crosshairVertices[10] = {glm::vec2(thickness, halfHeight), white};
-        crosshairVertices[11] = {glm::vec2(-thickness, halfHeight), white};
+        crosshairVertices[9] = {glm::vec2(-thicknessX, -halfHeight), white};
+        crosshairVertices[10] = {glm::vec2(thicknessX, halfHeight), white};
+        crosshairVertices[11] = {glm::vec2(-thicknessX, halfHeight), white};
 
         void* crosshairData = crosshairVertexBuffer->map();
         memcpy(crosshairData, crosshairVertices, sizeof(crosshairVertices));
