@@ -51,11 +51,51 @@ public:
         return withFacingHalfAndShape(facing, half, StairShape::STRAIGHT);
     }
 
-    // Override outline shape for stairs (simplified bounding box)
+    // Override outline shape for stairs
+    // Based on Minecraft's StairBlock.java shape definitions
     BlockShape getOutlineShape(BlockState state) const override {
-        // For now, use a simplified bounding box that covers the entire block space
-        // The actual visual model will be handled by the blockstate JSON
-        return BlockShape::fromBounds(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+        BlockHalf half = getHalf(state);
+        StairFacing facing = getFacing(state);
+        StairShape shape = getShape(state);
+
+        // Minecraft stair shapes (in normalized 0-1 space):
+        // - OUTER: Bottom half + one top corner (L-shaped)
+        // - STRAIGHT: Bottom half + top back half (normal stair)
+        // - INNER: Bottom half + three top corners (U-shaped, almost full)
+
+        // For now, use simplified bounding boxes based on shape type
+        // These approximate the actual collision volume
+        switch (shape) {
+            case StairShape::OUTER_LEFT:
+            case StairShape::OUTER_RIGHT:
+                // Outer corner: smaller volume (~75% of block)
+                // Approximation: bottom half + partial top
+                if (half == BlockHalf::BOTTOM) {
+                    return BlockShape::fromBounds(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.75f, 1.0f));
+                } else {
+                    return BlockShape::fromBounds(glm::vec3(0.0f, 0.25f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+                }
+
+            case StairShape::INNER_LEFT:
+            case StairShape::INNER_RIGHT:
+                // Inner corner: almost full block (~90% volume)
+                // These should NOT cull most adjacent faces
+                if (half == BlockHalf::BOTTOM) {
+                    return BlockShape::fromBounds(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.9f, 1.0f));
+                } else {
+                    return BlockShape::fromBounds(glm::vec3(0.0f, 0.1f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+                }
+
+            case StairShape::STRAIGHT:
+            default:
+                // Straight stair: bottom half + top half (back side)
+                // Approximation: 3/4 of full height
+                if (half == BlockHalf::BOTTOM) {
+                    return BlockShape::fromBounds(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.8f, 1.0f));
+                } else {
+                    return BlockShape::fromBounds(glm::vec3(0.0f, 0.2f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+                }
+        }
     }
 
 private:
