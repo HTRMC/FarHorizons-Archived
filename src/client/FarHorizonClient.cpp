@@ -123,6 +123,7 @@ void FarHorizonClient::init() {
     // Initialize physics system
     level = std::make_unique<Level>(chunkManager.get());
     player = std::make_unique<Player>();
+    player->setLevel(level.get()); // Set the level reference
     player->setPos(glm::dvec3(0.0, 100.0, 0.0)); // Start high up
     spdlog::info("Initialized physics system with collision detection");
 

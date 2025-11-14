@@ -352,10 +352,17 @@ void Entity::move(MovementType type, const glm::dvec3& movement, Level* level) {
         minorHorizontalCollision_ = false;
     }
 
-    // Reset velocity on collision (Entity.java line 799-800)
+    // Reset velocity on collision (Entity.java line 799-800, 805-806)
     glm::dvec3 vel = getVelocity();
     if (horizontalCollision_) {
         setVelocity(xBlocked ? 0.0 : vel.x, vel.y, zBlocked ? 0.0 : vel.z);
+    }
+
+    // Reset Y velocity on vertical collision (Entity.java line 805-806)
+    // Block.updateEntityMovementAfterFallOn multiplies velocity by (1.0, 0.0, 1.0)
+    if (movement.y != actualMovement.y) {
+        vel = getVelocity();
+        setVelocity(vel.x, 0.0, vel.z);
     }
 }
 
