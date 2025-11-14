@@ -232,6 +232,13 @@ public:
     // Check if entity is free to move to a position (Entity.java: public boolean isFree(double xa, double ya, double za))
     bool isFree(double xa, double ya, double za) const;
 
+    // Set yaw rotation (Entity.java: public void setYRot(float yRot))
+    void setYRot(float yRot);
+
+    // Set pitch rotation (Entity.java: public void setXRot(float xRot))
+    // Clamps pitch to -90 to 90 degrees
+    void setXRot(float xRot);
+
 protected:
     // Save position for interpolation (called at start of tick)
     void updateLastRenderPos();
@@ -248,13 +255,6 @@ protected:
     // Set rotation with wrapping (Entity.java: protected void setRot(float yRot, float xRot))
     // Wraps angles to 0-360 range
     void setRot(float yRot, float xRot);
-
-    // Set yaw rotation (Entity.java: public void setYRot(float yRot))
-    void setYRot(float yRot);
-
-    // Set pitch rotation (Entity.java: public void setXRot(float xRot))
-    // Clamps pitch to -90 to 90 degrees
-    void setXRot(float xRot);
 
     // Check and update supporting block (Entity.java: protected void checkSupportingBlock(boolean onGround, Vec3 movement))
     void checkSupportingBlock(bool onGround, const glm::dvec3* movement);

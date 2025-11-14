@@ -19,19 +19,10 @@ public:
     static constexpr float SPRINT_SPEED = 5.612f;
     static constexpr float SNEAK_SPEED = 1.295f;
 
-private:
-    float yaw;  // Camera yaw for movement rotation
-
 public:
     Player(const glm::dvec3& position = glm::dvec3(0, 100, 0))
         : LivingEntity(EntityType::PLAYER, position, PLAYER_WIDTH, PLAYER_HEIGHT)
-        , yaw(0.0f)
     {}
-
-    // Set camera yaw for movement rotation
-    void setYaw(float yawRadians) {
-        yaw = yawRadians;
-    }
 
     // Get eye position for camera
     glm::dvec3 getEyePos() const {
@@ -45,43 +36,6 @@ public:
         // Lerp between previous and current position
         glm::dvec3 interpolatedPos = getLerpedPos(partialTick);
         return interpolatedPos + glm::dvec3(0, PLAYER_EYE_HEIGHT, 0);
-    }
-
-protected:
-    // Override updateVelocity to apply yaw rotation (Entity.java line 1593-1617)
-    // Transforms local movement input (forward/strafe) to world space using camera yaw
-    void updateVelocity(float speed, const glm::dvec3& movementInput) override {
-        if (glm::length(movementInput) < 0.001f) return;
-
-        // Minecraft uses: sideways (x), upward (y), forward (z)
-        float strafe = movementInput.x;
-        float upward = movementInput.y;
-        float forward = movementInput.z;
-
-        // Normalize input vector if needed (Minecraft line 1595-1603)
-        float lengthSquared = strafe * strafe + forward * forward;
-        if (lengthSquared >= 1.0E-4f) {
-            float length = std::sqrt(lengthSquared);
-            if (length < 1.0f) {
-                length = 1.0f;
-            }
-            float scale = speed / length;
-            strafe *= scale;
-            forward *= scale;
-
-            // Apply yaw rotation - Minecraft's exact formula (Entity.java line 1613)
-            // In Minecraft: velocityX = strafe * cos(yaw) - forward * sin(yaw)
-            //               velocityZ = forward * cos(yaw) + strafe * sin(yaw)
-            // But our coordinate system has X and Z swapped compared to Minecraft
-            float moveZ = strafe * cos(yaw) + forward * sin(yaw);
-            float moveX = forward * cos(yaw) - strafe * sin(yaw);
-
-            velocity_.x += moveX;
-            velocity_.z += moveZ;
-        }
-
-        // Apply upward movement (for creative flying)
-        velocity_.y += upward * speed;
     }
 };
 

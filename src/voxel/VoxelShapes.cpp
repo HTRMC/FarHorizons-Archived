@@ -2,7 +2,6 @@
 #include "world/BlockShape.hpp"
 #include <algorithm>
 #include <cmath>
-#include <spdlog/spdlog.h>
 
 namespace FarHorizon {
 
@@ -162,37 +161,18 @@ double VoxelShapes::collide(Direction::Axis axis, const AABB& moving,
 
     double result = distance;
 
-    // Debug logging - only when there are shapes and we're moving on Y axis
-    bool shouldDebug = !shapes.empty() && axis == Direction::Axis::Y;
-    if (shouldDebug) {
-        spdlog::info("Shapes.collide: axis=Y moving=({:.3f},{:.3f},{:.3f})-({:.3f},{:.3f},{:.3f}) distance={:.6f} shapes={}",
-            moving.minX, moving.minY, moving.minZ, moving.maxX, moving.maxY, moving.maxZ, distance, shapes.size());
-    }
-
     // Iterate through all shapes and find the minimum collision distance
     int shapeIndex = 0;
     for (const auto& shape : shapes) {
         if (shape && !shape->isEmpty()) {
-            double oldResult = result;
             result = shape->collide(axis, moving, result);
-
-            if (shouldDebug && shapeIndex < 3) {
-                spdlog::info("  Shape {}: oldResult={:.6f} newResult={:.6f}", shapeIndex, oldResult, result);
-            }
 
             // Early exit if we've hit a collision
             if (std::abs(result) < 1.0E-7) {
-                if (shouldDebug) {
-                    spdlog::info("  Early exit: collision detected!");
-                }
                 return 0.0;
             }
         }
         shapeIndex++;
-    }
-
-    if (shouldDebug) {
-        spdlog::info("  Final result: {:.6f}", result);
     }
 
     return result;

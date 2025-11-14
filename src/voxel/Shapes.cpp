@@ -43,9 +43,6 @@ std::shared_ptr<VoxelShape> Shapes::create(double minX, double minY, double minZ
     std::vector<double> yPoints = {minY, maxY};
     std::vector<double> zPoints = {minZ, maxZ};
 
-    spdlog::info("Shapes::create - created shape with points X[{},{}] Y[{},{}] Z[{},{}]",
-        xPoints[0], xPoints[1], yPoints[0], yPoints[1], zPoints[0], zPoints[1]);
-
     // Create and return ArrayVoxelShape
     return std::make_shared<ArrayVoxelShape>(voxelSet, xPoints, yPoints, zPoints);
 }

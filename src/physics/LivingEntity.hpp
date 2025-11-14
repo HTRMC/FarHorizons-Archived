@@ -2,7 +2,6 @@
 
 #include "Entity.hpp"
 #include <glm/glm.hpp>
-#include <spdlog/spdlog.h>
 
 namespace FarHorizon {
 
@@ -129,13 +128,6 @@ public:
         // Travel with movement input (aiStep line 2994-3015)
         glm::dvec3 var10(sidewaysSpeed, upwardSpeed, forwardSpeed);
         travel(var10, level);
-
-        // Debug logging: Print every 1 tick with detailed info
-        glm::dvec3 finalVel = getVelocity();
-        spdlog::info("pos({:.3f}, {:.3f}, {:.3f}) vel({:.6f}, {:.6f}, {:.6f}) onGround={} vCol={} hCol={}",
-            position_.x, position_.y, position_.z,
-            finalVel.x, finalVel.y, finalVel.z,
-            onGround_, verticalCollision_, horizontalCollision_);
     }
 
     // Main travel method (LivingEntity.java line 2318)
@@ -233,8 +225,17 @@ protected:
     // Jump from ground (LivingEntity.java line 2279: jumpFromGround)
     virtual void jumpFromGround() {
         if (onGround_ && !noClip_) {
-            velocity_.y = JUMP_VELOCITY;
+            // Use Math.max to preserve upward velocity if already moving up faster
+            // (LivingEntity.java line 2283: Math.max((double)var1, var2.y))
+            velocity_.y = std::max(static_cast<double>(JUMP_VELOCITY), velocity_.y);
             onGround_ = false;
+
+            // Add sprint jump boost (LivingEntity.java line 2284-2287)
+            if (sprinting) {
+                float yawRadians = yaw_ * (glm::pi<float>() / 180.0f);
+                velocity_.x += -std::sin(yawRadians) * 0.2;
+                velocity_.z += std::cos(yawRadians) * 0.2;
+            }
         }
     }
 };

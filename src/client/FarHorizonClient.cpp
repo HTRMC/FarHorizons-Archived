@@ -39,6 +39,7 @@ void FarHorizonClient::init() {
     spdlog::info("=== Far Horizon - Infinite Voxel Engine ===");
     spdlog::info("Controls:");
     spdlog::info("  WASD - Move");
+    spdlog::info("  Left Ctrl - Sprint");
     spdlog::info("  Mouse - Look around");
     spdlog::info("  Space - Jump (or fly up in NoClip)");
     spdlog::info("  Shift - Fly down (in NoClip)");
@@ -270,7 +271,7 @@ void FarHorizonClient::tick(float deltaTime) {
 
             // Set movement input and yaw for this tick
             player->setMovementInput(forwardSpeed, sidewaysSpeed);
-            player->setYaw(glm::radians(camera->getYaw()));
+            player->setXRot(camera->getYaw()); // Entity's yaw is in degrees
 
             // Handle player physics and movement (at fixed 20 ticks/second)
             player->tick(level.get());
@@ -370,6 +371,25 @@ void FarHorizonClient::handleInput(float deltaTime) {
     if (InputSystem::isKeyDown(KeyCode::F)) {
         player->setNoClip(!player->isNoClip());
         spdlog::info("NoClip: {}", player->isNoClip() ? "ON" : "OFF");
+    }
+
+    // Sprint handling (Minecraft LocalPlayer.java line 757-779)
+    if (!player->isNoClip()) {
+        bool wantsSprint = InputSystem::isKeyPressed(KeyCode::LeftControl);
+        bool movingForward = InputSystem::isKeyPressed(KeyCode::W);
+
+        // Start sprinting (line 766-768)
+        if (wantsSprint && movingForward && !player->isSprinting()) {
+            player->setSprinting(true);
+        }
+
+        // Stop sprinting (line 771-778: shouldStopRunSprinting)
+        // Stops when: not moving forward OR hitting wall hard
+        if (player->isSprinting()) {
+            if (!movingForward || (player->horizontalCollision_ && !player->minorHorizontalCollision_)) {
+                player->setSprinting(false);
+            }
+        }
     }
 
     // Block selection with number keys

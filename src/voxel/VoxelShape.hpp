@@ -106,13 +106,6 @@ protected:
         const auto& axisPoints = getPointPositions(axis);
         const auto& axis2Points = getPointPositions(axis2);
         const auto& axis3Points = getPointPositions(axis3);
-        spdlog::info("    Shape points: axis=[{:.1f}..{:.1f}] axis2=[{:.1f}..{:.1f}] axis3=[{:.1f}..{:.1f}]",
-            axisPoints.front(), axisPoints.back(), axis2Points.front(), axis2Points.back(), axis3Points.front(), axis3Points.back());
-        spdlog::info("    Moving box: axis=[{:.3f}..{:.3f}] axis2=[{:.3f}..{:.3f}] axis3=[{:.3f}..{:.3f}]",
-            var11, var9, axis2Min, axis2Max, axis3Min, axis3Max);
-        spdlog::info("    Voxel grid size: {}x{}x{}", voxels->getSize(axis), voxels->getSize(axis2), voxels->getSize(axis3));
-        spdlog::info("    Indices: var13={} var14={} var15={} var16={} var17={} var18={}",
-            var13, var14, var15, var16, var17, var18);
 
         if (distance > 0.0) {
             // Moving in positive direction (VoxelShape.java line 244)
@@ -131,14 +124,12 @@ protected:
             }
         } else if (distance < 0.0) {
             // Moving in negative direction (VoxelShape.java line 259)
-            spdlog::info("    collideX: var13={} var15={} var16={} var17={} var18={}", var13, var15, var16, var17, var18);
             for (int var20 = var13 - 1; var20 >= 0; var20--) {
                 for (int var21 = var15; var21 < var16; var21++) {
                     for (int var22 = var17; var22 < var18; var22++) {
                         bool contains = voxels->inBoundsAndContains(axisCycleOpposite, var20, var21, var22);
                         if (contains) {
                             double var23 = getPointPosition(axis, var20 + 1) - var11;
-                            spdlog::info("    HIT voxel({},{},{})! var23={:.4f}", var20, var21, var22, var23);
                             if (var23 <= 1.0E-7) {
                                 distance = std::max(distance, var23);
                             }
@@ -147,7 +138,6 @@ protected:
                     }
                 }
             }
-            spdlog::info("    NO voxel hit");
         }
 
         return distance;
