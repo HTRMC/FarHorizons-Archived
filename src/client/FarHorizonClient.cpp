@@ -318,6 +318,13 @@ void FarHorizonClient::handleInput(float deltaTime) {
         return;  // Don't handle gameplay input when not playing
     }
 
+    // Block input for one frame after transitioning from menu to prevent
+    // menu clicks from being processed as gameplay actions
+    if (gameStateManager->shouldBlockInput()) {
+        gameStateManager->clearInputBlock();
+        return;
+    }
+
     // ESC to pause
     if (InputSystem::isKeyDown(KeyCode::Escape)) {
         gameStateManager->openPauseMenu();

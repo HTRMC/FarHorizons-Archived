@@ -82,8 +82,19 @@ public:
      */
     void clearTextureReloadFlag();
 
+    /**
+     * Check if input should be blocked (just transitioned to playing).
+     */
+    bool shouldBlockInput() const { return blockInputThisFrame_; }
+
+    /**
+     * Clear the input block flag (called after input handling).
+     */
+    void clearInputBlock() { blockInputThisFrame_ = false; }
+
 private:
     State state_;
+    bool blockInputThisFrame_;
 
     // Menus
     MainMenu mainMenu_;

@@ -13,6 +13,7 @@ GameStateManager::GameStateManager(
     AudioManager* audioManager
 )
     : state_(State::MainMenu)
+    , blockInputThisFrame_(false)
     , mainMenu_(windowWidth, windowHeight, settings)
     , pauseMenu_(windowWidth, windowHeight, settings)
     , optionsMenu_(windowWidth, windowHeight, camera, chunkManager, settings, audioManager)
@@ -127,6 +128,11 @@ void GameStateManager::setState(State newState) {
     // Handle cursor lock/unlock based on state transitions
     if (newState == State::Playing) {
         mouseCapture_->lockCursor();
+        // Block input for one frame when transitioning to playing to prevent
+        // menu clicks from being processed as gameplay actions
+        if (oldState != State::Playing) {
+            blockInputThisFrame_ = true;
+        }
     } else if (oldState == State::Playing) {
         mouseCapture_->unlockCursor();
     }
