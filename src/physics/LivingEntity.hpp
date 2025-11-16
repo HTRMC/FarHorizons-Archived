@@ -128,11 +128,6 @@ public:
         // Travel with movement input (aiStep line 2994-3015)
         glm::dvec3 var10(sidewaysSpeed, upwardSpeed, forwardSpeed);
         travel(var10, level);
-
-        // Debug: Log velocity every tick
-        glm::dvec3 vel = getVelocity();
-        spdlog::info("Vel: ({:.4f}, {:.4f}, {:.4f}) | onGround: {} | hCol: {} | input: ({:.1f}, {:.1f})",
-            vel.x, vel.y, vel.z, onGround_, horizontalCollision_, forwardSpeed, sidewaysSpeed);
     }
 
     // Main travel method (LivingEntity.java line 2318)

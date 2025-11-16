@@ -2,6 +2,7 @@
 #include "voxel/BitSetVoxelSet.hpp"
 #include "voxel/CroppedVoxelSet.hpp"
 #include "util/Direction.hpp"
+#include "util/OctahedralGroup.hpp"
 #include <algorithm>
 #include <cmath>
 #include <spdlog/spdlog.h>
@@ -103,6 +104,161 @@ static int findRequiredBitResolution(float min, float max) {
     }
 
     return -1;  // Doesn't snap to any standard grid
+}
+
+BlockShape BlockShape::unionShapes(const BlockShape& shape1, const BlockShape& shape2) {
+    // Handle empty cases
+    if (shape1.isEmpty()) {
+        return shape2;
+    }
+    if (shape2.isEmpty()) {
+        return shape1;
+    }
+
+    // Get bounding boxes of both shapes
+    glm::vec3 min1 = shape1.getMin();
+    glm::vec3 max1 = shape1.getMax();
+    glm::vec3 min2 = shape2.getMin();
+    glm::vec3 max2 = shape2.getMax();
+
+    // Calculate merged bounding box
+    glm::vec3 mergedMin = glm::min(min1, min2);
+    glm::vec3 mergedMax = glm::max(max1, max2);
+
+    // Determine resolution for the merged shape
+    // Use the maximum resolution from both shapes to preserve detail
+    int resX = std::max(shape1.voxels_->getXSize(), shape2.voxels_->getXSize());
+    int resY = std::max(shape1.voxels_->getYSize(), shape2.voxels_->getYSize());
+    int resZ = std::max(shape1.voxels_->getZSize(), shape2.voxels_->getZSize());
+
+    // Ensure resolution is power of 2 and at most 8
+    resX = std::min(8, std::max(1, resX));
+    resY = std::min(8, std::max(1, resY));
+    resZ = std::min(8, std::max(1, resZ));
+
+    // Convert merged bounds to voxel indices
+    int minX = static_cast<int>(std::floor(mergedMin.x * resX));
+    int minY = static_cast<int>(std::floor(mergedMin.y * resY));
+    int minZ = static_cast<int>(std::floor(mergedMin.z * resZ));
+    int maxX = static_cast<int>(std::ceil(mergedMax.x * resX));
+    int maxY = static_cast<int>(std::ceil(mergedMax.y * resY));
+    int maxZ = static_cast<int>(std::ceil(mergedMax.z * resZ));
+
+    // Clamp to grid bounds
+    minX = std::max(0, std::min(minX, resX));
+    minY = std::max(0, std::min(minY, resY));
+    minZ = std::max(0, std::min(minZ, resZ));
+    maxX = std::max(0, std::min(maxX, resX));
+    maxY = std::max(0, std::min(maxY, resY));
+    maxZ = std::max(0, std::min(maxZ, resZ));
+
+    // Create merged voxel set
+    auto mergedVoxels = std::make_shared<BitSetVoxelSet>(resX, resY, resZ);
+
+    // Fill voxels from shape1
+    for (int x = 0; x < resX; x++) {
+        for (int y = 0; y < resY; y++) {
+            for (int z = 0; z < resZ; z++) {
+                // Map to shape1's coordinate space
+                float worldX = (x + 0.5f) / resX;
+                float worldY = (y + 0.5f) / resY;
+                float worldZ = (z + 0.5f) / resZ;
+
+                // Check if this voxel is inside shape1's bounds
+                if (worldX >= min1.x && worldX <= max1.x &&
+                    worldY >= min1.y && worldY <= max1.y &&
+                    worldZ >= min1.z && worldZ <= max1.z) {
+                    // Map to shape1's voxel space
+                    int x1 = std::min(static_cast<int>((worldX - min1.x) / (max1.x - min1.x) * shape1.voxels_->getXSize()),
+                                     shape1.voxels_->getXSize() - 1);
+                    int y1 = std::min(static_cast<int>((worldY - min1.y) / (max1.y - min1.y) * shape1.voxels_->getYSize()),
+                                     shape1.voxels_->getYSize() - 1);
+                    int z1 = std::min(static_cast<int>((worldZ - min1.z) / (max1.z - min1.z) * shape1.voxels_->getZSize()),
+                                     shape1.voxels_->getZSize() - 1);
+
+                    if (shape1.voxels_->contains(x1, y1, z1)) {
+                        mergedVoxels->set(x, y, z);
+                        continue;
+                    }
+                }
+
+                // Check if this voxel is inside shape2's bounds
+                if (worldX >= min2.x && worldX <= max2.x &&
+                    worldY >= min2.y && worldY <= max2.y &&
+                    worldZ >= min2.z && worldZ <= max2.z) {
+                    // Map to shape2's voxel space
+                    int x2 = std::min(static_cast<int>((worldX - min2.x) / (max2.x - min2.x) * shape2.voxels_->getXSize()),
+                                     shape2.voxels_->getXSize() - 1);
+                    int y2 = std::min(static_cast<int>((worldY - min2.y) / (max2.y - min2.y) * shape2.voxels_->getYSize()),
+                                     shape2.voxels_->getYSize() - 1);
+                    int z2 = std::min(static_cast<int>((worldZ - min2.z) / (max2.z - min2.z) * shape2.voxels_->getZSize()),
+                                     shape2.voxels_->getZSize() - 1);
+
+                    if (shape2.voxels_->contains(x2, y2, z2)) {
+                        mergedVoxels->set(x, y, z);
+                    }
+                }
+            }
+        }
+    }
+
+    return BlockShape(mergedVoxels);
+}
+
+BlockShape BlockShape::rotate(const OctahedralGroup& rotation) const {
+    // Handle empty shapes
+    if (isEmpty()) {
+        return empty();
+    }
+
+    // Full cubes remain full cubes after rotation
+    if (isFullCube()) {
+        return fullCube();
+    }
+
+    // Get source dimensions
+    int sizeX = voxels_->getXSize();
+    int sizeY = voxels_->getYSize();
+    int sizeZ = voxels_->getZSize();
+
+    // Create destination voxel grid with same dimensions
+    auto rotatedVoxels = std::make_shared<BitSetVoxelSet>(sizeX, sizeY, sizeZ);
+
+    // Transform each filled voxel
+    for (int x = 0; x < sizeX; x++) {
+        for (int y = 0; y < sizeY; y++) {
+            for (int z = 0; z < sizeZ; z++) {
+                if (!voxels_->contains(x, y, z)) {
+                    continue;  // Skip empty voxels
+                }
+
+                // Convert voxel center to normalized 0-1 space
+                glm::vec3 center(
+                    (x + 0.5f) / sizeX,
+                    (y + 0.5f) / sizeY,
+                    (z + 0.5f) / sizeZ
+                );
+
+                // Apply transformation
+                glm::vec3 transformed = rotation.transform(center);
+
+                // Convert back to voxel coordinates
+                int newX = static_cast<int>(std::floor(transformed.x * sizeX));
+                int newY = static_cast<int>(std::floor(transformed.y * sizeY));
+                int newZ = static_cast<int>(std::floor(transformed.z * sizeZ));
+
+                // Clamp to grid bounds (in case of floating point errors)
+                newX = std::max(0, std::min(newX, sizeX - 1));
+                newY = std::max(0, std::min(newY, sizeY - 1));
+                newZ = std::max(0, std::min(newZ, sizeZ - 1));
+
+                // Set the voxel in the rotated grid
+                rotatedVoxels->set(newX, newY, newZ);
+            }
+        }
+    }
+
+    return BlockShape(rotatedVoxels);
 }
 
 BlockShape BlockShape::fromBounds(const glm::vec3& min, const glm::vec3& max) {

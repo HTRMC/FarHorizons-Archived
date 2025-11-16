@@ -25,6 +25,14 @@ public:
     // Resolution is auto-selected based on bounds (1×1×1, 2×2×2, 4×4×4, or 8×8×8)
     static BlockShape fromBounds(const glm::vec3& min, const glm::vec3& max);
 
+    // Union of two shapes (voxel-level merge)
+    // Returns a new shape with voxels from both shapes
+    static BlockShape unionShapes(const BlockShape& shape1, const BlockShape& shape2);
+
+    // Rotate shape using OctahedralGroup transformation
+    // Returns a new shape with transformed voxel coordinates
+    BlockShape rotate(const struct OctahedralGroup& rotation) const;
+
     // Check if shape is empty
     bool isEmpty() const;
 

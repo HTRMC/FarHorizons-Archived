@@ -30,6 +30,15 @@ public:
     // Check if boolean join results in non-empty shape (Minecraft: public static boolean joinIsNotEmpty(VoxelShape first, VoxelShape second, BooleanOp op))
     static bool joinIsNotEmpty(std::shared_ptr<VoxelShape> first, std::shared_ptr<VoxelShape> second, BooleanOp op);
 
+    // Union of two shapes (Minecraft: public static VoxelShape or(VoxelShape first, VoxelShape second))
+    static std::shared_ptr<VoxelShape> orShapes(std::shared_ptr<VoxelShape> first, std::shared_ptr<VoxelShape> second);
+
+    // Join two shapes with boolean operation (Minecraft: public static VoxelShape join(VoxelShape first, VoxelShape second, BooleanOp op))
+    static std::shared_ptr<VoxelShape> join(std::shared_ptr<VoxelShape> first, std::shared_ptr<VoxelShape> second, BooleanOp op);
+
+    // Box helper (Minecraft Block.box - coordinates in pixel space 0-16)
+    static std::shared_ptr<VoxelShape> box(double minX, double minY, double minZ, double maxX, double maxY, double maxZ);
+
 private:
     // Private constructor - utility class
     Shapes() = delete;
