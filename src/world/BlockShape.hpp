@@ -5,6 +5,7 @@
 #include <glm/glm.hpp>
 #include <memory>
 #include <cstdint>
+#include <functional>
 
 namespace FarHorizon {
 
@@ -49,6 +50,11 @@ public:
     // Get bounding box (for outline rendering, etc.)
     glm::vec3 getMin() const;
     glm::vec3 getMax() const;
+
+    // Iterate over all edges of the voxel shape (Minecraft: VoxelShape.forAllEdges)
+    // Callback receives: (x1, y1, z1, x2, y2, z2) in world space [0,1]
+    using EdgeConsumer = std::function<void(double, double, double, double, double, double)>;
+    void forAllEdges(const EdgeConsumer& consumer) const;
 
 private:
     std::shared_ptr<VoxelSet> voxels_;

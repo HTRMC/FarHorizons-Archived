@@ -446,8 +446,8 @@ void RenderManager::createBuffers() {
                            VMA_MEMORY_USAGE_CPU_TO_GPU,
                            VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
-    // Outline vertex buffer
-    outlineVertexBuffer->init(vulkanContext->getAllocator(), 24 * sizeof(glm::vec3),
+    // Outline vertex buffer (needs to handle complex shapes like stairs with many edges)
+    outlineVertexBuffer->init(vulkanContext->getAllocator(), 200 * sizeof(glm::vec3),
                              VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                              VMA_MEMORY_USAGE_CPU_TO_GPU,
                              VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
@@ -689,57 +689,33 @@ void RenderManager::renderBlockOutline(const BlockHitResult& target, CommandBuff
     const Block* block = BlockRegistry::getBlock(target.state);
     BlockShape shape = block->getOutlineShape(target.state);
 
-    glm::vec3 shapeMin = shape.getMin();
-    glm::vec3 shapeMax = shape.getMax();
+    // Collect all edge vertices using Minecraft's forAllEdges method
+    std::vector<glm::vec3> outlineVertices;
+    spdlog::info("Starting forAllEdges for block outline");
+    shape.forAllEdges([&](double x1, double y1, double z1, double x2, double y2, double z2) {
+        // Convert from shape-local coords [0,1] to world coords
+        glm::vec3 p1 = blockPos + glm::vec3(x1, y1, z1) - glm::vec3(OUTLINE_OFFSET);
+        glm::vec3 p2 = blockPos + glm::vec3(x2, y2, z2) + glm::vec3(OUTLINE_OFFSET);
 
-    glm::vec3 minBound = blockPos + shapeMin - glm::vec3(OUTLINE_OFFSET);
-    glm::vec3 maxBound = blockPos + shapeMax + glm::vec3(OUTLINE_OFFSET);
+        // Each edge is a line segment (2 vertices)
+        outlineVertices.push_back(p1);
+        outlineVertices.push_back(p2);
+    });
+    spdlog::info("forAllEdges completed, generated {} vertices ({} edges)", outlineVertices.size(), outlineVertices.size() / 2);
 
-    glm::vec3 outlineVertices[24] = {
-        glm::vec3(minBound.x, minBound.y, minBound.z),
-        glm::vec3(maxBound.x, minBound.y, minBound.z),
-
-        glm::vec3(maxBound.x, minBound.y, minBound.z),
-        glm::vec3(maxBound.x, minBound.y, maxBound.z),
-
-        glm::vec3(maxBound.x, minBound.y, maxBound.z),
-        glm::vec3(minBound.x, minBound.y, maxBound.z),
-
-        glm::vec3(minBound.x, minBound.y, maxBound.z),
-        glm::vec3(minBound.x, minBound.y, minBound.z),
-
-        glm::vec3(minBound.x, maxBound.y, minBound.z),
-        glm::vec3(maxBound.x, maxBound.y, minBound.z),
-
-        glm::vec3(maxBound.x, maxBound.y, minBound.z),
-        glm::vec3(maxBound.x, maxBound.y, maxBound.z),
-
-        glm::vec3(maxBound.x, maxBound.y, maxBound.z),
-        glm::vec3(minBound.x, maxBound.y, maxBound.z),
-
-        glm::vec3(minBound.x, maxBound.y, maxBound.z),
-        glm::vec3(minBound.x, maxBound.y, minBound.z),
-
-        glm::vec3(minBound.x, minBound.y, minBound.z),
-        glm::vec3(minBound.x, maxBound.y, minBound.z),
-
-        glm::vec3(maxBound.x, minBound.y, minBound.z),
-        glm::vec3(maxBound.x, maxBound.y, minBound.z),
-
-        glm::vec3(maxBound.x, minBound.y, maxBound.z),
-        glm::vec3(maxBound.x, maxBound.y, maxBound.z),
-
-        glm::vec3(minBound.x, minBound.y, maxBound.z),
-        glm::vec3(minBound.x, maxBound.y, maxBound.z),
-    };
+    // If no edges, don't render anything
+    if (outlineVertices.empty()) {
+        return;
+    }
 
     void* outlineData = outlineVertexBuffer->map();
-    memcpy(outlineData, outlineVertices, sizeof(outlineVertices));
+    memcpy(outlineData, outlineVertices.data(), outlineVertices.size() * sizeof(glm::vec3));
+    outlineVertexBuffer->unmap();
 
     cmd.bindPipeline(outlinePipeline->getPipeline());
     cmd.pushConstants(outlinePipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
     cmd.bindVertexBuffer(outlineVertexBuffer->getBuffer());
-    cmd.draw(24, 1, 0, 0);
+    cmd.draw(static_cast<uint32_t>(outlineVertices.size()), 1, 0, 0);
 }
 
 void RenderManager::renderUI(GameStateManager& gameStateManager, Settings& settings,
