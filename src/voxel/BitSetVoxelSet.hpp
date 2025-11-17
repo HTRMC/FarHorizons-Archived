@@ -38,7 +38,7 @@ public:
         for (int x = minX; x < maxX; x++) {
             for (int y = minY; y < maxY; y++) {
                 for (int z = minZ; z < maxZ; z++) {
-                    voxelSet.setInternal(x, y, z, false);
+                    voxelSet.setInternal(x, y, z, true);
                 }
             }
         }

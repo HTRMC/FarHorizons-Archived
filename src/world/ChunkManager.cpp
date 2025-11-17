@@ -753,4 +753,36 @@ bool ChunkManager::areNeighborsLoadedForMeshing(const ChunkPosition& pos) const 
     return true;  // All required neighbors loaded
 }
 
+// BlockGetter interface implementation
+BlockState ChunkManager::getBlockState(const glm::ivec3& worldPos) const {
+    // Convert world position to chunk position
+    ChunkPosition chunkPos = worldToChunkPos(glm::vec3(worldPos));
+
+    // Get the chunk (thread-safe)
+    std::lock_guard<std::mutex> lock(chunksMutex_);
+    auto it = chunks_.find(chunkPos);
+    if (it == chunks_.end()) {
+        // Chunk not loaded - return AIR
+        return BlockRegistry::AIR->getDefaultState();
+    }
+
+    const Chunk* chunk = it->second.get();
+
+    // Convert world position to local chunk position
+    glm::ivec3 localPos = worldPos - glm::ivec3(
+        chunkPos.x * CHUNK_SIZE,
+        chunkPos.y * CHUNK_SIZE,
+        chunkPos.z * CHUNK_SIZE
+    );
+
+    // Bounds check
+    if (localPos.x < 0 || localPos.x >= CHUNK_SIZE ||
+        localPos.y < 0 || localPos.y >= CHUNK_SIZE ||
+        localPos.z < 0 || localPos.z >= CHUNK_SIZE) {
+        return BlockRegistry::AIR->getDefaultState();
+    }
+
+    return chunk->getBlockState(localPos.x, localPos.y, localPos.z);
+}
+
 } // namespace FarHorizon

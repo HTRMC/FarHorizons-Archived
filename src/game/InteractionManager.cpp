@@ -96,8 +96,11 @@ BlockState InteractionManager::calculateStairPlacement(
     // Determine half based on where on the block was clicked
     BlockHalf half = calculateStairHalf(hitResult);
 
-    // Calculate shape based on neighbors
-    StairShape shape = calculateStairShape(facing, half, chunk, localPos, worldPos);
+    // Create initial state with straight shape
+    BlockState initialState = stairBlock->withFacingHalfAndShape(facing, half, StairShape::STRAIGHT);
+
+    // Calculate shape based on neighbors using Minecraft's logic
+    StairShape shape = StairBlock::getStairsShape(initialState, chunkManager_, worldPos);
 
     // Debug log
     spdlog::debug("Placing stairs: facing={}, half={}, shape={}, forward=({:.2f}, {:.2f}, {:.2f}), hitPos=({:.2f}, {:.2f}, {:.2f}), normal=({}, {}, {})",

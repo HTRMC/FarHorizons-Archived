@@ -1,7 +1,11 @@
 #pragma once
 #include <vector>
+#include <glm/glm.hpp>
 
 namespace FarHorizon {
+
+// Forward declare StairFacing from blocks/enums
+enum class StairFacing : uint8_t;
 
 // Direction and Axis utilities (from Minecraft's Direction.java)
 class Direction {
@@ -35,6 +39,60 @@ public:
             return {Axis::Y, Axis::Z, Axis::X};  // YZX
         } else {
             return {Axis::Y, Axis::X, Axis::Z};  // YXZ
+        }
+    }
+};
+
+// Horizontal Direction utilities (from Minecraft's Direction.java)
+// Works with horizontal-only direction enums like StairFacing
+// Assumes enum values: NORTH=0, SOUTH=1, WEST=2, EAST=3
+class HorizontalDirection {
+public:
+    // Get opposite direction (Direction.java getOpposite() for horizontal)
+    // NORTH <-> SOUTH, EAST <-> WEST
+    template<typename T>
+    static T getOpposite(T facing) {
+        // Mapping: NORTH(0)->SOUTH(1), SOUTH(1)->NORTH(0), WEST(2)->EAST(3), EAST(3)->WEST(2)
+        static const int opposites[] = {1, 0, 3, 2};  // [NORTH, SOUTH, WEST, EAST]
+        return static_cast<T>(opposites[static_cast<int>(facing)]);
+    }
+
+    // Rotate counter-clockwise (Direction.java getCounterClockWise() for horizontal)
+    // NORTH -> WEST -> SOUTH -> EAST -> NORTH
+    template<typename T>
+    static T getCounterClockWise(T facing) {
+        // NORTH(0)->WEST(2), SOUTH(1)->EAST(3), WEST(2)->SOUTH(1), EAST(3)->NORTH(0)
+        static const int ccw[] = {2, 3, 1, 0};  // [NORTH, SOUTH, WEST, EAST]
+        return static_cast<T>(ccw[static_cast<int>(facing)]);
+    }
+
+    // Rotate clockwise (Direction.java getClockWise() for horizontal)
+    // NORTH -> EAST -> SOUTH -> WEST -> NORTH
+    template<typename T>
+    static T getClockWise(T facing) {
+        // NORTH(0)->EAST(3), SOUTH(1)->WEST(2), WEST(2)->NORTH(0), EAST(3)->SOUTH(1)
+        static const int cw[] = {3, 2, 0, 1};  // [NORTH, SOUTH, WEST, EAST]
+        return static_cast<T>(cw[static_cast<int>(facing)]);
+    }
+
+    // Get axis for horizontal direction (Direction.java getAxis())
+    // NORTH/SOUTH -> Z axis, EAST/WEST -> X axis
+    template<typename T>
+    static Direction::Axis getAxis(T facing) {
+        int f = static_cast<int>(facing);
+        // NORTH(0)->Z, SOUTH(1)->Z, WEST(2)->X, EAST(3)->X
+        return (f == 0 || f == 1) ? Direction::Axis::Z : Direction::Axis::X;
+    }
+
+    // Get offset vector for a facing direction (for pos.relative(direction) in Java)
+    template<typename T>
+    static glm::ivec3 getOffset(T facing) {
+        switch (static_cast<int>(facing)) {
+            case 0: return glm::ivec3(0, 0, -1);  // NORTH
+            case 1: return glm::ivec3(0, 0, 1);   // SOUTH
+            case 2: return glm::ivec3(-1, 0, 0);  // WEST
+            case 3: return glm::ivec3(1, 0, 0);   // EAST
+            default: return glm::ivec3(0, 0, 0);
         }
     }
 };

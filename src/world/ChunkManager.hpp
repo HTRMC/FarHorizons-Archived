@@ -4,6 +4,7 @@
 #include "BlockModel.hpp"
 #include "FaceCullingSystem.hpp"
 #include "ChunkGpuData.hpp"
+#include "physics/BlockGetter.hpp"
 #include <glm/glm.hpp>
 #include <unordered_map>
 #include <memory>
@@ -52,7 +53,7 @@ private:
     std::unordered_map<QuadKey, uint32_t, QuadKeyHash> quadMap_;
 };
 
-class ChunkManager {
+class ChunkManager : public BlockGetter {
 public:
     ChunkManager();
     ~ChunkManager();
@@ -79,6 +80,9 @@ public:
     const std::unordered_map<ChunkPosition, std::unique_ptr<Chunk>, ChunkPositionHash>& getChunks() const {
         return chunks_;
     }
+
+    // BlockGetter interface implementation
+    BlockState getBlockState(const glm::ivec3& worldPos) const override;
 
     CompactChunkMesh generateChunkMesh(const Chunk* chunk) const;
 

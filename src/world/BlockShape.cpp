@@ -107,6 +107,8 @@ static int findRequiredBitResolution(float min, float max) {
 }
 
 BlockShape BlockShape::unionShapes(const BlockShape& shape1, const BlockShape& shape2) {
+    spdlog::info("unionShapes: shape1 isEmpty={}, shape2 isEmpty={}", shape1.isEmpty(), shape2.isEmpty());
+
     // Handle empty cases
     if (shape1.isEmpty()) {
         return shape2;
@@ -120,6 +122,13 @@ BlockShape BlockShape::unionShapes(const BlockShape& shape1, const BlockShape& s
     glm::vec3 max1 = shape1.getMax();
     glm::vec3 min2 = shape2.getMin();
     glm::vec3 max2 = shape2.getMax();
+
+    spdlog::info("  shape1: bounds=({},{},{}) to ({},{},{}), voxelSize={}x{}x{}",
+                 min1.x, min1.y, min1.z, max1.x, max1.y, max1.z,
+                 shape1.voxels_->getXSize(), shape1.voxels_->getYSize(), shape1.voxels_->getZSize());
+    spdlog::info("  shape2: bounds=({},{},{}) to ({},{},{}), voxelSize={}x{}x{}",
+                 min2.x, min2.y, min2.z, max2.x, max2.y, max2.z,
+                 shape2.voxels_->getXSize(), shape2.voxels_->getYSize(), shape2.voxels_->getZSize());
 
     // Calculate merged bounding box
     glm::vec3 mergedMin = glm::min(min1, min2);
@@ -135,6 +144,8 @@ BlockShape BlockShape::unionShapes(const BlockShape& shape1, const BlockShape& s
     resX = std::min(8, std::max(1, resX));
     resY = std::min(8, std::max(1, resY));
     resZ = std::min(8, std::max(1, resZ));
+
+    spdlog::info("  merged resolution: {}x{}x{}", resX, resY, resZ);
 
     // Convert merged bounds to voxel indices
     int minX = static_cast<int>(std::floor(mergedMin.x * resX));
@@ -164,39 +175,35 @@ BlockShape BlockShape::unionShapes(const BlockShape& shape1, const BlockShape& s
                 float worldY = (y + 0.5f) / resY;
                 float worldZ = (z + 0.5f) / resZ;
 
-                // Check if this voxel is inside shape1's bounds
-                if (worldX >= min1.x && worldX <= max1.x &&
-                    worldY >= min1.y && worldY <= max1.y &&
-                    worldZ >= min1.z && worldZ <= max1.z) {
-                    // Map to shape1's voxel space
-                    int x1 = std::min(static_cast<int>((worldX - min1.x) / (max1.x - min1.x) * shape1.voxels_->getXSize()),
-                                     shape1.voxels_->getXSize() - 1);
-                    int y1 = std::min(static_cast<int>((worldY - min1.y) / (max1.y - min1.y) * shape1.voxels_->getYSize()),
-                                     shape1.voxels_->getYSize() - 1);
-                    int z1 = std::min(static_cast<int>((worldZ - min1.z) / (max1.z - min1.z) * shape1.voxels_->getZSize()),
-                                     shape1.voxels_->getZSize() - 1);
+                // Map to shape1's voxel space (world coords [0,1] -> voxel indices [0,size])
+                int x1 = static_cast<int>(worldX * shape1.voxels_->getXSize());
+                int y1 = static_cast<int>(worldY * shape1.voxels_->getYSize());
+                int z1 = static_cast<int>(worldZ * shape1.voxels_->getZSize());
 
-                    if (shape1.voxels_->contains(x1, y1, z1)) {
-                        mergedVoxels->set(x, y, z);
-                        continue;
-                    }
+                // Clamp to valid voxel indices
+                x1 = std::max(0, std::min(x1, shape1.voxels_->getXSize() - 1));
+                y1 = std::max(0, std::min(y1, shape1.voxels_->getYSize() - 1));
+                z1 = std::max(0, std::min(z1, shape1.voxels_->getZSize() - 1));
+
+                // Check if this voxel is filled in shape1
+                if (shape1.voxels_->contains(x1, y1, z1)) {
+                    mergedVoxels->set(x, y, z);
+                    continue;
                 }
 
-                // Check if this voxel is inside shape2's bounds
-                if (worldX >= min2.x && worldX <= max2.x &&
-                    worldY >= min2.y && worldY <= max2.y &&
-                    worldZ >= min2.z && worldZ <= max2.z) {
-                    // Map to shape2's voxel space
-                    int x2 = std::min(static_cast<int>((worldX - min2.x) / (max2.x - min2.x) * shape2.voxels_->getXSize()),
-                                     shape2.voxels_->getXSize() - 1);
-                    int y2 = std::min(static_cast<int>((worldY - min2.y) / (max2.y - min2.y) * shape2.voxels_->getYSize()),
-                                     shape2.voxels_->getYSize() - 1);
-                    int z2 = std::min(static_cast<int>((worldZ - min2.z) / (max2.z - min2.z) * shape2.voxels_->getZSize()),
-                                     shape2.voxels_->getZSize() - 1);
+                // Map to shape2's voxel space (world coords [0,1] -> voxel indices [0,size])
+                int x2 = static_cast<int>(worldX * shape2.voxels_->getXSize());
+                int y2 = static_cast<int>(worldY * shape2.voxels_->getYSize());
+                int z2 = static_cast<int>(worldZ * shape2.voxels_->getZSize());
 
-                    if (shape2.voxels_->contains(x2, y2, z2)) {
-                        mergedVoxels->set(x, y, z);
-                    }
+                // Clamp to valid voxel indices
+                x2 = std::max(0, std::min(x2, shape2.voxels_->getXSize() - 1));
+                y2 = std::max(0, std::min(y2, shape2.voxels_->getYSize() - 1));
+                z2 = std::max(0, std::min(z2, shape2.voxels_->getZSize() - 1));
+
+                // Check if this voxel is filled in shape2
+                if (shape2.voxels_->contains(x2, y2, z2)) {
+                    mergedVoxels->set(x, y, z);
                 }
             }
         }

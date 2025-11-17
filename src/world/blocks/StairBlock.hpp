@@ -7,10 +7,14 @@
 #include "enums/StairShape.hpp"
 #include "util/OctahedralGroup.hpp"
 #include "util/Direction.hpp"
+#include "physics/BlockGetter.hpp"
 #include <map>
 #include <spdlog/spdlog.h>
 
 namespace FarHorizon {
+
+// Forward declaration to avoid circular dependency
+class BlockRegistry;
 
 // StairBlock - stair block with facing, half, and shape properties
 // Based on Minecraft's StairBlock.java with static pre-computed shapes
@@ -59,6 +63,16 @@ public:
         return withFacingHalfAndShape(facing, half, StairShape::STRAIGHT);
     }
 
+    // Helper: Check if stair can take shape in a direction (Minecraft StairBlock.java line 156-159)
+    // Returns true if the neighbor in the given direction allows this stair to form a corner
+    static bool canTakeShape(BlockState state, const BlockGetter& level, const glm::ivec3& pos, StairFacing neighbour);
+
+    // Helper: Check if a block state is a stair (Minecraft StairBlock.java line 161-163)
+    static bool isStairs(BlockState state);
+
+    // Get stair shape based on neighbors (Minecraft StairBlock.java line 127-154)
+    static StairShape getStairsShape(BlockState state, const BlockGetter& level, const glm::ivec3& pos);
+
     // Override outline shape for stairs
     // Based on Minecraft's StairBlock.java getShape() method (lines 67-105)
     BlockShape getOutlineShape(BlockState state) const override {
@@ -101,12 +115,12 @@ public:
                 lookupFacing = facing;  // Use facing directly
                 break;
             case StairShape::INNER_LEFT:
-                // Rotate counter-clockwise
-                lookupFacing = static_cast<StairFacing>((static_cast<int>(facing) + 3) % 4);
+                // Rotate counter-clockwise (Minecraft: var6.getCounterClockWise())
+                lookupFacing = HorizontalDirection::getCounterClockWise(facing);
                 break;
             case StairShape::OUTER_RIGHT:
-                // Rotate clockwise
-                lookupFacing = static_cast<StairFacing>((static_cast<int>(facing) + 1) % 4);
+                // Rotate clockwise (Minecraft: var6.getClockWise())
+                lookupFacing = HorizontalDirection::getClockWise(facing);
                 break;
         }
 
@@ -116,7 +130,9 @@ public:
             return BlockShape::fullCube();  // Fallback
         }
 
-        return it->second;
+        BlockShape result = it->second;
+
+        return result;
     }
 
 private:
@@ -167,23 +183,41 @@ private:
     static void initializeStaticShapes() {
         if (shapesInitialized) return;
 
+        spdlog::info("StairBlock: Initializing static shapes...");
+
         // SHAPE_OUTER = Shapes.or(Block.column(16.0, 0.0, 8.0), Block.box(0.0, 8.0, 0.0, 8.0, 16.0, 8.0));
-        SHAPE_OUTER = BlockShape::unionShapes(
-            column(16.0f, 0.0f, 8.0f),
-            box(0.0f, 8.0f, 0.0f, 8.0f, 16.0f, 8.0f)
-        );
+        BlockShape col = column(16.0f, 0.0f, 8.0f);
+        spdlog::info("  column(16, 0, 8): isEmpty={}, bounds=({},{},{}) to ({},{},{})",
+                     col.isEmpty(), col.getMin().x, col.getMin().y, col.getMin().z,
+                     col.getMax().x, col.getMax().y, col.getMax().z);
+
+        BlockShape topBox = box(0.0f, 8.0f, 0.0f, 8.0f, 16.0f, 8.0f);
+        spdlog::info("  box(0,8,0,8,16,8): isEmpty={}, bounds=({},{},{}) to ({},{},{})",
+                     topBox.isEmpty(), topBox.getMin().x, topBox.getMin().y, topBox.getMin().z,
+                     topBox.getMax().x, topBox.getMax().y, topBox.getMax().z);
+
+        SHAPE_OUTER = BlockShape::unionShapes(col, topBox);
+        spdlog::info("  SHAPE_OUTER: isEmpty={}, bounds=({},{},{}) to ({},{},{})",
+                     SHAPE_OUTER.isEmpty(), SHAPE_OUTER.getMin().x, SHAPE_OUTER.getMin().y, SHAPE_OUTER.getMin().z,
+                     SHAPE_OUTER.getMax().x, SHAPE_OUTER.getMax().y, SHAPE_OUTER.getMax().z);
 
         // SHAPE_STRAIGHT = Shapes.or(SHAPE_OUTER, Shapes.rotate(SHAPE_OUTER, BLOCK_ROT_Y_90));
         SHAPE_STRAIGHT = BlockShape::unionShapes(
             SHAPE_OUTER,
             SHAPE_OUTER.rotate(OctahedralGroup::BLOCK_ROT_Y_90)
         );
+        spdlog::info("  SHAPE_STRAIGHT: isEmpty={}, bounds=({},{},{}) to ({},{},{})",
+                     SHAPE_STRAIGHT.isEmpty(), SHAPE_STRAIGHT.getMin().x, SHAPE_STRAIGHT.getMin().y, SHAPE_STRAIGHT.getMin().z,
+                     SHAPE_STRAIGHT.getMax().x, SHAPE_STRAIGHT.getMax().y, SHAPE_STRAIGHT.getMax().z);
 
         // SHAPE_INNER = Shapes.or(SHAPE_STRAIGHT, Shapes.rotate(SHAPE_STRAIGHT, BLOCK_ROT_Y_90));
         SHAPE_INNER = BlockShape::unionShapes(
             SHAPE_STRAIGHT,
             SHAPE_STRAIGHT.rotate(OctahedralGroup::BLOCK_ROT_Y_90)
         );
+        spdlog::info("  SHAPE_INNER: isEmpty={}, bounds=({},{},{}) to ({},{},{})",
+                     SHAPE_INNER.isEmpty(), SHAPE_INNER.getMin().x, SHAPE_INNER.getMin().y, SHAPE_INNER.getMin().z,
+                     SHAPE_INNER.getMax().x, SHAPE_INNER.getMax().y, SHAPE_INNER.getMax().z);
 
         // Create rotated versions for each horizontal direction
         // SHAPE_BOTTOM_OUTER = Shapes.rotateHorizontal(SHAPE_OUTER);
@@ -196,6 +230,7 @@ private:
         SHAPE_TOP_STRAIGHT = rotateHorizontal(SHAPE_STRAIGHT.rotate(OctahedralGroup::INVERT_Y));
         SHAPE_TOP_INNER = rotateHorizontal(SHAPE_INNER.rotate(OctahedralGroup::INVERT_Y));
 
+        spdlog::info("StairBlock: Shape initialization complete");
         shapesInitialized = true;
     }
 
