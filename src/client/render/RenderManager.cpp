@@ -363,7 +363,7 @@ void RenderManager::createPipelines(TextureManager& textureManager) {
     blurPipelineConfig.vertexShader = blurVertShader.get();
     blurPipelineConfig.fragmentShader = blurFragShader.get();
     blurPipelineConfig.colorFormat = swapchain->getImageFormat();
-    blurPipelineConfig.depthFormat = VK_FORMAT_UNDEFINED;
+    blurPipelineConfig.depthFormat = depthBuffer->getFormat();  // Must match render pass depth format
     blurPipelineConfig.depthTest = false;
     blurPipelineConfig.depthWrite = false;
     blurPipelineConfig.cullMode = VK_CULL_MODE_NONE;
@@ -383,7 +383,7 @@ void RenderManager::createPipelines(TextureManager& textureManager) {
     crosshairPipelineConfig.vertexShader = crosshairVertShader.get();
     crosshairPipelineConfig.fragmentShader = crosshairFragShader.get();
     crosshairPipelineConfig.colorFormat = swapchain->getImageFormat();
-    crosshairPipelineConfig.depthFormat = VK_FORMAT_UNDEFINED;  // No depth test
+    crosshairPipelineConfig.depthFormat = depthBuffer->getFormat();  // Must match render pass depth format
     crosshairPipelineConfig.depthTest = false;
     crosshairPipelineConfig.depthWrite = false;
     crosshairPipelineConfig.cullMode = VK_CULL_MODE_NONE;
