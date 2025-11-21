@@ -28,6 +28,10 @@ bool InteractionManager::breakBlock(const BlockHitResult& hitResult) {
     chunk->setBlockState(localPos.x, localPos.y, localPos.z, BlockRegistry::AIR->getDefaultState());
     chunkManager_.queueChunkRemesh(chunkPos);
 
+    // Notify neighboring blocks that this block was removed (Minecraft's neighbor update system)
+    // This triggers stairs to update their shapes when adjacent stairs are broken
+    chunkManager_.notifyNeighbors(hitResult.blockPos, BlockRegistry::AIR->getDefaultState());
+
     // Play break sound
     audioManager_.playSoundEvent(soundGroup.getBreakSound(), soundGroup.getVolume(), soundGroup.getPitch());
 
@@ -71,6 +75,10 @@ bool InteractionManager::placeBlock(const BlockHitResult& hitResult, Block* bloc
     // Place the block
     chunk->setBlockState(localPos.x, localPos.y, localPos.z, placedState);
     chunkManager_.queueChunkRemesh(chunkPos);
+
+    // Notify neighboring blocks that a new block was placed (Minecraft's neighbor update system)
+    // This triggers stairs to update their shapes when new stairs are placed adjacent to them
+    chunkManager_.notifyNeighbors(placePos, placedState);
 
     // Play place sound
     const BlockSoundGroup& soundGroup = BlockRegistry::getSoundGroup(placedState);

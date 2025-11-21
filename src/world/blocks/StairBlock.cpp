@@ -95,4 +95,36 @@ StairShape StairBlock::getStairsShape(BlockState state, const BlockGetter& level
     return StairShape::STRAIGHT;
 }
 
+// Update stair shape when neighbor changes (Minecraft StairBlock.java line 119-125)
+BlockState StairBlock::updateShape(
+    BlockState currentState,
+    BlockGetter& level,
+    const glm::ivec3& pos,
+    const glm::ivec3& directionToNeighbour,
+    const glm::ivec3& neighbourPos,
+    BlockState neighbourState
+) const {
+    // Minecraft StairBlock.java line 124:
+    // return directionToNeighbour.getAxis().isHorizontal()
+    //     ? state.setValue(SHAPE, getStairsShape(state, level, pos))
+    //     : super.updateShape(...);
+
+    // Only update if horizontal neighbor changed (stairs only care about N/S/E/W)
+    Direction::Axis axis = Direction::getAxis(directionToNeighbour);
+    if (!Direction::isHorizontal(axis)) {
+        return currentState;  // Vertical neighbor, no update needed
+    }
+
+    // Recalculate shape based on new neighbor configuration
+    StairShape newShape = getStairsShape(currentState, level, pos);
+
+    // Decode current properties
+    StairBlock* stairBlock = static_cast<StairBlock*>(BlockRegistry::getBlock(currentState));
+    StairFacing facing = stairBlock->getFacing(currentState);
+    BlockHalf half = stairBlock->getHalf(currentState);
+
+    // Return new state with updated shape
+    return stairBlock->withFacingHalfAndShape(facing, half, newShape);
+}
+
 } // namespace FarHorizon

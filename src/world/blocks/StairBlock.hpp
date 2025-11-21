@@ -73,6 +73,16 @@ public:
     // Get stair shape based on neighbors (Minecraft StairBlock.java line 127-154)
     static StairShape getStairsShape(BlockState state, const BlockGetter& level, const glm::ivec3& pos);
 
+    // Update stair shape when neighbor changes (Minecraft StairBlock.java line 119-125)
+    BlockState updateShape(
+        BlockState currentState,
+        BlockGetter& level,
+        const glm::ivec3& pos,
+        const glm::ivec3& directionToNeighbour,
+        const glm::ivec3& neighbourPos,
+        BlockState neighbourState
+    ) const override;
+
     // Override outline shape for stairs
     // Based on Minecraft's StairBlock.java getShape() method (lines 67-105)
     BlockShape getOutlineShape(BlockState state) const override {

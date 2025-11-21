@@ -95,6 +95,10 @@ public:
     // Queue neighbor chunks for remeshing (e.g., when blocks change at chunk boundaries)
     void queueNeighborRemesh(const ChunkPosition& pos);
 
+    // Notify all neighboring blocks that a block has changed (Minecraft's neighbor update system)
+    // Used for stairs, doors, redstone, etc. to update their state when neighbors change
+    void notifyNeighbors(const glm::ivec3& worldPos, BlockState newState);
+
     // Get the global QuadInfo buffer (shared across all chunks)
     const std::vector<QuadInfo>& getQuadInfos() const { return quadLibrary_.getQuads(); }
 

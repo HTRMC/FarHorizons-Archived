@@ -16,6 +16,20 @@ public:
         Z
     };
 
+    // Check if axis is horizontal (X or Z, not Y)
+    // From Minecraft's Direction.Axis.isHorizontal()
+    static bool isHorizontal(Axis axis) {
+        return axis == Axis::X || axis == Axis::Z;
+    }
+
+    // Get axis from a direction vector
+    static Axis getAxis(const glm::ivec3& direction) {
+        if (direction.x != 0) return Axis::X;
+        if (direction.y != 0) return Axis::Y;
+        if (direction.z != 0) return Axis::Z;
+        return Axis::Y;  // Default for zero vector
+    }
+
     // Utility to choose a value based on axis
     template<typename T>
     static T choose(Axis axis, T x, T y, T z) {

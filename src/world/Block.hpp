@@ -6,6 +6,7 @@
 #include "FaceDirection.hpp"
 #include <string>
 #include <cstdint>
+#include <glm/glm.hpp>
 
 namespace FarHorizon {
 
@@ -86,6 +87,31 @@ public:
     // By default, uses outline shape if solid, or empty if not solid
     virtual BlockShape getCollisionShape(BlockState state) const {
         return isSolid() ? getOutlineShape(state) : BlockShape::empty();
+    }
+
+    // Update block state when a neighboring block changes
+    // Based on Minecraft's AbstractBlock.updateShape() (StairBlock.java line 119-125)
+    // Called by the world when a neighbor block is placed/broken
+    //
+    // currentState: The block state we're updating
+    // level: BlockGetter interface for querying neighboring blocks
+    // pos: World position of this block
+    // directionToNeighbour: Direction vector to the neighbor that changed (e.g., {1,0,0} for east)
+    // neighbourPos: World position of the neighbor that changed
+    // neighbourState: New state of the neighbor
+    //
+    // Returns: Updated block state (or same state if no update needed)
+    //
+    // Default implementation: no updates (most blocks don't react to neighbors)
+    virtual BlockState updateShape(
+        BlockState currentState,
+        class BlockGetter& level,
+        const glm::ivec3& pos,
+        const glm::ivec3& directionToNeighbour,
+        const glm::ivec3& neighbourPos,
+        BlockState neighbourState
+    ) const {
+        return currentState;  // Default: no change
     }
 
     // Check if a face should be invisible when adjacent to another block

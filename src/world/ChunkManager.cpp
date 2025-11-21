@@ -785,4 +785,77 @@ BlockState ChunkManager::getBlockState(const glm::ivec3& worldPos) const {
     return chunk->getBlockState(localPos.x, localPos.y, localPos.z);
 }
 
+// Notify all neighboring blocks that a block has changed (Minecraft's neighbor update system)
+void ChunkManager::notifyNeighbors(const glm::ivec3& worldPos, BlockState newState) {
+    // Check all 6 directions (or just 4 horizontal for optimization)
+    // For now, check all 6 to be thorough (stairs use horizontal, but other blocks might use vertical)
+    const glm::ivec3 directions[] = {
+        {1, 0, 0},   // East
+        {-1, 0, 0},  // West
+        {0, 0, 1},   // South
+        {0, 0, -1},  // North
+        {0, 1, 0},   // Up
+        {0, -1, 0}   // Down
+    };
+
+    std::vector<ChunkPosition> chunksToRemesh;
+
+    for (const auto& dir : directions) {
+        glm::ivec3 neighborPos = worldPos + dir;
+        BlockState neighborState = getBlockState(neighborPos);
+
+        // Skip air blocks (no updates needed)
+        if (neighborState.id == BlockRegistry::AIR->getDefaultState().id) {
+            continue;
+        }
+
+        Block* neighborBlock = BlockRegistry::getBlock(neighborState);
+
+        // Call updateShape on the neighbor
+        BlockState updatedState = neighborBlock->updateShape(
+            neighborState,
+            *this,  // ChunkManager implements BlockGetter
+            neighborPos,
+            -dir,   // Direction from neighbor's perspective (reversed)
+            worldPos,
+            newState
+        );
+
+        // If shape changed, update the block
+        if (updatedState.id != neighborState.id) {
+            ChunkPosition chunkPos = worldToChunkPos(glm::vec3(neighborPos));
+
+            std::lock_guard<std::mutex> lock(chunksMutex_);
+            auto it = chunks_.find(chunkPos);
+            if (it != chunks_.end()) {
+                Chunk* chunk = it->second.get();
+
+                glm::ivec3 localPos = neighborPos - glm::ivec3(
+                    chunkPos.x * CHUNK_SIZE,
+                    chunkPos.y * CHUNK_SIZE,
+                    chunkPos.z * CHUNK_SIZE
+                );
+
+                // Bounds check
+                if (localPos.x >= 0 && localPos.x < CHUNK_SIZE &&
+                    localPos.y >= 0 && localPos.y < CHUNK_SIZE &&
+                    localPos.z >= 0 && localPos.z < CHUNK_SIZE) {
+
+                    chunk->setBlockState(localPos.x, localPos.y, localPos.z, updatedState);
+
+                    // Track which chunks need remeshing
+                    if (std::find(chunksToRemesh.begin(), chunksToRemesh.end(), chunkPos) == chunksToRemesh.end()) {
+                        chunksToRemesh.push_back(chunkPos);
+                    }
+                }
+            }
+        }
+    }
+
+    // Queue all modified chunks for remeshing
+    for (const auto& chunkPos : chunksToRemesh) {
+        queueChunkRemesh(chunkPos);
+    }
+}
+
 } // namespace FarHorizon
