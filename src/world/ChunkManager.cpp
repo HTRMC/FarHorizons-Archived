@@ -443,14 +443,23 @@ CompactChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk) const {
                         bool shouldRender = true;
 
                         if (face.cullface.has_value()) {
+                            // Apply rotation to cullface direction (same as face direction)
+                            FaceDirection rotatedCullface = face.cullface.value();
+                            if (rotationY != 0) {
+                                rotatedCullface = rotateYFace(rotatedCullface, rotationY);
+                            }
+                            if (rotationX != 0) {
+                                rotatedCullface = rotateXFace(rotatedCullface, rotationX);
+                            }
+
                             // Only cull if this element actually reaches the block boundary
-                            if (FaceUtils::faceReachesBoundary(face.cullface.value(), elemFrom, elemTo)) {
+                            if (FaceUtils::faceReachesBoundary(rotatedCullface, elemFrom, elemTo)) {
                                 // ================================================================
                                 // MINECRAFT-STYLE FACE CULLING SYSTEM
                                 // ================================================================
 
-                                // Get neighbor position
-                                int faceIndex = FaceUtils::toIndex(face.cullface.value());
+                                // Get neighbor position using ROTATED cullface direction
+                                int faceIndex = FaceUtils::toIndex(rotatedCullface);
                                 int nx = bx + FaceUtils::FACE_DIRS[faceIndex][0];
                                 int ny = by + FaceUtils::FACE_DIRS[faceIndex][1];
                                 int nz = bz + FaceUtils::FACE_DIRS[faceIndex][2];
@@ -471,10 +480,11 @@ CompactChunkMesh ChunkManager::generateChunkMesh(const Chunk* chunk) const {
                                 const BlockShape& neighborShape = cullingSystem_.getBlockShape(neighborState, neighborModel);
 
                                 // Use Minecraft's shouldDrawSide() logic with fast paths
+                                // Pass ROTATED cullface direction
                                 bool shouldDrawThisFace = cullingSystem_.shouldDrawFace(
                                     state,
                                     neighborState,
-                                    face.cullface.value(),
+                                    rotatedCullface,
                                     currentShape,
                                     neighborShape
                                 );

@@ -252,13 +252,13 @@ private:
         // North (facing=0) - no rotation
         result[StairFacing::NORTH] = baseShape;
 
-        // East (facing=1) - 90° CW rotation
+        // East (facing=3) - 90° CW rotation
         result[StairFacing::EAST] = baseShape.rotate(OctahedralGroup::BLOCK_ROT_Y_90);
 
-        // South (facing=2) - 180° rotation
+        // South (facing=1) - 180° rotation
         result[StairFacing::SOUTH] = baseShape.rotate(OctahedralGroup::BLOCK_ROT_Y_180);
 
-        // West (facing=3) - 270° CW rotation
+        // West (facing=2) - 270° CW rotation
         result[StairFacing::WEST] = baseShape.rotate(OctahedralGroup::BLOCK_ROT_Y_270);
 
         return result;
