@@ -56,6 +56,11 @@ public:
     using EdgeConsumer = std::function<void(double, double, double, double, double, double)>;
     void forAllEdges(const EdgeConsumer& consumer) const;
 
+    // Iterate over all filled voxel boxes (for raycasting)
+    // Callback receives: (minX, minY, minZ, maxX, maxY, maxZ) in block-local space [0,1]
+    using BoxConsumer = std::function<void(double, double, double, double, double, double)>;
+    void forAllBoxes(const BoxConsumer& consumer) const;
+
 private:
     std::shared_ptr<VoxelSet> voxels_;
 

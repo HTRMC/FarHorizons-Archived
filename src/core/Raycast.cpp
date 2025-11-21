@@ -2,8 +2,81 @@
 #include "../world/ChunkManager.hpp"
 #include "../world/BlockRegistry.hpp"
 #include <cmath>
+#include <limits>
 
 namespace FarHorizon {
+
+// Ray-AABB intersection using the slab method (Minecraft's AABB.clip implementation)
+// Based on AABB.java getDirection() method
+std::optional<float> Raycast::rayAABBIntersect(
+    const glm::vec3& rayOrigin,
+    const glm::vec3& rayDir,
+    const glm::vec3& boxMin,
+    const glm::vec3& boxMax,
+    glm::ivec3& outNormal
+) {
+    const float EPSILON = 1.0e-7f;
+
+    float tMin = 0.0f;
+    float tMax = std::numeric_limits<float>::max();
+    glm::ivec3 normalMin(0);
+    glm::ivec3 normalMax(0);
+
+    // Test each axis (X, Y, Z)
+    for (int axis = 0; axis < 3; axis++) {
+        float origin = rayOrigin[axis];
+        float dir = rayDir[axis];
+        float min = boxMin[axis];
+        float max = boxMax[axis];
+
+        if (std::abs(dir) < EPSILON) {
+            // Ray is parallel to this axis
+            if (origin < min || origin > max) {
+                return std::nullopt;  // Ray misses the box
+            }
+        } else {
+            // Calculate intersection distances
+            float t1 = (min - origin) / dir;
+            float t2 = (max - origin) / dir;
+
+            // Ensure t1 < t2
+            if (t1 > t2) {
+                std::swap(t1, t2);
+            }
+
+            // Update tMin with the face normal
+            if (t1 > tMin) {
+                tMin = t1;
+                normalMin = glm::ivec3(0);
+                normalMin[axis] = (dir > 0.0f) ? -1 : 1;
+            }
+
+            // Update tMax
+            if (t2 < tMax) {
+                tMax = t2;
+                normalMax = glm::ivec3(0);
+                normalMax[axis] = (dir > 0.0f) ? 1 : -1;
+            }
+
+            // Check for miss
+            if (tMin > tMax) {
+                return std::nullopt;
+            }
+        }
+    }
+
+    // Ray hits the box
+    if (tMin >= 0.0f) {
+        outNormal = normalMin;
+        return tMin;
+    } else if (tMax >= 0.0f) {
+        // Ray starts inside the box
+        outNormal = normalMax;
+        return tMax;
+    }
+
+    return std::nullopt;  // Box is behind ray
+}
 
 std::optional<BlockHitResult> Raycast::castRay(
     const ChunkManager& chunkManager,
@@ -11,7 +84,7 @@ std::optional<BlockHitResult> Raycast::castRay(
     const glm::vec3& direction,
     float maxDistance
 ) {
-    // DDA algorithm (3D grid traversal)
+    // DDA algorithm (3D grid traversal) combined with shape-aware raycasting
     glm::vec3 rayDir = glm::normalize(direction);
 
     // Current block position
@@ -62,7 +135,10 @@ std::optional<BlockHitResult> Raycast::castRay(
     }
 
     float currentDistance = 0.0f;
-    glm::ivec3 normal(0, 0, 0);
+
+    // Track closest hit across all traversed blocks
+    std::optional<BlockHitResult> closestHit;
+    float closestT = maxDistance;
 
     while (currentDistance < maxDistance) {
         // Get chunk and local position
@@ -85,18 +161,41 @@ std::optional<BlockHitResult> Raycast::castRay(
                 BlockState state = chunk->getBlockState(localPos.x, localPos.y, localPos.z);
                 const Block* block = BlockRegistry::getBlock(state);
 
-                // Check if block is solid (not air)
+                // Check if block is solid (not air) and visible
                 if (block && block->isSolid() && block->getRenderType(state) != BlockRenderType::INVISIBLE) {
-                    // Calculate exact hit position
-                    glm::vec3 hitPos = origin + rayDir * currentDistance;
+                    // Get the block's outline shape (Minecraft's getOutlineShape)
+                    BlockShape shape = block->getOutlineShape(state);
 
-                    return BlockHitResult{
-                        blockPos,
-                        hitPos,
-                        normal,
-                        currentDistance,
-                        state
-                    };
+                    if (!shape.isEmpty()) {
+                        // Minecraft's VoxelShape.clip: test ray against ALL AABBs in the shape
+                        // This correctly handles stairs, slabs, and other partial blocks
+
+                        // Test each voxel box in the shape (Minecraft's AABB.clip(Iterable<AABB>))
+                        shape.forAllBoxes([&](double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
+                            // Convert from block-local [0,1] to world space
+                            glm::vec3 worldMin = glm::vec3(blockPos) + glm::vec3(minX, minY, minZ);
+                            glm::vec3 worldMax = glm::vec3(blockPos) + glm::vec3(maxX, maxY, maxZ);
+
+                            // Test ray-AABB intersection
+                            glm::ivec3 hitNormal;
+                            std::optional<float> hitT = rayAABBIntersect(origin, rayDir, worldMin, worldMax, hitNormal);
+
+                            if (hitT.has_value() && hitT.value() < closestT) {
+                                // Found a closer hit
+                                float t = hitT.value();
+                                glm::vec3 hitPos = origin + rayDir * t;
+
+                                closestHit = BlockHitResult{
+                                    blockPos,
+                                    hitPos,
+                                    hitNormal,
+                                    t,
+                                    state
+                                };
+                                closestT = t;
+                            }
+                        });
+                    }
                 }
             }
         }
@@ -107,29 +206,30 @@ std::optional<BlockHitResult> Raycast::castRay(
                 currentDistance = tMax.x;
                 tMax.x += tDelta.x;
                 blockPos.x += step.x;
-                normal = glm::ivec3(-step.x, 0, 0);
             } else {
                 currentDistance = tMax.z;
                 tMax.z += tDelta.z;
                 blockPos.z += step.z;
-                normal = glm::ivec3(0, 0, -step.z);
             }
         } else {
             if (tMax.y < tMax.z) {
                 currentDistance = tMax.y;
                 tMax.y += tDelta.y;
                 blockPos.y += step.y;
-                normal = glm::ivec3(0, -step.y, 0);
             } else {
                 currentDistance = tMax.z;
                 tMax.z += tDelta.z;
                 blockPos.z += step.z;
-                normal = glm::ivec3(0, 0, -step.z);
             }
+        }
+
+        // Early exit if we found a hit before reaching the next block
+        if (closestHit.has_value() && closestT < currentDistance) {
+            break;
         }
     }
 
-    return std::nullopt;
+    return closestHit;
 }
 
 } // namespace FarHorizon

@@ -510,4 +510,45 @@ void BlockShape::forAllEdges(const EdgeConsumer& consumer) const {
     }, true);  // mergeNeighbors = true
 }
 
+// Iterate over all filled voxel boxes (for raycasting)
+// Similar to Minecraft's VoxelShape.toAabbs() approach
+void BlockShape::forAllBoxes(const BoxConsumer& consumer) const {
+    if (isEmpty()) {
+        return;
+    }
+
+    // Fast path for full cubes
+    if (isFullCube()) {
+        consumer(0.0, 0.0, 0.0, 1.0, 1.0, 1.0);
+        return;
+    }
+
+    // Iterate through all voxels in the grid
+    int sizeX = voxels_->getXSize();
+    int sizeY = voxels_->getYSize();
+    int sizeZ = voxels_->getZSize();
+
+    double invSizeX = 1.0 / sizeX;
+    double invSizeY = 1.0 / sizeY;
+    double invSizeZ = 1.0 / sizeZ;
+
+    for (int x = 0; x < sizeX; ++x) {
+        for (int y = 0; y < sizeY; ++y) {
+            for (int z = 0; z < sizeZ; ++z) {
+                if (voxels_->contains(x, y, z)) {
+                    // Convert voxel indices to normalized box coordinates [0, 1]
+                    double minX = x * invSizeX;
+                    double minY = y * invSizeY;
+                    double minZ = z * invSizeZ;
+                    double maxX = (x + 1) * invSizeX;
+                    double maxY = (y + 1) * invSizeY;
+                    double maxZ = (z + 1) * invSizeZ;
+
+                    consumer(minX, minY, minZ, maxX, maxY, maxZ);
+                }
+            }
+        }
+    }
+}
+
 } // namespace FarHorizon
