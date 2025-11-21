@@ -235,21 +235,21 @@ private:
     }
 
     // Rotate shape for all 4 horizontal directions
-    // Matches Minecraft's Shapes.rotateHorizontal()
+    // Matches Minecraft's Shapes.rotateHorizontal() (Shapes.java line 340)
     static std::map<StairFacing, BlockShape> rotateHorizontal(const BlockShape& baseShape) {
         std::map<StairFacing, BlockShape> result;
 
         // North (facing=0) - no rotation
         result[StairFacing::NORTH] = baseShape;
 
-        // East (facing=1) - 90° CW = 270° CCW
-        result[StairFacing::EAST] = baseShape.rotate(OctahedralGroup::BLOCK_ROT_Y_270);
+        // East (facing=1) - 90° CW rotation
+        result[StairFacing::EAST] = baseShape.rotate(OctahedralGroup::BLOCK_ROT_Y_90);
 
-        // South (facing=2) - 180°
+        // South (facing=2) - 180° rotation
         result[StairFacing::SOUTH] = baseShape.rotate(OctahedralGroup::BLOCK_ROT_Y_180);
 
-        // West (facing=3) - 270° CW = 90° CCW
-        result[StairFacing::WEST] = baseShape.rotate(OctahedralGroup::BLOCK_ROT_Y_90);
+        // West (facing=3) - 270° CW rotation
+        result[StairFacing::WEST] = baseShape.rotate(OctahedralGroup::BLOCK_ROT_Y_270);
 
         return result;
     }

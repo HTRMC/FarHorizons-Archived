@@ -1,6 +1,7 @@
 #include "BlockShape.hpp"
 #include "voxel/BitSetVoxelSet.hpp"
 #include "voxel/CroppedVoxelSet.hpp"
+#include "voxel/DiscreteVoxelShape.hpp"
 #include "util/Direction.hpp"
 #include "util/OctahedralGroup.hpp"
 #include <algorithm>
@@ -460,25 +461,25 @@ glm::vec3 BlockShape::getMax() const {
 }
 
 void BlockShape::forAllEdges(const EdgeConsumer& consumer) const {
-    // Empty shapes have no edges
+    // Minecraft: VoxelShape.forAllEdges (lines 81-85)
+    // Delegates to DiscreteVoxelShape and converts voxel indices to world coords
+
     if (isEmpty()) {
         return;
     }
 
-    // For full cubes, render the 12 edges of a unit cube
+    // For full cubes, emit 12 edges directly (optimization)
     if (isFullCube()) {
         // Bottom face (Y=0)
         consumer(0, 0, 0,  1, 0, 0);
         consumer(1, 0, 0,  1, 0, 1);
         consumer(1, 0, 1,  0, 0, 1);
         consumer(0, 0, 1,  0, 0, 0);
-
         // Top face (Y=1)
         consumer(0, 1, 0,  1, 1, 0);
         consumer(1, 1, 0,  1, 1, 1);
         consumer(1, 1, 1,  0, 1, 1);
         consumer(0, 1, 1,  0, 1, 0);
-
         // Vertical edges
         consumer(0, 0, 0,  0, 1, 0);
         consumer(1, 0, 0,  1, 1, 0);
@@ -487,102 +488,26 @@ void BlockShape::forAllEdges(const EdgeConsumer& consumer) const {
         return;
     }
 
-    // For partial shapes, iterate through voxels and find edges
-    // Based on Minecraft's DiscreteVoxelShape.forAllEdges
+    // Create DiscreteVoxelShape and delegate edge detection
+    DiscreteVoxelShape discreteShape(voxels_);
+
     int sizeX = voxels_->getXSize();
     int sizeY = voxels_->getYSize();
     int sizeZ = voxels_->getZSize();
 
-    // Helper to check if a voxel is filled
-    auto isFilled = [&](int x, int y, int z) -> bool {
-        if (x < 0 || x >= sizeX || y < 0 || y >= sizeY || z < 0 || z >= sizeZ) {
-            return false;  // Out of bounds = empty
-        }
-        return voxels_->contains(x, y, z);
-    };
-
-    // Helper to convert voxel coords to world coords [0,1]
-    auto toWorld = [&](int x, int y, int z) -> glm::vec3 {
-        return glm::vec3(
-            static_cast<double>(x) / sizeX,
-            static_cast<double>(y) / sizeY,
-            static_cast<double>(z) / sizeZ
+    // Delegate to DiscreteVoxelShape, converting indices to world coords
+    discreteShape.forAllEdges([&](int x1, int y1, int z1, int x2, int y2, int z2) {
+        // Convert voxel grid indices to world coordinates [0,1]
+        // Minecraft: this.get(Direction.Axis.X, var2) etc.
+        consumer(
+            static_cast<double>(x1) / sizeX,
+            static_cast<double>(y1) / sizeY,
+            static_cast<double>(z1) / sizeZ,
+            static_cast<double>(x2) / sizeX,
+            static_cast<double>(y2) / sizeY,
+            static_cast<double>(z2) / sizeZ
         );
-    };
-
-    // Find all edges in X direction (horizontal lines parallel to X axis)
-    for (int y = 0; y <= sizeY; y++) {
-        for (int z = 0; z <= sizeZ; z++) {
-            int start = -1;
-            for (int x = 0; x <= sizeX; x++) {
-                // Check if we're at a boundary (transition from filled to empty or vice versa)
-                bool hasVoxelBefore = isFilled(x - 1, y - 1, z - 1) || isFilled(x - 1, y, z - 1) ||
-                                     isFilled(x - 1, y - 1, z) || isFilled(x - 1, y, z);
-                bool hasVoxelAfter = isFilled(x, y - 1, z - 1) || isFilled(x, y, z - 1) ||
-                                    isFilled(x, y - 1, z) || isFilled(x, y, z);
-
-                if (hasVoxelBefore != hasVoxelAfter) {
-                    if (start == -1) {
-                        start = x;
-                    } else {
-                        // End of edge segment
-                        glm::vec3 p1 = toWorld(start, y, z);
-                        glm::vec3 p2 = toWorld(x, y, z);
-                        consumer(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
-                        start = -1;
-                    }
-                }
-            }
-        }
-    }
-
-    // Find all edges in Y direction (vertical lines parallel to Y axis)
-    for (int x = 0; x <= sizeX; x++) {
-        for (int z = 0; z <= sizeZ; z++) {
-            int start = -1;
-            for (int y = 0; y <= sizeY; y++) {
-                bool hasVoxelBefore = isFilled(x - 1, y - 1, z - 1) || isFilled(x, y - 1, z - 1) ||
-                                     isFilled(x - 1, y - 1, z) || isFilled(x, y - 1, z);
-                bool hasVoxelAfter = isFilled(x - 1, y, z - 1) || isFilled(x, y, z - 1) ||
-                                    isFilled(x - 1, y, z) || isFilled(x, y, z);
-
-                if (hasVoxelBefore != hasVoxelAfter) {
-                    if (start == -1) {
-                        start = y;
-                    } else {
-                        glm::vec3 p1 = toWorld(x, start, z);
-                        glm::vec3 p2 = toWorld(x, y, z);
-                        consumer(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
-                        start = -1;
-                    }
-                }
-            }
-        }
-    }
-
-    // Find all edges in Z direction (horizontal lines parallel to Z axis)
-    for (int x = 0; x <= sizeX; x++) {
-        for (int y = 0; y <= sizeY; y++) {
-            int start = -1;
-            for (int z = 0; z <= sizeZ; z++) {
-                bool hasVoxelBefore = isFilled(x - 1, y - 1, z - 1) || isFilled(x, y - 1, z - 1) ||
-                                     isFilled(x - 1, y, z - 1) || isFilled(x, y, z - 1);
-                bool hasVoxelAfter = isFilled(x - 1, y - 1, z) || isFilled(x, y - 1, z) ||
-                                    isFilled(x - 1, y, z) || isFilled(x, y, z);
-
-                if (hasVoxelBefore != hasVoxelAfter) {
-                    if (start == -1) {
-                        start = z;
-                    } else {
-                        glm::vec3 p1 = toWorld(x, y, start);
-                        glm::vec3 p2 = toWorld(x, y, z);
-                        consumer(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
-                        start = -1;
-                    }
-                }
-            }
-        }
-    }
+    }, true);  // mergeNeighbors = true
 }
 
 } // namespace FarHorizon
