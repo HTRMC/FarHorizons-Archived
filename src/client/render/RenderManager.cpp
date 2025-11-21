@@ -691,7 +691,6 @@ void RenderManager::renderBlockOutline(const BlockHitResult& target, CommandBuff
 
     // Collect all edge vertices using Minecraft's forAllEdges method
     std::vector<glm::vec3> outlineVertices;
-    spdlog::info("Starting forAllEdges for block outline");
     shape.forAllEdges([&](double x1, double y1, double z1, double x2, double y2, double z2) {
         // Convert from shape-local coords [0,1] to world coords
         glm::vec3 p1 = blockPos + glm::vec3(x1, y1, z1) - glm::vec3(OUTLINE_OFFSET);
@@ -701,7 +700,6 @@ void RenderManager::renderBlockOutline(const BlockHitResult& target, CommandBuff
         outlineVertices.push_back(p1);
         outlineVertices.push_back(p2);
     });
-    spdlog::info("forAllEdges completed, generated {} vertices ({} edges)", outlineVertices.size(), outlineVertices.size() / 2);
 
     // If no edges, don't render anything
     if (outlineVertices.empty()) {
