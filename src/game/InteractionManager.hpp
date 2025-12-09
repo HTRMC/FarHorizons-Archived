@@ -49,8 +49,6 @@ private:
         StairBlock* stairBlock,
         const BlockHitResult& hitResult,
         const glm::vec3& cameraForward,
-        Chunk* chunk,
-        const glm::ivec3& localPos,
         const glm::ivec3& worldPos
     );
 
@@ -70,8 +68,6 @@ private:
     StairShape calculateStairShape(
         StairFacing facing,
         BlockHalf half,
-        Chunk* chunk,
-        const glm::ivec3& localPos,
         const glm::ivec3& worldPos
     );
 

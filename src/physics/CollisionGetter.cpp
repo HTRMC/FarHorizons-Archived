@@ -1,6 +1,7 @@
 #include "CollisionGetter.hpp"
 #include "BlockCollisions.hpp"
 #include "Entity.hpp"
+#include <tracy/Tracy.hpp>
 #include <cmath>
 #include <limits>
 
@@ -24,6 +25,7 @@ static int compareBlockPos(const glm::ivec3& a, const glm::ivec3& b) {
 
 // Find the supporting block for an entity (Minecraft: default Optional<BlockPos> findSupportingBlock)
 std::optional<glm::ivec3> CollisionGetter::findSupportingBlock(const Entity* source, const AABB& box) const {
+    ZoneScoped;
     // Minecraft implementation:
     // BlockPos var3 = null;
     // double var4 = Double.MAX_VALUE;

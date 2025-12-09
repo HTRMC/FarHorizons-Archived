@@ -1,4 +1,5 @@
 #include "ChunkBufferManager.hpp"
+#include <tracy/Tracy.hpp>
 #include <spdlog/spdlog.h>
 
 namespace FarHorizon {
@@ -34,10 +35,10 @@ void ChunkBufferManager::init(VmaAllocator allocator, size_t maxFaces, size_t ma
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
     );
 
-    // ChunkData buffer (per-chunk metadata, indexed by gl_BaseInstance)
+    // ChunkGpuMetadata buffer (per-chunk metadata, indexed by gl_BaseInstance)
     chunkDataBuffer_.init(
         allocator,
-        maxDrawCommands * sizeof(ChunkData),
+        maxDrawCommands * sizeof(ChunkGpuMetadata),
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VMA_MEMORY_USAGE_CPU_TO_GPU,
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
@@ -70,6 +71,7 @@ void ChunkBufferManager::clear() {
 }
 
 bool ChunkBufferManager::addMeshes(std::vector<CompactChunkMesh>& meshes, size_t maxPerFrame) {
+    ZoneScoped;
     if (meshes.empty()) return true;
 
     size_t processCount = std::min(meshes.size(), maxPerFrame);
@@ -134,13 +136,13 @@ bool ChunkBufferManager::addMeshes(std::vector<CompactChunkMesh>& meshes, size_t
                mesh.lighting.data(),
                mesh.lighting.size() * sizeof(PackedLighting));
 
-        // Create and store ChunkData (indexed by gl_BaseInstance = drawCommandIndex)
+        // Create and store ChunkGpuMetadata (indexed by gl_BaseInstance = drawCommandIndex)
         // faceOffset == lightingOffset since they're both incremented by the same amount
-        ChunkData chunkMetadata = ChunkData::create(mesh.position, currentFaceOffset_);
+        ChunkGpuMetadata chunkMetadata = ChunkGpuMetadata::create(mesh.position, currentFaceOffset_);
         chunkDataArray_.push_back(chunkMetadata);
-        memcpy(static_cast<uint8_t*>(chunkData) + drawCommandCount_ * sizeof(ChunkData),
+        memcpy(static_cast<uint8_t*>(chunkData) + drawCommandCount_ * sizeof(ChunkGpuMetadata),
                &chunkMetadata,
-               sizeof(ChunkData));
+               sizeof(ChunkGpuMetadata));
 
         // Create draw command (instanced non-indexed: 6 vertices per face)
         VkDrawIndirectCommand cmd{};
@@ -263,13 +265,13 @@ void ChunkBufferManager::fullRebuild() {
                mesh.lighting.data(),
                mesh.lighting.size() * sizeof(PackedLighting));
 
-        // Create and store ChunkData (indexed by gl_BaseInstance = drawCommandIndex)
+        // Create and store ChunkGpuMetadata (indexed by gl_BaseInstance = drawCommandIndex)
         // faceOffset == lightingOffset since they're both incremented by the same amount
-        ChunkData chunkMetadata = ChunkData::create(mesh.position, currentFaceOffset_);
+        ChunkGpuMetadata chunkMetadata = ChunkGpuMetadata::create(mesh.position, currentFaceOffset_);
         chunkDataArray_.push_back(chunkMetadata);
-        memcpy(static_cast<uint8_t*>(chunkData) + drawCommandCount_ * sizeof(ChunkData),
+        memcpy(static_cast<uint8_t*>(chunkData) + drawCommandCount_ * sizeof(ChunkGpuMetadata),
                &chunkMetadata,
-               sizeof(ChunkData));
+               sizeof(ChunkGpuMetadata));
 
         // Create draw command
         VkDrawIndirectCommand cmd{};
@@ -334,11 +336,11 @@ void ChunkBufferManager::rebuildDrawCommands() {
                sizeof(VkDrawIndirectCommand));
 
         // Create chunk metadata pointing to existing face data
-        ChunkData chunkMetadata = ChunkData::create(pos, allocation.faceOffset);
+        ChunkGpuMetadata chunkMetadata = ChunkGpuMetadata::create(pos, allocation.faceOffset);
         chunkDataArray_.push_back(chunkMetadata);
-        memcpy(static_cast<uint8_t*>(chunkData) + drawCommandCount_ * sizeof(ChunkData),
+        memcpy(static_cast<uint8_t*>(chunkData) + drawCommandCount_ * sizeof(ChunkGpuMetadata),
                &chunkMetadata,
-               sizeof(ChunkData));
+               sizeof(ChunkGpuMetadata));
 
         // Update allocation with new draw command index
         allocation.drawCommandIndex = drawCommandCount_;

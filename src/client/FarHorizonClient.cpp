@@ -3,6 +3,7 @@
 #include "render/TextureManager.hpp"
 #include "core/Raycast.hpp"
 #include "world/BlockRegistry.hpp"
+#include <tracy/Tracy.hpp>
 #include <spdlog/spdlog.h>
 
 namespace FarHorizon {
@@ -183,12 +184,15 @@ void FarHorizonClient::run() {
 
         // Render
         render();
+
+        FrameMark;
     }
 
     renderManager->waitIdle();
 }
 
 void FarHorizonClient::tick(float deltaTime) {
+    ZoneScoped;
     // Update game state manager (still uses deltaTime for UI animations)
     bool shouldQuit = gameStateManager->update(deltaTime);
     if (shouldQuit) {
@@ -314,6 +318,7 @@ void FarHorizonClient::tick(float deltaTime) {
 }
 
 void FarHorizonClient::handleInput(float deltaTime) {
+    ZoneScoped;
     if (!gameStateManager->isPlaying()) {
         return;  // Don't handle gameplay input when not playing
     }
@@ -443,6 +448,7 @@ void FarHorizonClient::handleInput(float deltaTime) {
 }
 
 void FarHorizonClient::render() {
+    ZoneScoped;
     // Perform raycast for crosshair target
     std::optional<BlockHitResult> crosshairTarget;
     if (gameStateManager->isPlaying()) {

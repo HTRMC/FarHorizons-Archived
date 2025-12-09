@@ -134,30 +134,8 @@ public:
                 for (int z = minZ; z <= maxZ; ++z) {
                     blocksChecked++;
 
-                    // Get block state at position via chunk
-                    ChunkPosition chunkPos = chunkManager_->worldToChunkPos(glm::vec3(x, y, z));
-                    Chunk* chunk = chunkManager_->getChunk(chunkPos);
-                    if (!chunk) {
-                        if (shouldDebug && blocksChecked <= 5) {
-                            spdlog::warn("  Block ({},{},{}): No chunk at {},{},{}", x, y, z, chunkPos.x, chunkPos.y, chunkPos.z);
-                        }
-                        continue;
-                    }
-
-                    // Convert world coords to chunk-local coords
-                    int localX = x - chunkPos.x * 16;
-                    int localY = y - chunkPos.y * 16;
-                    int localZ = z - chunkPos.z * 16;
-
-                    // Clamp to valid chunk bounds
-                    if (localX < 0 || localX >= 16 || localY < 0 || localY >= 16 || localZ < 0 || localZ >= 16) {
-                        if (shouldDebug && blocksChecked <= 5) {
-                            spdlog::warn("  Block ({},{},{}): Out of chunk bounds ({},{},{})", x, y, z, localX, localY, localZ);
-                        }
-                        continue;
-                    }
-
-                    BlockState blockState = chunk->getBlockState(localX, localY, localZ);
+                    // Get block state at position directly
+                    BlockState blockState = chunkManager_->getBlockState(glm::ivec3(x, y, z));
                     if (blockState.isAir()) continue; // Air block
 
                     // Get collision shape at world coordinates (BlockCollisionSpliterator.java line 88)

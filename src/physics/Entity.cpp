@@ -1,4 +1,5 @@
 #include "Entity.hpp"
+#include <tracy/Tracy.hpp>
 #include <cmath>
 #include <algorithm>
 #include <glm/ext/scalar_constants.hpp>
@@ -94,10 +95,12 @@ void Entity::turn(double xo, double yo) {
 
 // Tick implementations (Entity.java line 477)
 void Entity::tick() {
+    ZoneScoped;
     baseTick();
 }
 
 void Entity::baseTick() {
+    ZoneScoped;
     // Full Minecraft implementation (Entity.java baseTick line ~500):
     computeSpeed();  // Calculate position delta for this tick
 

@@ -51,22 +51,8 @@ public:
         for (int x = minX; x <= maxX; ++x) {
             for (int y = minY; y <= maxY; ++y) {
                 for (int z = minZ; z <= maxZ; ++z) {
-                    // Get block state at position via chunk
-                    ChunkPosition chunkPos = chunkManager_->worldToChunkPos(glm::vec3(x, y, z));
-                    Chunk* chunk = chunkManager_->getChunk(chunkPos);
-                    if (!chunk) continue;
-
-                    // Convert world coords to chunk-local coords
-                    int localX = x - chunkPos.x * 16;
-                    int localY = y - chunkPos.y * 16;
-                    int localZ = z - chunkPos.z * 16;
-
-                    // Clamp to valid chunk bounds
-                    if (localX < 0 || localX >= 16 || localY < 0 || localY >= 16 || localZ < 0 || localZ >= 16) {
-                        continue;
-                    }
-
-                    BlockState blockState = chunk->getBlockState(localX, localY, localZ);
+                    // Get block state at position directly
+                    BlockState blockState = chunkManager_->getBlockState(glm::ivec3(x, y, z));
                     if (blockState.isAir()) continue; // Air block
 
                     // Get collision shape at world coordinates
@@ -111,23 +97,7 @@ public:
 
     // CollisionGetter interface: Get block state at a position
     BlockState getBlockState(const glm::ivec3& pos) const override {
-        ChunkPosition chunkPos = chunkManager_->worldToChunkPos(glm::vec3(pos.x, pos.y, pos.z));
-        Chunk* chunk = chunkManager_->getChunk(chunkPos);
-        if (!chunk) {
-            return BlockState();  // Return air
-        }
-
-        // Convert world coords to chunk-local coords
-        int localX = pos.x - chunkPos.x * 16;
-        int localY = pos.y - chunkPos.y * 16;
-        int localZ = pos.z - chunkPos.z * 16;
-
-        // Clamp to valid chunk bounds
-        if (localX < 0 || localX >= 16 || localY < 0 || localY >= 16 || localZ < 0 || localZ >= 16) {
-            return BlockState();  // Return air
-        }
-
-        return chunk->getBlockState(localX, localY, localZ);
+        return chunkManager_->getBlockState(pos);
     }
 
     // Get chunk for collision queries (CollisionGetter: getChunkForCollisions)

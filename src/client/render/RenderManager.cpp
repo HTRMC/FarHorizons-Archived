@@ -12,6 +12,7 @@
 #include "ui/MainMenu.hpp"
 #include "ui/OptionsMenu.hpp"
 #include "ui/Panel.hpp"
+#include <tracy/Tracy.hpp>
 #include <spdlog/spdlog.h>
 
 namespace FarHorizon {
@@ -522,6 +523,7 @@ void RenderManager::render(Camera& camera, ChunkManager& chunkManager,
                           TextureManager& textureManager,
                           const std::optional<BlockHitResult>& crosshairTarget,
                           int fps) {
+    ZoneScoped;
     // Update QuadInfo buffer if needed
     if (quadInfoNeedsUpdate) {
         const auto& quadInfos = chunkManager.getQuadInfos();
@@ -636,6 +638,7 @@ void RenderManager::renderScene(Camera& camera, ChunkManager& chunkManager,
                                 GameStateManager& gameStateManager,
                                 const std::optional<BlockHitResult>& crosshairTarget,
                                 TextureManager& textureManager, CommandBuffer& cmd, const VkViewport& viewport) {
+    ZoneScoped;
     cmd.bindPipeline(mainPipeline->getPipeline());
 
     VkDescriptorSet textureDescSet = textureManager.getDescriptorSet();
@@ -719,6 +722,7 @@ void RenderManager::renderBlockOutline(const BlockHitResult& target, CommandBuff
 void RenderManager::renderUI(GameStateManager& gameStateManager, Settings& settings,
                             Camera& camera, bool needsBlur, GameStateManager::State currentState,
                             TextureManager& textureManager, CommandBuffer& cmd, int fps) {
+    ZoneScoped;
     if (!textureManager.hasFont("default")) {
         return;
     }

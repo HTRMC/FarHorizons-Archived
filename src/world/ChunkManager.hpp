@@ -1,12 +1,13 @@
 #pragma once
 
 #include "Chunk.hpp"
+#include "ChunkData.hpp"
+#include "ChunkStorage.hpp"
 #include "BlockModel.hpp"
 #include "FaceCullingSystem.hpp"
 #include "ChunkGpuData.hpp"
 #include "physics/BlockGetter.hpp"
 #include <glm/glm.hpp>
-#include <unordered_map>
 #include <memory>
 #include <vector>
 #include <thread>
@@ -14,6 +15,7 @@
 #include <queue>
 #include <atomic>
 #include <condition_variable>
+#include <unordered_set>
 
 namespace FarHorizon {
 
@@ -53,17 +55,38 @@ private:
     std::unordered_map<QuadKey, uint32_t, QuadKeyHash> quadMap_;
 };
 
+/**
+ * Work item for mesh generation queue.
+ */
+struct MeshWorkItem {
+    ChunkPosition position;
+    bool isNewChunk;  // True if chunk was just generated (needs neighbor remesh)
+};
+
+/**
+ * High-performance chunk manager with lock-free parallel meshing.
+ *
+ * Architecture:
+ * - ChunkStorage: Sharded concurrent storage (64 shards, shared_mutex each)
+ * - Mesh workers: Grab shared_ptr snapshots, release ALL locks, mesh in parallel
+ * - Zero synchronization during mesh generation (the expensive part)
+ *
+ * Thread safety:
+ * - All public methods are thread-safe
+ * - Mesh generation runs fully parallel across all cores
+ * - Edits use copy-on-write (immutable ChunkData)
+ */
 class ChunkManager : public BlockGetter {
 public:
     ChunkManager();
     ~ChunkManager();
 
     void initializeBlockModels();
-    void preloadBlockStateModels();  // Preload all blockstate models into cache
+    void preloadBlockStateModels();
     void registerTexture(const std::string& textureName, uint32_t textureIndex);
     std::vector<std::string> getRequiredTextures() const;
-    void cacheTextureIndices();  // Cache texture indices in models (call after texture registration)
-    void precacheBlockShapes();  // Pre-compute all BlockShapes (call after models are loaded)
+    void cacheTextureIndices();
+    void precacheBlockShapes();
 
     void setRenderDistance(int32_t distance);
     int32_t getRenderDistance() const { return renderDistance_; }
@@ -73,61 +96,74 @@ public:
 
     ChunkPosition worldToChunkPos(const glm::vec3& worldPos) const;
 
-    Chunk* getChunk(const ChunkPosition& pos);
-    const Chunk* getChunk(const ChunkPosition& pos) const;
+    // Chunk access - returns shared_ptr for safe concurrent access
+    ChunkDataPtr getChunkData(const ChunkPosition& pos) const;
     bool hasChunk(const ChunkPosition& pos) const;
-
-    const std::unordered_map<ChunkPosition, std::unique_ptr<Chunk>, ChunkPositionHash>& getChunks() const {
-        return chunks_;
-    }
 
     // BlockGetter interface implementation
     BlockState getBlockState(const glm::ivec3& worldPos) const override;
 
-    CompactChunkMesh generateChunkMesh(const Chunk* chunk) const;
+    // Block modification - uses copy-on-write
+    void setBlockState(const glm::ivec3& worldPos, BlockState state);
+
+    // Mesh generation (called by workers, fully parallel)
+    CompactChunkMesh generateChunkMesh(ChunkDataPtr chunk,
+                                        const std::array<ChunkDataPtr, 7>& neighbors) const;
 
     bool hasReadyMeshes() const;
     std::vector<CompactChunkMesh> getReadyMeshes();
 
-    // Queue a chunk for remeshing (e.g., when blocks change)
+    // Queue a chunk for remeshing
     void queueChunkRemesh(const ChunkPosition& pos);
-
-    // Queue neighbor chunks for remeshing (e.g., when blocks change at chunk boundaries)
     void queueNeighborRemesh(const ChunkPosition& pos);
 
-    // Notify all neighboring blocks that a block has changed (Minecraft's neighbor update system)
-    // Used for stairs, doors, redstone, etc. to update their state when neighbors change
+    // Neighbor update system (for stairs, redstone, etc.)
     void notifyNeighbors(const glm::ivec3& worldPos, BlockState newState);
 
     // Get the global QuadInfo buffer (shared across all chunks)
     const std::vector<QuadInfo>& getQuadInfos() const { return quadLibrary_.getQuads(); }
 
+    // Storage access for external iteration
+    const ChunkStorage& getStorage() const { return storage_; }
+
 private:
-    std::unordered_map<ChunkPosition, std::unique_ptr<Chunk>, ChunkPositionHash> chunks_;
+    // Lock-free chunk storage (64 shards)
+    ChunkStorage storage_;
+
     int32_t renderDistance_ = 8;
-    ChunkPosition lastCameraChunkPos_ = {INT32_MAX, INT32_MAX, INT32_MAX};
-    bool renderDistanceChanged_ = false;
+    ChunkPosition lastCameraChunkPos_{INT32_MAX, INT32_MAX, INT32_MAX};
+    mutable std::mutex cameraPosMutex_;
+    std::atomic<bool> renderDistanceChanged_{false};
 
     mutable BlockModelManager modelManager_;
-    mutable FaceCullingSystem cullingSystem_;  // Face culling system
-    mutable QuadInfoLibrary quadLibrary_;  // Shared quad geometry library
+    mutable FaceCullingSystem cullingSystem_;
+    mutable QuadInfoLibrary quadLibrary_;
 
+    // Worker threads
     std::vector<std::thread> workerThreads_;
-    std::queue<ChunkPosition> meshQueue_;
-    std::queue<CompactChunkMesh> readyMeshes_;
-    mutable std::mutex chunksMutex_;
-    std::mutex queueMutex_;
-    mutable std::mutex readyMutex_;
-    std::condition_variable queueCV_;
     std::atomic<bool> running_{true};
+
+    // Work queue (protected by mutex, but workers release lock before heavy work)
+    std::queue<MeshWorkItem> workQueue_;
+    std::mutex workQueueMutex_;
+    std::condition_variable workQueueCV_;
+
+    // Ready meshes queue
+    std::queue<CompactChunkMesh> readyMeshes_;
+    mutable std::mutex readyMutex_;
+
+    // Dirty tracking (which chunks need remeshing)
+    std::unordered_set<ChunkPosition, ChunkPositionHash> dirtyChunks_;
+    mutable std::mutex dirtyMutex_;
 
     void loadChunksAroundPosition(const ChunkPosition& centerPos);
     void unloadDistantChunks(const ChunkPosition& centerPos);
-    Chunk* loadChunk(const ChunkPosition& pos);
-    void meshWorker();
+    void meshWorker(unsigned int threadId);
 
-    // Helper: Check if all required neighbors are loaded for meshing
     bool areNeighborsLoadedForMeshing(const ChunkPosition& pos) const;
+    void markDirty(const ChunkPosition& pos);
+    bool isDirty(const ChunkPosition& pos) const;
+    void clearDirty(const ChunkPosition& pos);
 };
 
 } // namespace FarHorizon

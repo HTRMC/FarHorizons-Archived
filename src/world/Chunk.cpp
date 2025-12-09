@@ -2,6 +2,7 @@
 #include "BlockRegistry.hpp"
 #include "blocks/SlabBlock.hpp"
 #include <FastNoise/FastNoise.h>
+#include <tracy/Tracy.hpp>
 #include <cstring>
 #include <cmath>
 
@@ -43,6 +44,7 @@ void Chunk::setBlockState(uint32_t x, uint32_t y, uint32_t z, BlockState state) 
 }
 
 void Chunk::generate() {
+    ZoneScoped;
     static auto noise = getTerrainNoise();
 
     glm::vec3 chunkWorldPos(

@@ -141,21 +141,21 @@ struct CompactChunkMesh {
 };
 
 /**
- * Per-chunk data stored in SSBO (indexed by gl_BaseInstance)
+ * Per-chunk GPU metadata stored in SSBO (indexed by gl_BaseInstance)
  * This allows the vertex shader to transform vertices from chunk-local space to world space
  */
-struct alignas(16) ChunkData {
+struct alignas(16) ChunkGpuMetadata {
     alignas(16) glm::ivec3 position;  // Chunk world position in blocks (chunkX * 16, chunkY * 16, chunkZ * 16)
     uint32_t faceOffset;               // Offset into both FaceData AND lighting buffers (same index for both)
 
-    static ChunkData create(const ChunkPosition& chunkPos, uint32_t bufferOffset) {
-        ChunkData data{};
+    static ChunkGpuMetadata create(const ChunkPosition& chunkPos, uint32_t bufferOffset) {
+        ChunkGpuMetadata data{};
         data.position = glm::ivec3(chunkPos.x * CHUNK_SIZE, chunkPos.y * CHUNK_SIZE, chunkPos.z * CHUNK_SIZE);
         data.faceOffset = bufferOffset;
         return data;
     }
 };
 
-static_assert(sizeof(ChunkData) == 16, "ChunkData must be 16 bytes");
+static_assert(sizeof(ChunkGpuMetadata) == 16, "ChunkGpuMetadata must be 16 bytes");
 
 } // namespace FarHorizon

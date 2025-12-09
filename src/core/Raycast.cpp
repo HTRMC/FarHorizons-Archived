@@ -141,61 +141,46 @@ std::optional<BlockHitResult> Raycast::castRay(
     float closestT = maxDistance;
 
     while (currentDistance < maxDistance) {
-        // Get chunk and local position
-        ChunkPosition chunkPos = chunkManager.worldToChunkPos(glm::vec3(blockPos));
-        const Chunk* chunk = chunkManager.getChunk(chunkPos);
+        // Get block state directly (ChunkManager handles chunk lookup)
+        BlockState state = chunkManager.getBlockState(blockPos);
 
-        if (chunk) {
-            // Calculate local block position within chunk
-            glm::ivec3 localPos = blockPos - glm::ivec3(
-                chunkPos.x * CHUNK_SIZE,
-                chunkPos.y * CHUNK_SIZE,
-                chunkPos.z * CHUNK_SIZE
-            );
+        if (!state.isAir()) {
+            const Block* block = BlockRegistry::getBlock(state);
 
-            // Check bounds
-            if (localPos.x >= 0 && localPos.x < CHUNK_SIZE &&
-                localPos.y >= 0 && localPos.y < CHUNK_SIZE &&
-                localPos.z >= 0 && localPos.z < CHUNK_SIZE) {
+            // Check if block is solid and visible
+            if (block && block->isSolid() && block->getRenderType(state) != BlockRenderType::INVISIBLE) {
+                // Get the block's outline shape (Minecraft's getOutlineShape)
+                BlockShape shape = block->getOutlineShape(state);
 
-                BlockState state = chunk->getBlockState(localPos.x, localPos.y, localPos.z);
-                const Block* block = BlockRegistry::getBlock(state);
+                if (!shape.isEmpty()) {
+                    // Minecraft's VoxelShape.clip: test ray against ALL AABBs in the shape
+                    // This correctly handles stairs, slabs, and other partial blocks
 
-                // Check if block is solid (not air) and visible
-                if (block && block->isSolid() && block->getRenderType(state) != BlockRenderType::INVISIBLE) {
-                    // Get the block's outline shape (Minecraft's getOutlineShape)
-                    BlockShape shape = block->getOutlineShape(state);
+                    // Test each voxel box in the shape (Minecraft's AABB.clip(Iterable<AABB>))
+                    shape.forAllBoxes([&](double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
+                        // Convert from block-local [0,1] to world space
+                        glm::vec3 worldMin = glm::vec3(blockPos) + glm::vec3(minX, minY, minZ);
+                        glm::vec3 worldMax = glm::vec3(blockPos) + glm::vec3(maxX, maxY, maxZ);
 
-                    if (!shape.isEmpty()) {
-                        // Minecraft's VoxelShape.clip: test ray against ALL AABBs in the shape
-                        // This correctly handles stairs, slabs, and other partial blocks
+                        // Test ray-AABB intersection
+                        glm::ivec3 hitNormal;
+                        std::optional<float> hitT = rayAABBIntersect(origin, rayDir, worldMin, worldMax, hitNormal);
 
-                        // Test each voxel box in the shape (Minecraft's AABB.clip(Iterable<AABB>))
-                        shape.forAllBoxes([&](double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
-                            // Convert from block-local [0,1] to world space
-                            glm::vec3 worldMin = glm::vec3(blockPos) + glm::vec3(minX, minY, minZ);
-                            glm::vec3 worldMax = glm::vec3(blockPos) + glm::vec3(maxX, maxY, maxZ);
+                        if (hitT.has_value() && hitT.value() < closestT) {
+                            // Found a closer hit
+                            float t = hitT.value();
+                            glm::vec3 hitPos = origin + rayDir * t;
 
-                            // Test ray-AABB intersection
-                            glm::ivec3 hitNormal;
-                            std::optional<float> hitT = rayAABBIntersect(origin, rayDir, worldMin, worldMax, hitNormal);
-
-                            if (hitT.has_value() && hitT.value() < closestT) {
-                                // Found a closer hit
-                                float t = hitT.value();
-                                glm::vec3 hitPos = origin + rayDir * t;
-
-                                closestHit = BlockHitResult{
-                                    blockPos,
-                                    hitPos,
-                                    hitNormal,
-                                    t,
-                                    state
-                                };
-                                closestT = t;
-                            }
-                        });
-                    }
+                            closestHit = BlockHitResult{
+                                blockPos,
+                                hitPos,
+                                hitNormal,
+                                t,
+                                state
+                            };
+                            closestT = t;
+                        }
+                    });
                 }
             }
         }

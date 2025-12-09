@@ -61,7 +61,7 @@ private:
 
     std::unordered_map<ChunkPosition, CompactChunkMesh, ChunkPositionHash> meshCache_;
     std::unordered_map<ChunkPosition, ChunkBufferAllocation, ChunkPositionHash> allocations_;
-    std::vector<ChunkData> chunkDataArray_;  // CPU-side copy of chunk data (indexed by draw command)
+    std::vector<ChunkGpuMetadata> chunkDataArray_;  // CPU-side copy of chunk data (indexed by draw command)
 
     void fullRebuild();
     void rebuildDrawCommands();  // Fast rebuild: only updates draw commands, not face/lighting data
