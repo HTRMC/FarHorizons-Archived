@@ -131,8 +131,10 @@ private:
     ChunkStorage storage_;
 
     int32_t renderDistance_ = 8;
-    ChunkPosition lastCameraChunkPos_{INT32_MAX, INT32_MAX, INT32_MAX};
-    mutable std::mutex cameraPosMutex_;
+    // Use separate atomics for lock-free camera position (int32_t is trivially copyable)
+    std::atomic<int32_t> lastCameraChunkX_{INT32_MAX};
+    std::atomic<int32_t> lastCameraChunkY_{INT32_MAX};
+    std::atomic<int32_t> lastCameraChunkZ_{INT32_MAX};
     std::atomic<bool> renderDistanceChanged_{false};
 
     mutable BlockModelManager modelManager_;

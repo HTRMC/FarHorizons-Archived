@@ -225,20 +225,21 @@ void ChunkManager::update(const glm::vec3& cameraPosition) {
     ZoneScoped;
     ChunkPosition cameraChunkPos = worldToChunkPos(cameraPosition);
 
-    ChunkPosition lastPos;
-    {
-        std::lock_guard<std::mutex> lock(cameraPosMutex_);
-        lastPos = lastCameraChunkPos_;
-    }
+    // Lock-free read of camera position
+    ChunkPosition lastPos{
+        lastCameraChunkX_.load(std::memory_order_relaxed),
+        lastCameraChunkY_.load(std::memory_order_relaxed),
+        lastCameraChunkZ_.load(std::memory_order_relaxed)
+    };
 
-    if (cameraChunkPos != lastPos || renderDistanceChanged_.load()) {
+    if (cameraChunkPos != lastPos || renderDistanceChanged_.load(std::memory_order_relaxed)) {
         loadChunksAroundPosition(cameraChunkPos);
         unloadDistantChunks(cameraChunkPos);
-        {
-            std::lock_guard<std::mutex> lock(cameraPosMutex_);
-            lastCameraChunkPos_ = cameraChunkPos;
-        }
-        renderDistanceChanged_ = false;
+        // Lock-free write of camera position
+        lastCameraChunkX_.store(cameraChunkPos.x, std::memory_order_relaxed);
+        lastCameraChunkY_.store(cameraChunkPos.y, std::memory_order_relaxed);
+        lastCameraChunkZ_.store(cameraChunkPos.z, std::memory_order_relaxed);
+        renderDistanceChanged_.store(false, std::memory_order_relaxed);
     }
 }
 
@@ -314,10 +315,10 @@ void ChunkManager::clearAllChunks() {
         dirtyChunks_.clear();
     }
 
-    {
-        std::lock_guard<std::mutex> lock(cameraPosMutex_);
-        lastCameraChunkPos_ = {INT32_MAX, INT32_MAX, INT32_MAX};
-    }
+    // Reset camera position atomically
+    lastCameraChunkX_.store(INT32_MAX, std::memory_order_relaxed);
+    lastCameraChunkY_.store(INT32_MAX, std::memory_order_relaxed);
+    lastCameraChunkZ_.store(INT32_MAX, std::memory_order_relaxed);
 
     spdlog::info("Cleared all chunks (unloaded {} chunks)", count);
 }
@@ -706,11 +707,12 @@ void ChunkManager::queueNeighborRemesh(const ChunkPosition& pos) {
 }
 
 bool ChunkManager::areNeighborsLoadedForMeshing(const ChunkPosition& pos) const {
-    ChunkPosition cameraChunkPos;
-    {
-        std::lock_guard<std::mutex> lock(cameraPosMutex_);
-        cameraChunkPos = lastCameraChunkPos_;
-    }
+    // Lock-free read of camera position
+    ChunkPosition cameraChunkPos{
+        lastCameraChunkX_.load(std::memory_order_relaxed),
+        lastCameraChunkY_.load(std::memory_order_relaxed),
+        lastCameraChunkZ_.load(std::memory_order_relaxed)
+    };
 
     for (const auto& offset : ChunkPosition::getFaceNeighborOffsets()) {
         ChunkPosition neighborPos = pos.getNeighbor(offset.x, offset.y, offset.z);
